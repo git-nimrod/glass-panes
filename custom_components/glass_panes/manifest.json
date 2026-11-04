@@ -1,0 +1,22 @@
+{
+  "domain": "glass_panes",
+  "name": "Glass Panes",
+  "codeowners": [
+    "@git-nimrod"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "http",
+    "websocket_api",
+    "file_upload",
+    "frontend",
+    "panel_custom"
+  ],
+  "documentation": "https://github.com/git-nimrod/glass-panes",
+  "integration_type": "hub",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/git-nimrod/glass-panes/issues",
+  "requirements": [],
+  "single_config_entry": true,
+  "version": "0.10.6"
+}

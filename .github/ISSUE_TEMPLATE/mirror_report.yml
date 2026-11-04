@@ -1,0 +1,53 @@
+name: Report your mirror
+description: Tell us which Lululemon Studio board and software you tried, and how it went
+labels: [mirror-report]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you. Every report helps us fill in the [list of mirrors that work](https://github.com/git-nimrod/glass-panes/blob/main/docs/compatibility.md#which-mirrors-work). **Please do not post your mirror's serial number, Wi-Fi details, tokens or webhook addresses.**
+  - type: input
+    id: board
+    attributes:
+      label: Board and revision
+      description: The sticker on the main board, near the micro-USB end. For example `MIR63A0-00-P1 RevP21`.
+    validations:
+      required: true
+  - type: input
+    id: stock
+    attributes:
+      label: Stock software version
+      description: The lululemon software version before you changed anything. For example `1.25.0`.
+    validations:
+      required: true
+  - type: textarea
+    id: bootloader
+    attributes:
+      label: What fastboot reported
+      description: The output of `fastboot getvar product`, `fastboot getvar partition-size:system` and `fastboot getvar partition-size:userdata`, if you ran them.
+      render: text
+  - type: dropdown
+    id: reached
+    attributes:
+      label: How far did you get?
+      options:
+        - I haven't flashed anything yet, just checking
+        - fastboot worked, and I flashed the images
+        - Android booted
+        - Wi-Fi worked and adb connected
+        - The Glass Panes app is installed and showing a pane
+        - Everything works, including presence
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: What happened, step by step
+      description: What worked, what didn't, and anything that surprised you. Include the step number from the guide.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Glass Panes and app versions
+      description: For example integration 0.10.6, app 0.10.4. The app's version is in `http://<mirror address>:8099/status`.

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "id": "video",
+  "name": "Looping video",
+  "description": "A full-screen looping video played natively by the display app.",
+  "canvas": {
+    "width": 1080,
+    "height": 1920
+  },
+  "background": "#000000",
+  "brightness": 100,
+  "widgets": [
+    {
+      "id": "loop",
+      "name": "Loop",
+      "type": "video",
+      "x": 0,
+      "y": 0,
+      "w": 1080,
+      "h": 1920,
+      "options": {
+        "sources": []
+      }
+    }
+  ]
+}

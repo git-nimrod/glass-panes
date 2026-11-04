@@ -1,0 +1,552 @@
+{
+  "schema_version": 1,
+  "id": "house",
+  "name": "House",
+  "description": "A snapshot of the whole house: status, now playing, sports, people, lights, internet, car, litter.",
+  "canvas": {
+    "width": 1080,
+    "height": 1920
+  },
+  "background": "#000000",
+  "brightness": 80,
+  "widgets": [
+    {
+      "id": "clock",
+      "name": "Clock",
+      "type": "clock",
+      "x": 65,
+      "y": 54,
+      "w": 700,
+      "h": 124,
+      "style": {
+        "size": 124,
+        "weight": 200
+      },
+      "options": {
+        "hide_meridiem": true
+      }
+    },
+    {
+      "id": "date",
+      "name": "Date",
+      "type": "date",
+      "x": 65,
+      "y": 185,
+      "w": 700,
+      "h": 42,
+      "style": {
+        "size": 32,
+        "color": "dim"
+      }
+    },
+    {
+      "id": "greeting",
+      "name": "Greeting",
+      "type": "message",
+      "x": 65,
+      "y": 232,
+      "w": 700,
+      "h": 44,
+      "style": {
+        "size": 32,
+        "italic": true,
+        "color": "accent"
+      },
+      "options": {
+        "lines": [
+          "Have a good day",
+          "Looking good",
+          "Drink some water",
+          "You're doing great"
+        ]
+      }
+    },
+    {
+      "id": "status",
+      "name": "House status",
+      "type": "status_summary",
+      "x": 65,
+      "y": 284,
+      "w": 800,
+      "h": 124,
+      "auto_height": true,
+      "flow": {
+        "after": "greeting",
+        "gap": 8
+      },
+      "style": {
+        "size": 31,
+        "color": "good"
+      },
+      "options": {
+        "ok_text": "House is all good",
+        "max_items": 3
+      }
+    },
+    {
+      "id": "logo",
+      "name": "Logo",
+      "type": "image",
+      "x": 875,
+      "y": 54,
+      "w": 140,
+      "h": 140,
+      "style": {
+        "opacity": 0.9
+      },
+      "options": {
+        "asset": null,
+        "fit": "contain"
+      }
+    },
+    {
+      "id": "np_label",
+      "type": "text",
+      "x": 65,
+      "y": 440,
+      "w": 500,
+      "h": 33,
+      "flow": {
+        "after": "status",
+        "gap": 36,
+        "show_if": "now_playing"
+      },
+      "style": {
+        "size": 23,
+        "color": "dim",
+        "uppercase": true,
+        "letter_spacing": 7
+      },
+      "options": {
+        "text": "Now playing"
+      }
+    },
+    {
+      "id": "now_playing",
+      "name": "Now playing",
+      "type": "now_playing",
+      "x": 65,
+      "y": 480,
+      "w": 950,
+      "h": 214,
+      "auto_height": true,
+      "flow": {
+        "after": "np_label",
+        "gap": 6
+      },
+      "style": {
+        "size": 45
+      },
+      "options": {
+        "show_art": true
+      }
+    },
+    {
+      "id": "sports_label",
+      "type": "text",
+      "x": 65,
+      "y": 726,
+      "w": 950,
+      "h": 33,
+      "flow": {
+        "after": "now_playing",
+        "gap": 30,
+        "show_if": "sports"
+      },
+      "style": {
+        "size": 23,
+        "color": "dim",
+        "uppercase": true,
+        "letter_spacing": 7,
+        "align": "center"
+      },
+      "options": {
+        "text": "Sports"
+      }
+    },
+    {
+      "id": "sports",
+      "name": "Sports",
+      "type": "sports",
+      "x": 65,
+      "y": 764,
+      "w": 950,
+      "h": 320,
+      "auto_height": true,
+      "flow": {
+        "after": "sports_label",
+        "gap": 6
+      },
+      "style": {
+        "size": 28,
+        "align": "center"
+      },
+      "options": {
+        "layout": "rows",
+        "max_games": 3,
+        "show_next": false,
+        "game_day_only": true
+      }
+    },
+    {
+      "id": "people_label",
+      "type": "text",
+      "x": 65,
+      "y": 1116,
+      "w": 300,
+      "h": 33,
+      "flow": {
+        "after": "sports",
+        "gap": 30
+      },
+      "style": {
+        "size": 23,
+        "color": "dim",
+        "uppercase": true,
+        "letter_spacing": 7
+      },
+      "options": {
+        "text": "People"
+      }
+    },
+    {
+      "id": "people",
+      "name": "People",
+      "type": "people",
+      "x": 65,
+      "y": 1154,
+      "w": 330,
+      "h": 276,
+      "auto_height": true,
+      "flow": {
+        "after": "people_label",
+        "gap": 6
+      },
+      "style": {
+        "size": 32
+      },
+      "options": {
+        "show_avatar": true,
+        "avatar_size": 60
+      }
+    },
+    {
+      "id": "lights_label",
+      "type": "text",
+      "x": 430,
+      "y": 1116,
+      "w": 300,
+      "h": 33,
+      "flow": {
+        "after": "sports",
+        "gap": 30
+      },
+      "style": {
+        "size": 23,
+        "color": "dim",
+        "uppercase": true,
+        "letter_spacing": 7
+      },
+      "options": {
+        "text": "Lights"
+      }
+    },
+    {
+      "id": "lights",
+      "name": "Lights",
+      "type": "lights_summary",
+      "x": 430,
+      "y": 1154,
+      "w": 270,
+      "h": 250,
+      "auto_height": true,
+      "flow": {
+        "after": "lights_label",
+        "gap": 6
+      },
+      "style": {
+        "size": 86,
+        "weight": 200,
+        "color": "warn"
+      },
+      "options": {
+        "show_dots": true
+      }
+    },
+    {
+      "id": "internet_label",
+      "type": "text",
+      "x": 740,
+      "y": 1116,
+      "w": 300,
+      "h": 33,
+      "flow": {
+        "after": "sports",
+        "gap": 30
+      },
+      "style": {
+        "size": 23,
+        "color": "dim",
+        "uppercase": true,
+        "letter_spacing": 7
+      },
+      "options": {
+        "text": "Internet"
+      }
+    },
+    {
+      "id": "internet",
+      "name": "Download speed",
+      "type": "entity_value",
+      "x": 740,
+      "y": 1154,
+      "w": 275,
+      "h": 130,
+      "flow": {
+        "after": "internet_label",
+        "gap": 6
+      },
+      "style": {
+        "size": 86,
+        "weight": 200,
+        "color": "good"
+      },
+      "options": {
+        "show_label": false,
+        "unit": "Mbps",
+        "decimals": 0
+      }
+    },
+    {
+      "id": "car_label",
+      "type": "text",
+      "x": 65,
+      "y": 1456,
+      "w": 400,
+      "h": 33,
+      "flow": {
+        "after": [
+          "people",
+          "lights",
+          "internet"
+        ],
+        "gap": 34
+      },
+      "style": {
+        "size": 23,
+        "color": "dim",
+        "uppercase": true,
+        "letter_spacing": 7
+      },
+      "options": {
+        "text": "Car"
+      }
+    },
+    {
+      "id": "fuel",
+      "name": "Fuel",
+      "type": "progress_ring",
+      "x": 65,
+      "y": 1496,
+      "w": 151,
+      "h": 151,
+      "flow": {
+        "after": "car_label",
+        "gap": 6
+      },
+      "style": {
+        "size": 39,
+        "weight": 300
+      },
+      "options": {
+        "label": "fuel",
+        "warn_below": 25,
+        "crit_below": 10
+      }
+    },
+    {
+      "id": "range",
+      "name": "Range",
+      "type": "entity_value",
+      "x": 240,
+      "y": 1506,
+      "w": 300,
+      "h": 80,
+      "flow": {
+        "after": "car_label",
+        "gap": 16
+      },
+      "style": {
+        "size": 65,
+        "weight": 200
+      },
+      "options": {
+        "show_label": false,
+        "decimals": 0
+      }
+    },
+    {
+      "id": "lock",
+      "name": "Lock state",
+      "type": "entity_value",
+      "x": 240,
+      "y": 1596,
+      "w": 300,
+      "h": 44,
+      "flow": {
+        "after": "range",
+        "gap": 6
+      },
+      "style": {
+        "size": 28,
+        "color": "good"
+      },
+      "options": {
+        "show_label": false
+      }
+    },
+    {
+      "id": "litter_label",
+      "type": "text",
+      "x": 560,
+      "y": 1456,
+      "w": 400,
+      "h": 33,
+      "flow": {
+        "after": [
+          "people",
+          "lights",
+          "internet"
+        ],
+        "gap": 34
+      },
+      "style": {
+        "size": 23,
+        "color": "dim",
+        "uppercase": true,
+        "letter_spacing": 7
+      },
+      "options": {
+        "text": "Litter box"
+      }
+    },
+    {
+      "id": "litter_level",
+      "name": "Litter level",
+      "type": "progress_ring",
+      "x": 560,
+      "y": 1496,
+      "w": 151,
+      "h": 151,
+      "flow": {
+        "after": "litter_label",
+        "gap": 6
+      },
+      "style": {
+        "size": 39,
+        "weight": 300
+      },
+      "options": {
+        "label": "litter",
+        "warn_below": 30
+      }
+    },
+    {
+      "id": "litter_waste",
+      "name": "Waste drawer",
+      "type": "progress_ring",
+      "x": 735,
+      "y": 1496,
+      "w": 151,
+      "h": 151,
+      "flow": {
+        "after": "litter_label",
+        "gap": 6
+      },
+      "style": {
+        "size": 39,
+        "weight": 300
+      },
+      "options": {
+        "label": "waste",
+        "warn_above": 50,
+        "crit_above": 80
+      }
+    },
+    {
+      "id": "tile_a",
+      "name": "Tile A",
+      "type": "entity_value",
+      "x": 65,
+      "y": 1690,
+      "w": 290,
+      "h": 120,
+      "flow": {
+        "after": [
+          "fuel",
+          "lock",
+          "litter_level",
+          "litter_waste"
+        ],
+        "gap": 34
+      },
+      "style": {
+        "size": 54,
+        "weight": 200
+      },
+      "options": {
+        "decimals": 0
+      }
+    },
+    {
+      "id": "tile_b",
+      "name": "Tile B",
+      "type": "entity_value",
+      "x": 400,
+      "y": 1690,
+      "w": 290,
+      "h": 120,
+      "flow": {
+        "after": [
+          "fuel",
+          "lock",
+          "litter_level",
+          "litter_waste"
+        ],
+        "gap": 34
+      },
+      "style": {
+        "size": 54,
+        "weight": 200
+      },
+      "options": {
+        "decimals": 0
+      }
+    },
+    {
+      "id": "tile_c",
+      "name": "Tile C",
+      "type": "entity_value",
+      "x": 735,
+      "y": 1690,
+      "w": 280,
+      "h": 120,
+      "flow": {
+        "after": [
+          "fuel",
+          "lock",
+          "litter_level",
+          "litter_waste"
+        ],
+        "gap": 34
+      },
+      "style": {
+        "size": 54,
+        "weight": 200
+      },
+      "options": {
+        "decimals": 0
+      }
+    }
+  ]
+}

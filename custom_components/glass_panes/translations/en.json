@@ -1,0 +1,529 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Glass Panes",
+        "description": "Add Glass Panes to Home Assistant. Add displays afterwards with the glass_panes.save_display action."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Glass Panes is already set up."
+    }
+  },
+  "services": {
+    "set_bindings": {
+      "name": "Set bindings",
+      "description": "Replace which entities feed which widgets. Pass pane id, then widget id, then slot name, then the entity (or list of entities). Administrators only.",
+      "fields": {
+        "bindings": {
+          "name": "Bindings",
+          "description": "Everything at once: pane id -> widget id -> slot -> entity id(s)."
+        }
+      }
+    },
+    "get_bindings": {
+      "name": "Get bindings",
+      "description": "Return the current entity bindings."
+    },
+    "show_pane": {
+      "name": "Show pane",
+      "description": "Make a display show a pane. Does the same as choosing it on the display's select entity.",
+      "fields": {
+        "display": {
+          "name": "Display",
+          "description": "The display's id, as shown in its player address."
+        },
+        "pane": {
+          "name": "Pane",
+          "description": "The id of the pane to show."
+        }
+      }
+    },
+    "save_display": {
+      "name": "Save display",
+      "description": "Create a display, or change one that has the given id. Administrators only.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "What to call the display."
+        },
+        "id": {
+          "name": "Id",
+          "description": "Leave empty to make one from the name. Give an existing id to change that display."
+        },
+        "timezone": {
+          "name": "Timezone",
+          "description": "For the times it shows, such as America/Chicago. Empty uses the viewing device's own."
+        },
+        "pane": {
+          "name": "Pane",
+          "description": "The pane it shows to start with."
+        },
+        "endpoint": {
+          "name": "Mirror address",
+          "description": "Where the display's Mirror Kiosk app listens, such as mirror.local:8099 (host and port only). Empty removes it. The mirror key cannot be set here; use the builder."
+        }
+      }
+    },
+    "delete_display": {
+      "name": "Delete display",
+      "description": "Remove a display and its select entity. Administrators only.",
+      "fields": {
+        "display": {
+          "name": "Display",
+          "description": "The display's id."
+        }
+      }
+    },
+    "set_pane_bindings": {
+      "name": "Set pane bindings",
+      "description": "Replace the entities bound to ONE pane and leave every other pane's bindings alone. An empty object clears that pane. Administrators only.",
+      "fields": {
+        "pane": {
+          "name": "Pane",
+          "description": "The pane's id."
+        },
+        "bindings": {
+          "name": "Bindings",
+          "description": "widget id -> slot -> entity id or list of entity ids."
+        }
+      }
+    },
+    "list_media": {
+      "name": "List media",
+      "description": "Return the uploaded pictures and videos (id, name, kind, size)."
+    },
+    "get_schema": {
+      "name": "Get schema",
+      "description": "Return the pane rules (JSON Schema), the widget catalogue, the canvas size, grid and safe zone. Call this before writing a pane."
+    },
+    "list_panes": {
+      "name": "List panes",
+      "description": "Return every pane: id, name, description, where it came from and how many widgets it has."
+    },
+    "get_pane": {
+      "name": "Get pane",
+      "description": "Return one pane, where it came from, and the entities bound to it.",
+      "fields": {
+        "pane": {
+          "name": "Pane",
+          "description": "The pane's id."
+        }
+      }
+    },
+    "create_pane": {
+      "name": "Create pane",
+      "description": "Make a new pane, blank or as a copy of another. Administrators only.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "A name."
+        },
+        "description": {
+          "name": "Description",
+          "description": "A short description."
+        },
+        "copy_from": {
+          "name": "Copy from",
+          "description": "The id of a pane to copy."
+        }
+      }
+    },
+    "save_pane": {
+      "name": "Save pane",
+      "description": "Save a whole pane. It is checked exactly as the builder checks it; an invalid pane is refused and nothing is saved. Administrators only.",
+      "fields": {
+        "pane": {
+          "name": "Pane",
+          "description": "The pane's id."
+        }
+      }
+    },
+    "delete_pane": {
+      "name": "Delete pane",
+      "description": "Delete a pane you saved (a built-in one you changed goes back to the original). Refused while a display is showing it. Administrators only.",
+      "fields": {
+        "pane": {
+          "name": "Pane",
+          "description": "The pane's id."
+        }
+      }
+    },
+    "get_mirror_status": {
+      "name": "Get mirror status",
+      "description": "Read the live status of a display's mirror: page loaded, presence, real measured memory and a plain verdict. Administrators only. Never returns the key.",
+      "fields": {
+        "display": {
+          "name": "Display",
+          "description": "The display's id."
+        }
+      }
+    },
+    "set_mirror_presence": {
+      "name": "Set mirror presence",
+      "description": "Turn camera presence on or off on a display's mirror. Administrators only.",
+      "fields": {
+        "display": {
+          "name": "Display",
+          "description": "The display's id."
+        },
+        "enabled": {
+          "name": "Enabled",
+          "description": "On or off."
+        }
+      }
+    },
+    "tune_mirror_presence": {
+      "name": "Tune mirror presence",
+      "description": "Change presence settings on a display's mirror; give any of them. Same ranges as the mirror app. Administrators only.",
+      "fields": {
+        "display": {
+          "name": "Display",
+          "description": "The display's id."
+        },
+        "scans": {
+          "name": "Looks per minute",
+          "description": "1 to 240."
+        },
+        "vscans": {
+          "name": "Looks per minute during video",
+          "description": "1 to 240."
+        },
+        "hold": {
+          "name": "Seconds to stay present",
+          "description": "5 to 600."
+        },
+        "thr": {
+          "name": "Sensitivity threshold",
+          "description": "2 to 60; lower is more sensitive."
+        },
+        "fps": {
+          "name": "Camera frame rate",
+          "description": "0 to 30; 0 is the slowest the camera offers."
+        },
+        "report": {
+          "name": "Seconds between reports",
+          "description": "10 to 3600."
+        }
+      }
+    },
+    "set_mirror_brightness": {
+      "name": "Set mirror brightness",
+      "description": "Set the backlight of a display's mirror, 0 to 100 percent. Administrators only.",
+      "fields": {
+        "display": {
+          "name": "Display",
+          "description": "The display's id."
+        },
+        "brightness": {
+          "name": "Brightness",
+          "description": "0 to 100."
+        }
+      }
+    },
+    "measure_presence_cost": {
+      "name": "Measure what presence costs",
+      "description": "Reads memory, turns presence off for about 20 seconds, reads again, and always turns presence back on. Returns the measured difference. Administrators only.",
+      "fields": {
+        "display": {
+          "name": "Display",
+          "description": "The display's id."
+        },
+        "confirm": {
+          "name": "Confirm",
+          "description": "Must be true: presence is off for about half a minute."
+        }
+      }
+    },
+    "start_draft": {
+      "name": "Start a draft",
+      "description": "Start building a pane in a draft. Nothing is shown on a display and nothing appears in the pane list until finish_draft. Start blank (give a name), from a copy of a pane (copy_from), or with a working copy of a pane you want to change (edit). Returns the draft's id. Administrators only.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "The new pane's name (needed unless you give edit)."
+        },
+        "description": {
+          "name": "Description",
+          "description": "A short description of the pane."
+        },
+        "copy_from": {
+          "name": "Copy from",
+          "description": "Start from a copy of this pane (its id)."
+        },
+        "edit": {
+          "name": "Edit",
+          "description": "Start a working copy of this pane to change it. finish_draft with replace saves over it."
+        }
+      }
+    },
+    "list_drafts": {
+      "name": "List drafts",
+      "description": "List your drafts: id, name and the widgets in each. Administrators only."
+    },
+    "get_draft": {
+      "name": "Get a draft",
+      "description": "Return a whole draft: its pane (every widget) and the entities bound to it. Administrators only.",
+      "fields": {
+        "draft": {
+          "name": "Draft",
+          "description": "The draft's id, as start_draft or list_drafts gave it."
+        }
+      }
+    },
+    "add_widget": {
+      "name": "Add a widget",
+      "description": "Add a widget to a draft. Call get_schema first to learn the widget types and their options. A widget goes at x and y if given, else directly under another widget (below), else the first free spot. Entities are never part of the pane: give them in `entities` (slot name -> entity id, or a list for a slot that takes several) or bind them later with bind_widget. Returns the widget with its id. Administrators only.",
+      "fields": {
+        "draft": {
+          "name": "Draft",
+          "description": "The draft's id, as start_draft or list_drafts gave it."
+        },
+        "type": {
+          "name": "Type",
+          "description": "The widget type, for example clock, weather or calendar_agenda."
+        },
+        "name": {
+          "name": "Name",
+          "description": "A label for the widget in the builder. Also used to make its id."
+        },
+        "x": {
+          "name": "X",
+          "description": "Distance from the left edge, in pixels (0 to 1080)."
+        },
+        "y": {
+          "name": "Y",
+          "description": "Distance from the top edge, in pixels (0 to 1920)."
+        },
+        "w": {
+          "name": "W",
+          "description": "Width in pixels."
+        },
+        "h": {
+          "name": "H",
+          "description": "Height in pixels. Setting it makes the height fixed."
+        },
+        "below": {
+          "name": "Below",
+          "description": "Put the widget directly under this widget (its id) instead of giving y."
+        },
+        "gap": {
+          "name": "Gap",
+          "description": "Space in pixels between the two when using below (default 20)."
+        },
+        "options": {
+          "name": "Options",
+          "description": "The widget's options (see get_schema), merged over its defaults."
+        },
+        "style": {
+          "name": "Style",
+          "description": "Style: font, size, weight, color, opacity, align, italic, uppercase, letter_spacing, line_height."
+        },
+        "auto_height": {
+          "name": "Auto height",
+          "description": "Let the height follow the content."
+        },
+        "entities": {
+          "name": "Entities",
+          "description": "Entities for this widget: {slot: entity id or list}."
+        }
+      }
+    },
+    "update_widget": {
+      "name": "Change a widget",
+      "description": "Change a widget's name, options, style or show-when rule. Options and style are merged over what is there; set a key to null to remove it. Where it is and how big it is are changed with place_widget. Administrators only.",
+      "fields": {
+        "draft": {
+          "name": "Draft",
+          "description": "The draft's id, as start_draft or list_drafts gave it."
+        },
+        "widget": {
+          "name": "Widget",
+          "description": "The id of a widget in the draft."
+        },
+        "name": {
+          "name": "Name",
+          "description": "A new label."
+        },
+        "options": {
+          "name": "Options",
+          "description": "Options to change (merged). A key set to null is removed."
+        },
+        "style": {
+          "name": "Style",
+          "description": "Style to change (merged). A key set to null is removed."
+        },
+        "auto_height": {
+          "name": "Auto height",
+          "description": "Let the height follow the content, or not."
+        },
+        "when_hidden": {
+          "name": "When hidden",
+          "description": "What an off or empty widget does to the layout: collapse (default) or keep."
+        },
+        "show_when": {
+          "name": "Show when",
+          "description": "A rule that switches the widget on and off: {match: all|any, conditions: [...]}. See get_schema for the condition kinds."
+        },
+        "clear_show_when": {
+          "name": "Clear show when",
+          "description": "Remove the widget's show-when rule."
+        }
+      }
+    },
+    "place_widget": {
+      "name": "Move or resize a widget",
+      "description": "Move and/or resize a widget. Give x and y, or below to sit directly under another widget. Everything stays inside the 1080 x 1920 canvas. The widget is pinned to these numbers (it stops flowing after another widget). Administrators only.",
+      "fields": {
+        "draft": {
+          "name": "Draft",
+          "description": "The draft's id, as start_draft or list_drafts gave it."
+        },
+        "widget": {
+          "name": "Widget",
+          "description": "The id of a widget in the draft."
+        },
+        "x": {
+          "name": "X",
+          "description": "Distance from the left edge, in pixels (0 to 1080)."
+        },
+        "y": {
+          "name": "Y",
+          "description": "Distance from the top edge, in pixels (0 to 1920)."
+        },
+        "w": {
+          "name": "W",
+          "description": "Width in pixels."
+        },
+        "h": {
+          "name": "H",
+          "description": "Height in pixels. Setting it makes the height fixed."
+        },
+        "below": {
+          "name": "Below",
+          "description": "Put the widget directly under this widget (its id) instead of giving y."
+        },
+        "gap": {
+          "name": "Gap",
+          "description": "Space in pixels between the two when using below (default 20)."
+        },
+        "snap": {
+          "name": "Snap",
+          "description": "Round x, y, w and h to the 40 px grid."
+        }
+      }
+    },
+    "remove_widget": {
+      "name": "Remove a widget",
+      "description": "Remove a widget. Whatever flowed after it closes up, and its entities are forgotten. Administrators only.",
+      "fields": {
+        "draft": {
+          "name": "Draft",
+          "description": "The draft's id, as start_draft or list_drafts gave it."
+        },
+        "widget": {
+          "name": "Widget",
+          "description": "The id of a widget in the draft."
+        }
+      }
+    },
+    "bind_widget": {
+      "name": "Bind an entity to a widget",
+      "description": "Bind an entity (or a list) to one of a widget's slots, or clear the slot. Slot names come from get_schema (for example weather has `weather`, calendar_agenda has `calendars`). A slot starting with when_ belongs to a show-when condition. Administrators only.",
+      "fields": {
+        "draft": {
+          "name": "Draft",
+          "description": "The draft's id, as start_draft or list_drafts gave it."
+        },
+        "widget": {
+          "name": "Widget",
+          "description": "The id of a widget in the draft."
+        },
+        "slot": {
+          "name": "Slot",
+          "description": "The slot name."
+        },
+        "entity": {
+          "name": "Entity",
+          "description": "An entity id like weather.home, or a list of them for a slot that takes several. A status summary's checks and a news widget's feeds also accept rules."
+        },
+        "clear": {
+          "name": "Clear",
+          "description": "Clear this slot instead of binding."
+        }
+      }
+    },
+    "align_widgets": {
+      "name": "Align widgets",
+      "description": "Line up two or more widgets: left, center, right, top, middle, bottom, same-width, same-height, or (three or more) distribute-h and distribute-v. Administrators only.",
+      "fields": {
+        "draft": {
+          "name": "Draft",
+          "description": "The draft's id, as start_draft or list_drafts gave it."
+        },
+        "widgets": {
+          "name": "Widgets",
+          "description": "The ids of the widgets to align."
+        },
+        "mode": {
+          "name": "Mode",
+          "description": "How to line them up."
+        }
+      }
+    },
+    "set_pane": {
+      "name": "Change the pane itself",
+      "description": "Change the draft's name, description, theme, background colour or brightness. Themes: moss, cream, creamnight, midnight, paper, slate, or original to remove it. Administrators only.",
+      "fields": {
+        "draft": {
+          "name": "Draft",
+          "description": "The draft's id, as start_draft or list_drafts gave it."
+        },
+        "name": {
+          "name": "Name",
+          "description": "The pane's name."
+        },
+        "description": {
+          "name": "Description",
+          "description": "A short description."
+        },
+        "theme": {
+          "name": "Theme",
+          "description": "A colour theme, or original to remove it."
+        },
+        "background": {
+          "name": "Background",
+          "description": "A background colour like #000000 (black is see-through on a two-way mirror). A theme replaces it."
+        },
+        "brightness": {
+          "name": "Brightness",
+          "description": "Backlight percent to ask for while this pane shows (0 to 100)."
+        }
+      }
+    },
+    "finish_draft": {
+      "name": "Finish a draft",
+      "description": "Save the draft as a real pane. The person can then open it in the Glass Panes builder and edit it by hand, or show it on a display. It becomes a new pane by default. A draft started with `edit` can instead replace that pane, but only when you ask with replace. Administrators only.",
+      "fields": {
+        "draft": {
+          "name": "Draft",
+          "description": "The draft's id, as start_draft or list_drafts gave it."
+        },
+        "replace": {
+          "name": "Replace",
+          "description": "Overwrite the pane this draft was started from (only for a draft started with edit)."
+        }
+      }
+    },
+    "discard_draft": {
+      "name": "Discard a draft",
+      "description": "Throw a draft away. Nothing else is changed. Administrators only.",
+      "fields": {
+        "draft": {
+          "name": "Draft",
+          "description": "The draft's id, as start_draft or list_drafts gave it."
+        }
+      }
+    }
+  }
+}

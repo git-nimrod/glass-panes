@@ -1,0 +1,44 @@
+/* The bundled fonts. Loaded by the player page and, by the sidebar builder, into the main page (fonts cannot be registered
+   from inside a shadow root). */
+/* Bundled fonts (all SIL Open Font License 1.1; see fonts/README.md). Light 300 and regular 400 (plus Inter 600 for the wordmark), Latin only. */
+@font-face { font-family: 'Inter'; font-weight: 300; font-style: normal; font-display: swap;
+  src: url('fonts/inter-latin-300-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-weight: 400; font-style: normal; font-display: swap;
+  src: url('fonts/inter-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-weight: 600; font-style: normal; font-display: swap;
+  src: url('fonts/inter-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Outfit'; font-weight: 300; font-style: normal; font-display: swap;
+  src: url('fonts/outfit-latin-300-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Outfit'; font-weight: 400; font-style: normal; font-display: swap;
+  src: url('fonts/outfit-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Jost'; font-weight: 300; font-style: normal; font-display: swap;
+  src: url('fonts/jost-latin-300-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Jost'; font-weight: 400; font-style: normal; font-display: swap;
+  src: url('fonts/jost-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Space Grotesk'; font-weight: 300; font-style: normal; font-display: swap;
+  src: url('fonts/space-grotesk-latin-300-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Space Grotesk'; font-weight: 400; font-style: normal; font-display: swap;
+  src: url('fonts/space-grotesk-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 300; font-style: normal; font-display: swap;
+  src: url('fonts/jetbrains-mono-latin-300-normal.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 400; font-style: normal; font-display: swap;
+  src: url('fonts/jetbrains-mono-latin-400-normal.woff2') format('woff2'); }
+
+/* Formal families added Nov 4, 2026 (all SIL OFL 1.1; see fonts/README.md). Google's Latin files are "variable" fonts: ONE file holds a
+   whole weight range, so the weight is written as a range (300 700) and the browser picks the exact weight from it. Like every rule above,
+   a file is only fetched when a pane actually uses the family (and, for the italics, the italic style), so an unused family costs nothing. */
+@font-face { font-family: 'Cormorant Garamond'; font-weight: 300 700; font-style: normal; font-display: swap;
+  src: url('fonts/cormorant-garamond-latin-wght-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Cormorant Garamond'; font-weight: 400; font-style: italic; font-display: swap;
+  src: url('fonts/cormorant-garamond-latin-400-italic.woff2') format('woff2'); }
+@font-face { font-family: 'Playfair Display'; font-weight: 400 700; font-style: normal; font-display: swap;
+  src: url('fonts/playfair-display-latin-wght-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Montserrat'; font-weight: 300 600; font-style: normal; font-display: swap;
+  src: url('fonts/montserrat-latin-wght-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Lora'; font-weight: 400 600; font-style: normal; font-display: swap;
+  src: url('fonts/lora-latin-wght-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Lora'; font-weight: 400; font-style: italic; font-display: swap;
+  src: url('fonts/lora-latin-400-italic.woff2') format('woff2'); }
+/* DM Serif Display only exists in one weight (regular 400), a display face for big headlines */
+@font-face { font-family: 'DM Serif Display'; font-weight: 400; font-style: normal; font-display: swap;
+  src: url('fonts/dm-serif-display-latin-400-normal.woff2') format('woff2'); }

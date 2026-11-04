@@ -1,0 +1,175 @@
+/* Glass Panes player. Everything lives on a 1080x1920 stage that player.js scales to fit the window.
+   Sizes inside widgets use em so they follow each widget's own font size. */
+
+:root, :host {
+  --gp-fg: #f2f2f2; --gp-dim: #8a8a8a; --gp-faint: #5f5f5f;
+  --gp-accent: #6fb4ff; --gp-warn: #ffb347; --gp-good: #5fd38d; --gp-bad: #ff6b6b;
+  /* Greys that used to be written straight into the rules below. They are variables only so a pane theme (themes.js) can change them;
+     the values here are exactly what the rules had, so a pane with no theme looks the same as before. */
+  --gp-strong: #e8e8e8; --gp-soft: #9a9a9a; --gp-line: #555; --gp-line2: #444; --gp-track: #2a2a2a; --gp-rule: #46423c;
+  --gp-src: #6c6c6c; --gp-avatar: #ddd; --gp-ring-track: #262626;
+}
+html, body { margin: 0; height: 100%; background: #000; overflow: hidden; cursor: none; }
+
+/* the 1080x1920 canvas: the player centres it in the window (#stage), the builder places it inside its preview */
+.gp-stage {
+  width: 1080px; height: 1920px; overflow: hidden; background: #000;
+  transform-origin: center center; color: var(--gp-fg); font-variant-numeric: tabular-nums;
+  font-family: system-ui, sans-serif; font-size: 32px;
+}
+#stage { position: absolute; left: 50%; top: 50%; }
+.gp-widget { position: absolute; box-sizing: border-box; display: flow-root; overflow: visible; overflow-wrap: break-word; }
+.gp-widget.gp-hidden { visibility: hidden; pointer-events: none; }   /* switched off (by a rule, or a divider with nothing around it): keeps its box so it can still be measured */
+.gp-widget.gp-overflow { outline: 2px dashed #ff3b30; }
+
+/* the boot splash: the animated wordmark on black while the player starts (kiosk app only) */
+#boot { display: none; position: fixed; inset: 0; background: #000; align-items: center; justify-content: center; z-index: 50; }
+#boot img { width: min(78vmin, 1000px); height: auto; }
+
+/* The Glass Panes brand colours (from the wordmark): deep forest green, with lettering that shades from light mint to leaf green. */
+:root { --gp-brand-bg: #0e261d; --gp-brand-mint: #a3df90; --gp-brand-leaf: #6bc370; --gp-brand-text: #e8f3e2; --gp-brand-dim: #b2cfab; }
+
+/* the first-time sign-in screen: sized from the screen so it fits a mirror, a tablet or a laptop */
+#setup { display: none; position: fixed; inset: 0; box-sizing: border-box; padding: 5vmin; background: var(--gp-brand-bg); color: var(--gp-brand-text); font-family: 'Inter', system-ui, sans-serif;
+  overflow: auto; --u: clamp(13px, 2.2vmin, 26px); font-size: var(--u); }
+#setup .gp-card { margin: auto; width: min(100%, calc(var(--u) * 38)); display: flex; flex-direction: column; align-items: center; text-align: center; }
+#setup .gp-markimg { width: calc(var(--u) * 5.2); height: calc(var(--u) * 5.2); object-fit: contain; padding: calc(var(--u) * .45); border-radius: 22%; background: #f3f1e3; margin-bottom: calc(var(--u) * 1.2); }
+#setup .gp-wordmark { margin: 0; display: flex; flex-direction: column; align-items: center; font: 600 calc(var(--u) * 3.3)/1.1 'Inter', system-ui, sans-serif; text-transform: uppercase; letter-spacing: .2em;
+  background: linear-gradient(180deg, var(--gp-brand-mint), var(--gp-brand-leaf)); -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; }
+#setup .gp-wordmark span { display: block; padding-left: .22em; }
+#setup .gp-for { margin: calc(var(--u) * 1) 0 0; color: var(--gp-brand-mint); font-weight: 600; letter-spacing: .14em; text-transform: uppercase; font-size: calc(var(--u) * .8); }
+#setup .gp-lead { margin: calc(var(--u) * 1.4) 0 calc(var(--u) * 1.6); color: var(--gp-brand-dim); line-height: 1.5; }
+#setup .gp-steps { list-style: none; margin: 0 0 calc(var(--u) * 1.6); padding: 0; width: 100%; display: flex; flex-direction: column; gap: calc(var(--u) * .8); text-align: left; }
+#setup .gp-steps li { display: flex; gap: calc(var(--u) * 1); align-items: flex-start; padding: calc(var(--u) * 1) calc(var(--u) * 1.1); border-radius: calc(var(--u) * 1); background: rgba(163, 223, 144, .07); border: 1px solid rgba(163, 223, 144, .22); line-height: 1.5; color: var(--gp-brand-dim); }
+#setup .gp-steps b { color: var(--gp-brand-text); font-weight: 600; }
+#setup .gp-n { flex: none; width: calc(var(--u) * 1.9); height: calc(var(--u) * 1.9); border-radius: 50%; background: linear-gradient(180deg, var(--gp-brand-mint), var(--gp-brand-leaf)); color: var(--gp-brand-bg); font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+#setup input { width: 100%; box-sizing: border-box; font: inherit; padding: calc(var(--u) * .9) calc(var(--u) * 1.1); background: rgba(232, 243, 226, .07); color: var(--gp-brand-text); border: 1px solid rgba(163, 223, 144, .3); border-radius: calc(var(--u) * .8); outline: none; }
+#setup input:focus { border-color: var(--gp-brand-mint); box-shadow: 0 0 0 3px rgba(163, 223, 144, .25); }
+#setup input::placeholder { color: rgba(178, 207, 171, .55); }
+#setup button { margin-top: calc(var(--u) * 1); font: 600 calc(var(--u) * 1.05)/1 'Inter', system-ui, sans-serif; padding: calc(var(--u) * .95) calc(var(--u) * 3); border: 0; border-radius: calc(var(--u) * .8); background: linear-gradient(180deg, var(--gp-brand-mint), var(--gp-brand-leaf)); color: var(--gp-brand-bg); cursor: pointer; }
+#setup button:hover { filter: brightness(1.06); }
+#setup .gp-fine { margin: calc(var(--u) * 1.2) 0 0; color: rgba(178, 207, 171, .6); font-size: calc(var(--u) * .8); }
+#seterr { min-height: 1.4em; margin: calc(var(--u) * .8) 0 0; color: #ffcf7a !important; font-weight: 500; }
+#errors { display: none; position: fixed; left: 8px; bottom: 8px; max-width: 90vw; margin: 0; padding: 6px; background: rgba(0, 0, 0, .75); color: #ff8a80; font: 12px monospace; white-space: pre-wrap; z-index: 99; }
+
+/* shared pieces */
+/* text wraps; nothing is ever cut off with an ellipsis */
+.gp-ellip { white-space: normal; overflow-wrap: break-word; }
+.gp-dim { color: var(--gp-dim); }
+.gp-label { color: var(--gp-dim); letter-spacing: .1em; text-transform: uppercase; }
+.gp-unit { color: var(--gp-dim); margin-left: .3em; font-weight: 300; }
+.gp-row { line-height: 1.35; margin: .1em 0; }
+.gp-gline { line-height: 1.35; margin: .1em 0; }
+.gp-t { color: var(--gp-dim); display: inline-block; }
+.gp-live { color: var(--gp-bad); }
+.gp-win { color: var(--gp-good); }
+.gp-loss { color: var(--gp-dim); }
+
+/* status summary */
+.gp-dot { display: inline-block; width: .55em; height: .55em; border-radius: 50%; margin-right: .5em; background: currentColor; box-shadow: 0 0 .55em currentColor; vertical-align: middle; }
+.gp-issue { color: var(--gp-warn); line-height: 1.35; }
+
+/* now playing */
+.gp-np { display: flex; align-items: center; height: 100%; }
+.gp-np-art { position: relative; flex: none; }
+.gp-np-glow, .gp-np-img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; border-radius: .45em; }
+.gp-np-glow { filter: blur(28px); opacity: .6; transform: scale(1.15); }
+.gp-np-info { min-width: 0; flex: 1; line-height: 1.2; }
+.gp-np-src { margin-top: .5em; color: var(--gp-src); letter-spacing: .14em; text-transform: uppercase; display: flex; align-items: center; }
+.gp-eq { display: inline-flex; align-items: flex-end; height: .9em; margin-right: .8em; }
+.gp-eq i { display: block; width: 4px; margin-right: 3px; background: var(--gp-accent); height: 100%; transform-origin: bottom; animation: gp-eq 1s ease-in-out infinite; }
+.gp-eq i:nth-child(2) { animation-delay: -.3s; } .gp-eq i:nth-child(3) { animation-delay: -.6s; } .gp-eq i:nth-child(4) { animation-delay: -.15s; }
+.gp-eq.paused i { animation: none; transform: scaleY(.25); }
+@keyframes gp-eq { 0%, 100% { transform: scaleY(.25); } 50% { transform: scaleY(1); } }
+
+/* now playing: vinyl record and CD (style: "vinyl" / "cd").
+   Drawn with CSS only: no picture files, nothing loaded from the internet except the album art itself.
+   Kept cheap for a weak display: the ONLY things that animate are the spinning disc (transform: rotate) and the tonearm
+   (transform: rotate, a one-off swing). No blur, shadow, filter or size changes ever animate. Each moving part is its own layer.
+   Nothing moves unless the wrapper has the "playing" class, which the widget only sets while a song is actually playing.
+   Everything is sized from --d, the disc's width, which the widget sets from its own height. */
+.gp-np-disc { position: relative; flex: none; width: var(--d); height: var(--d); }
+.gp-np-vinyl .gp-np-disc { width: calc(var(--d) * 1.3); }          /* extra room on the right for the tonearm */
+.gp-spin { position: absolute; left: 0; top: 0; width: var(--d); height: var(--d); border-radius: 50%; overflow: hidden; }
+.gp-np.playing .gp-spin { animation: gp-spin 8s linear infinite; will-change: transform; }
+.gp-np-cd.playing .gp-spin { animation-duration: 6s; }
+@keyframes gp-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.gp-disc-sheen, .gp-disc-label, .gp-disc-hole { position: absolute; border-radius: 50%; }
+.gp-disc-sheen { inset: 0; }
+.gp-disc-label { left: 50%; top: 50%; overflow: hidden; transform: translate(-50%, -50%); }
+.gp-disc-label img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.gp-disc-hole { left: 50%; top: 50%; width: 4%; height: 4%; transform: translate(-50%, -50%); background: #000; }
+/* vinyl: black, fine concentric grooves, a soft light streak, the album art as the centre label */
+.gp-vinyl { background: repeating-radial-gradient(circle at center, #101010 0, #101010 2px, #1d1d1d 2px, #1d1d1d 3px); border: 2px solid #2a2a2a; box-sizing: border-box; }
+.gp-vinyl .gp-disc-sheen { background: conic-gradient(rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, .16) 8%, rgba(255, 255, 255, 0) 18%, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, .16) 58%, rgba(255, 255, 255, 0) 68%); }
+.gp-vinyl .gp-disc-label { width: 38%; height: 38%; background: var(--gp-accent); }
+/* CD: bright silver with rainbow-ish bands, the art in a ring around the centre hole */
+.gp-cd { background: conic-gradient(#d5d9de, #f7f8fa, #9ea7b1, #eceff2, #b3bbc4, #fafbfc, #a6aeb8, #dadee2, #d5d9de); border: 2px solid #c4cad1; box-sizing: border-box; }
+.gp-cd .gp-disc-sheen { background: conic-gradient(rgba(255, 120, 160, .14), rgba(120, 200, 255, .14) 25%, rgba(150, 255, 180, .14) 50%, rgba(255, 220, 120, .14) 75%, rgba(255, 120, 160, .14)); }
+.gp-cd .gp-disc-label { width: 56%; height: 56%; background: linear-gradient(#e4e7eb, #b8bec6); border: 3px solid rgba(255, 255, 255, .85); box-sizing: border-box; }
+.gp-cd .gp-disc-hole { width: 15%; height: 15%; border: 3px solid #eceff2; box-sizing: border-box; }
+/* tonearm: pivots at its top end (transform-origin), rests beside the record, swings onto the grooves while playing */
+.gp-arm-base { position: absolute; left: calc(var(--d) * 1.15 - var(--d) * .07); top: calc(var(--d) * .1 - var(--d) * .07); width: calc(var(--d) * .14); height: calc(var(--d) * .14); border-radius: 50%; background: #5b5b5b; border: 2px solid #8a8a8a; box-sizing: border-box; }
+.gp-arm { position: absolute; left: calc(var(--d) * 1.15 - var(--d) * .025); top: calc(var(--d) * .1); width: calc(var(--d) * .05); height: calc(var(--d) * .64); transform-origin: 50% 0; transform: rotate(0deg); transition: transform 1.4s ease-in-out; will-change: transform; }
+.gp-np.playing .gp-arm { transform: rotate(30deg); }
+.gp-arm-bar { position: absolute; inset: 0; border-radius: calc(var(--d) * .03); background: linear-gradient(90deg, #8d8d8d, #d6d6d6 45%, #7a7a7a); }
+.gp-arm-head { position: absolute; left: calc(var(--d) * -.025); bottom: calc(var(--d) * -.05); width: calc(var(--d) * .1); height: calc(var(--d) * .13); border-radius: calc(var(--d) * .02); background: #2c2c2c; border: 2px solid #8a8a8a; box-sizing: border-box; }
+/* burn-in saver (option burn_in_saver): the whole Now playing block drifts about 6 px around a small square, one lap in 40 minutes.
+   Far too slow to see, but the pixels under the text and the art keep changing. transform only, one layer, no JS. */
+.gp-drift { animation: gp-drift 2400s linear infinite; will-change: transform; }
+@keyframes gp-drift { 0% { transform: translate(0, 0); } 25% { transform: translate(6px, 0); } 50% { transform: translate(6px, 6px); } 75% { transform: translate(0, 6px); } 100% { transform: translate(0, 0); } }
+/* people who ask their display for less movement get a still record, and the arm just appears in place */
+@media (prefers-reduced-motion: reduce) {
+  .gp-np.playing .gp-spin { animation: none; }
+  .gp-arm { transition: none; }
+}
+
+/* people */
+.gp-person { display: flex; align-items: center; margin-bottom: .45em; }
+.gp-avatar { display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 3px solid var(--gp-line2); color: var(--gp-avatar); flex: none; background-size: cover; background-position: center; box-sizing: border-box; }
+.gp-avatar.home { border-color: var(--gp-good); box-shadow: 0 0 16px rgba(95, 211, 141, .45); }
+
+/* lights */
+.gp-dots { margin-top: .35em; display: flex; flex-wrap: wrap; gap: 12px; }
+.gp-dots i { width: 19px; height: 19px; border-radius: 50%; background: var(--gp-track); }
+.gp-dots i.on { background: var(--gp-warn); box-shadow: 0 0 14px rgba(255, 179, 71, .8); }
+
+/* progress ring */
+.gp-ring { position: relative; width: 100%; height: 100%; }
+.gp-ring svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
+.gp-ring circle:first-child { stroke: var(--gp-ring-track); }
+.gp-ring circle:nth-child(2) { filter: drop-shadow(0 0 3px currentColor); }
+.gp-ring-v { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.gp-ring-v b { font-weight: 300; }
+.gp-ring-v span { color: var(--gp-dim); letter-spacing: .12em; text-transform: uppercase; margin-top: .2em; }
+
+/* sports */
+.gp-game { display: flex; align-items: center; margin: 0 0 .45em; padding-left: .8em; border-left: .2em solid var(--gp-line); }
+.gp-game img { width: 2.4em; height: 2.4em; object-fit: contain; }
+.gp-sc { font-size: 2em; font-weight: 200; margin: 0 .3em; min-width: 1.1em; text-align: center; }
+.gp-mid { display: inline-flex; align-items: center; justify-content: center; min-width: 9.5em; flex: none; }
+.gp-tight .gp-mid { min-width: 3.6em; }
+.gp-dash { color: var(--gp-line); font-size: 1.4em; margin: 0 .3em; white-space: pre; }
+.gp-gi { margin-left: 1em; font-size: .9em; color: var(--gp-soft); line-height: 1.35; }
+.gp-gi b { display: block; font-weight: 400; color: var(--gp-strong); font-size: 1.07em; }
+.gp-next { font-size: .95em; line-height: 1.5; }
+.gp-box { display: grid; grid-template-columns: 1.3em 1fr auto; align-items: center; column-gap: .4em; margin: .35em 0 .65em; line-height: 1.3; }
+.gp-box img { width: 1.2em; height: 1.2em; object-fit: contain; filter: grayscale(1) brightness(1.25) contrast(1.1); }
+.gp-score { text-align: right; font-weight: 700; }
+.gp-boxlive { grid-column: 2 / 4; font-size: .8em; letter-spacing: .1em; text-transform: uppercase; color: var(--gp-dim); }
+
+/* news */
+.gp-story { padding: .3em 0; border-bottom: 1px solid var(--gp-rule); }
+.gp-headline { font-weight: inherit; line-height: 1.12; }
+
+/* alignment: player.js sets data-align (left, center or right) on every widget. Text follows text-align; these rules do the same
+   for the layouts that are not plain text. */
+.gp-stack { width: fit-content; max-width: 100%; }
+[data-align="center"] > .gp-stack { margin-left: auto; margin-right: auto; }
+[data-align="right"] > .gp-stack { margin-left: auto; }
+[data-align="center"] .gp-np, [data-align="center"] .gp-dots, [data-align="center"] .gp-ring-row { justify-content: center; }
+[data-align="right"] .gp-np, [data-align="right"] .gp-dots, [data-align="right"] .gp-ring-row { justify-content: flex-end; }
+[data-align="center"] .gp-np-info, [data-align="right"] .gp-np-info { flex: 0 1 auto; }
+[data-align="center"] .gp-np-src { justify-content: center; }
+[data-align="right"] .gp-np-src { justify-content: flex-end; }
+[data-align="center"] .gp-ok, [data-align="center"] .gp-issue, [data-align="right"] .gp-ok, [data-align="right"] .gp-issue { text-align: inherit; }

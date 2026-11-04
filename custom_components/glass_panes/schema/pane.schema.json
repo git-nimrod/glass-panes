@@ -1,0 +1,358 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Glass Panes pane",
+  "description": "One pane: a fixed 1080x1920 portrait canvas of positioned widgets. Layout only. No entity IDs here; those live in a bindings file.",
+  "type": "object",
+  "required": ["schema_version", "id", "name", "canvas", "widgets"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": 1 },
+    "id": { "$ref": "#/$defs/slug" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "description": { "type": "string", "maxLength": 400 },
+    "canvas": {
+      "type": "object",
+      "required": ["width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "width": { "const": 1080 },
+        "height": { "const": 1920 }
+      }
+    },
+    "background": {
+      "description": "Pure black (#000000) is see-through on a two-way mirror.",
+      "$ref": "#/$defs/hex",
+      "default": "#000000"
+    },
+    "theme": {
+      "description": "Optional colour theme. It sets the pane background and the named colours fg, dim, faint and accent (light themes also warn, good and bad). When set it replaces `background`. Leave it out for the original look.",
+      "enum": ["moss", "cream", "creamnight", "midnight", "paper", "slate"]
+    },
+    "brightness": {
+      "description": "Backlight percent to ask the display for while this pane is showing. Optional.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "widgets": {
+      "type": "array",
+      "maxItems": 64,
+      "items": { "$ref": "#/$defs/widget" }
+    }
+  },
+  "$defs": {
+    "slug": { "type": "string", "pattern": "^[a-z0-9_]+$", "maxLength": 64 },
+    "hex": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+    "color": {
+      "description": "A theme token or a #rrggbb value. Tokens: fg #f2f2f2, dim #8a8a8a, faint #5f5f5f, accent #6fb4ff, warn #ffb347, good #5fd38d, bad #ff6b6b.",
+      "oneOf": [
+        { "enum": ["fg", "dim", "faint", "accent", "warn", "good", "bad"] },
+        { "$ref": "#/$defs/hex" }
+      ]
+    },
+    "style": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "font": {
+          "enum": ["inter", "outfit", "jost", "space-grotesk", "jetbrains-mono", "cormorant-garamond", "playfair-display", "montserrat", "lora", "dm-serif-display", "system-sans", "system-serif", "system-mono"]
+        },
+        "size": { "type": "integer", "minimum": 8, "maximum": 400, "description": "Font size in canvas pixels." },
+        "weight": { "type": "integer", "minimum": 100, "maximum": 900, "multipleOf": 100 },
+        "color": { "$ref": "#/$defs/color" },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "align": { "enum": ["left", "center", "right"] },
+        "italic": { "type": "boolean" },
+        "uppercase": { "type": "boolean" },
+        "letter_spacing": { "type": "number", "minimum": -10, "maximum": 40, "description": "Pixels." },
+        "line_height": { "type": "number", "minimum": 0.8, "maximum": 3 }
+      }
+    },
+    "show_when": {
+      "description": "A rule that switches a widget on and off. The widget is shown while the rule holds. Never holds an entity id: an entity condition names a slot (when_...) and the entity is bound to that slot in the bindings, like any other widget entity.",
+      "type": "object",
+      "required": ["conditions"],
+      "additionalProperties": false,
+      "properties": {
+        "match": { "enum": ["all", "any"], "default": "all", "description": "all: every condition must hold. any: one is enough." },
+        "conditions": { "type": "array", "minItems": 1, "maxItems": 8, "items": { "$ref": "#/$defs/condition" } }
+      }
+    },
+    "condition": {
+      "description": "One condition of a show_when rule. kind has_content / empty need `widget`; entity needs `slot` and `test` (and `value` unless test is unavailable); time needs `from` and `to`; days needs `days`.",
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "enum": ["has_content", "empty", "entity", "time", "days"] },
+        "widget": { "$ref": "#/$defs/slug", "description": "has_content / empty: the other widget to look at. has_content: it is showing something. empty: it is showing nothing (this is how a fallback takes the place of something)." },
+        "slot": { "type": "string", "pattern": "^when_[a-z0-9_]{1,40}$", "description": "entity: the name of the binding slot that holds the entity id, for example when_door. Bind it with set_pane_bindings: {widget id: {when_door: \"binary_sensor.xyz\"}}." },
+        "test": { "enum": ["is", "is_not", "above", "below", "unavailable"], "description": "entity: is / is_not compare the state (value is one text or a list of texts, any of them); above / below compare a number; unavailable holds when the state is unavailable or unknown. An unbound slot never holds." },
+        "value": { "type": ["string", "number", "array"], "items": { "type": "string", "maxLength": 80 }, "maxItems": 10, "maxLength": 80, "description": "entity: text, a list of texts (is / is_not) or a number (above / below)." },
+        "from": { "type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$", "description": "time: start of the window, HH:MM, in the display's timezone." },
+        "to": { "type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$", "description": "time: end of the window (not included). Earlier than `from` means the window runs through midnight." },
+        "days": { "type": "array", "minItems": 1, "maxItems": 7, "uniqueItems": true, "items": { "enum": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] }, "description": "days: the days of the week the condition holds." }
+      },
+      "allOf": [
+        { "if": { "properties": { "kind": { "enum": ["has_content", "empty"] } } }, "then": { "required": ["widget"] } },
+        { "if": { "properties": { "kind": { "const": "entity" } } }, "then": { "required": ["slot", "test"] } },
+        { "if": { "properties": { "kind": { "const": "time" } } }, "then": { "required": ["from", "to"] } },
+        { "if": { "properties": { "kind": { "const": "days" } } }, "then": { "required": ["days"] } }
+      ]
+    },
+    "widget": {
+      "type": "object",
+      "required": ["id", "type", "x", "y", "w", "h"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/slug" },
+        "name": { "type": "string", "maxLength": 80, "description": "Label shown in the builder." },
+        "type": {
+          "enum": [
+            "clock", "date", "text", "image", "video", "divider", "message", "entity_value", "weather",
+            "calendar_agenda", "todo_list", "now_playing", "people", "lights_summary", "status_summary",
+            "progress_ring", "sports", "news"
+          ]
+        },
+        "x": { "type": "integer", "minimum": 0, "maximum": 1080 },
+        "y": { "type": "integer", "minimum": 0, "maximum": 1920 },
+        "w": { "type": "integer", "minimum": 1, "maximum": 1080 },
+        "h": { "type": "integer", "minimum": 1, "maximum": 1920 },
+        "z": { "type": "integer", "minimum": 0, "maximum": 99 },
+        "auto_height": {
+          "type": "boolean",
+          "default": false,
+          "description": "Height follows the content instead of staying h. An auto-height widget with nothing to show takes no space."
+        },
+        "flow": {
+          "description": "Place this widget below one or more others, wherever they end up, instead of at a fixed y. y still holds the starting position for the builder.",
+          "type": "object",
+          "required": ["after"],
+          "additionalProperties": false,
+          "properties": {
+            "after": {
+              "description": "Widget id, or several (the lowest bottom wins). Anything above that is empty is skipped over.",
+              "oneOf": [
+                { "$ref": "#/$defs/slug" },
+                { "type": "array", "minItems": 1, "maxItems": 8, "items": { "$ref": "#/$defs/slug" } }
+              ]
+            },
+            "gap": { "type": "integer", "minimum": 0, "maximum": 400, "default": 0, "description": "Pixels of space below what it follows." },
+            "show_if": { "$ref": "#/$defs/slug", "description": "Only show this widget while the named widget has content (a section title that disappears with its section)." }
+          }
+        },
+        "show_when": { "$ref": "#/$defs/show_when" },
+        "when_hidden": {
+          "enum": ["collapse", "keep"],
+          "default": "collapse",
+          "description": "What the widget does to the layout when it is switched off by show_when or has nothing to show. collapse (default): it takes no space and whatever flows below it moves up. keep: it holds its box height (h), so the widgets below stay where they are."
+        },
+        "style": { "$ref": "#/$defs/style" },
+        "options": { "type": "object" }
+      },
+      "allOf": [
+        { "if": { "properties": { "type": { "const": "clock" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_clock" } } } },
+        { "if": { "properties": { "type": { "const": "date" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_date" } } } },
+        { "if": { "properties": { "type": { "const": "text" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_text" } } } },
+        { "if": { "properties": { "type": { "const": "image" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_image" } } } },
+        { "if": { "properties": { "type": { "const": "video" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_video" } } } },
+        { "if": { "properties": { "type": { "const": "divider" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_divider" } } } },
+        { "if": { "properties": { "type": { "const": "message" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_message" } } } },
+        { "if": { "properties": { "type": { "const": "entity_value" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_entity_value" } } } },
+        { "if": { "properties": { "type": { "const": "weather" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_weather" } } } },
+        { "if": { "properties": { "type": { "const": "calendar_agenda" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_calendar_agenda" } } } },
+        { "if": { "properties": { "type": { "const": "todo_list" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_todo_list" } } } },
+        { "if": { "properties": { "type": { "const": "now_playing" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_now_playing" } } } },
+        { "if": { "properties": { "type": { "const": "people" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_people" } } } },
+        { "if": { "properties": { "type": { "const": "lights_summary" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_lights_summary" } } } },
+        { "if": { "properties": { "type": { "const": "status_summary" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_status_summary" } } } },
+        { "if": { "properties": { "type": { "const": "progress_ring" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_progress_ring" } } } },
+        { "if": { "properties": { "type": { "const": "sports" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_sports" } } } },
+        { "if": { "properties": { "type": { "const": "news" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_news" } } } }
+      ]
+    },
+
+    "opt_clock": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "format": { "enum": ["12h", "24h"], "default": "12h" },
+        "hide_meridiem": { "type": "boolean", "default": true, "description": "Show 9:30 instead of 9:30 AM." },
+        "show_seconds": { "type": "boolean", "default": false }
+      }
+    },
+    "opt_date": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "format": { "enum": ["weekday_month_day", "weekday_month_day_year", "month_day", "weekday"], "default": "weekday_month_day" },
+        "day_offset": { "type": "integer", "minimum": 0, "maximum": 7, "default": 0, "description": "0 = today, 1 = tomorrow." },
+        "prefix": { "type": "string", "maxLength": 24 }
+      }
+    },
+    "opt_text": {
+      "type": "object",
+      "required": ["text"],
+      "additionalProperties": false,
+      "properties": {
+        "text": { "type": "string", "maxLength": 500 },
+        "fit": { "enum": ["wrap", "shrink"], "default": "wrap", "description": "shrink = keep to one line and make the text smaller until it fits the box (for mastheads and long titles)." }
+      }
+    },
+    "opt_image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "asset": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9._-]+$", "maxLength": 120, "description": "File name of an uploaded image. null = empty slot." },
+        "media": { "type": ["string", "null"], "pattern": "^m_[0-9a-f]{12}$", "description": "An uploaded picture from the media library (takes the place of `asset`)." },
+        "fit": { "enum": ["contain", "cover"], "default": "contain" }
+      }
+    },
+    "opt_video": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sources": {
+          "type": "array",
+          "maxItems": 6,
+          "items": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$", "maxLength": 120 },
+          "description": "Uploaded video file names, tried in order if one fails to play."
+        },
+        "media": { "type": ["string", "null"], "pattern": "^m_[0-9a-f]{12}$", "description": "An uploaded video from the media library (takes the place of `sources`)." }
+      }
+    },
+    "opt_divider": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "thickness": { "type": "integer", "minimum": 1, "maximum": 20, "default": 2 } }
+    },
+    "opt_message": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "lines": { "type": "array", "minItems": 1, "maxItems": 50, "items": { "type": "string", "maxLength": 200 } },
+        "rotate_minutes": { "type": "integer", "minimum": 1, "maximum": 1440, "default": 30 },
+        "prefix": { "type": "string", "maxLength": 60 },
+        "suffix": { "type": "string", "maxLength": 60 }
+      }
+    },
+    "opt_entity_value": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": { "type": "string", "maxLength": 80 },
+        "show_label": { "type": "boolean", "default": true },
+        "unit": { "type": ["string", "null"], "maxLength": 20, "description": "null = use the entity's own unit." },
+        "decimals": { "type": "integer", "minimum": 0, "maximum": 6 },
+        "thousands_separator": { "type": "boolean", "default": true }
+      }
+    },
+    "opt_weather": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "layout": { "enum": ["line", "stacked"], "default": "line" },
+        "show": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["temperature", "condition", "high_low"] },
+          "default": ["temperature", "condition", "high_low"]
+        },
+        "day_offset": { "enum": [0, 1], "default": 0, "description": "1 = tomorrow's high and condition." }
+      }
+    },
+    "opt_calendar_agenda": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_items": { "type": "integer", "minimum": 1, "maximum": 12, "default": 6 },
+        "skip": { "type": "integer", "minimum": 0, "maximum": 12, "default": 0, "description": "Leave out the first N events, e.g. the one a separate 'next up' line already shows." },
+        "day_offset": { "type": "integer", "minimum": 0, "maximum": 7, "default": 0 },
+        "days": { "type": "integer", "minimum": 1, "maximum": 7, "default": 1 },
+        "show_all_day": { "type": "boolean", "default": true },
+        "time_style": { "enum": ["short", "ampm", "24h"], "default": "short", "description": "short = 9, 12:30" },
+        "empty_text": { "type": "string", "maxLength": 80 },
+        "hide_when_empty": { "type": "boolean", "default": false }
+      }
+    },
+    "opt_todo_list": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_items": { "type": "integer", "minimum": 1, "maximum": 10, "default": 3 },
+        "bullets": { "type": "boolean", "default": true },
+        "hide_when_empty": { "type": "boolean", "default": true }
+      }
+    },
+    "opt_now_playing": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "show_art": { "type": "boolean", "default": true },
+        "burn_in_saver": { "type": "boolean", "default": false, "description": "Drift the whole widget a few pixels, very slowly (one lap about every 40 minutes), so a screen that is left on for hours never holds the same pixels. Too slow to notice. Works with every look." },
+        "style": { "type": "string", "enum": ["card", "vinyl", "cd"], "default": "card", "description": "card: album art and words (the original look). vinyl: a black record with the art as its centre label, spinning while playing, with a tonearm that swings on and off. cd: a shiny disc with the art in its centre ring, spinning while playing." },
+        "idle_text": { "type": "string", "maxLength": 80, "default": "", "description": "A message to show when nothing is playing. Empty (the default) shows nothing, so with auto_height the widget takes no space." },
+        "paused_timeout_minutes": { "type": "integer", "minimum": 1, "maximum": 240, "default": 10 }
+      }
+    },
+    "opt_people": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "show_avatar": { "type": "boolean", "default": true },
+        "avatar_size": { "type": "integer", "minimum": 24, "maximum": 200, "default": 65 }
+      }
+    },
+    "opt_lights_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "show_dots": { "type": "boolean", "default": true } }
+    },
+    "opt_status_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ok_text": { "type": "string", "maxLength": 80, "default": "All good" },
+        "hide_when_ok": { "type": "boolean", "default": false },
+        "max_items": { "type": "integer", "minimum": 1, "maximum": 12, "default": 6 },
+        "stale_days": { "type": "integer", "minimum": 0, "maximum": 365, "default": 30, "description": "Stop mentioning something that has been offline longer than this. 0 = never stop." }
+      }
+    },
+    "opt_progress_ring": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": { "type": "string", "maxLength": 40 },
+        "min": { "type": "number", "default": 0 },
+        "max": { "type": "number", "default": 100 },
+        "warn_below": { "type": "number" },
+        "crit_below": { "type": "number" },
+        "warn_above": { "type": "number" },
+        "crit_above": { "type": "number" }
+      }
+    },
+    "opt_sports": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "layout": { "enum": ["line", "rows", "box"], "default": "rows", "description": "line = one text line, rows = logo/score/logo rows, box = compact two-row box scores for narrow columns." },
+        "max_games": { "type": "integer", "minimum": 1, "maximum": 6, "default": 3 },
+        "show_next": { "type": "boolean", "default": true },
+        "game_day_only": { "type": "boolean", "default": false, "description": "Show sports only on game day: live games, tonight's game, and a final only until midnight. Later games are never announced (this overrides show_next). Off keeps a final for about 18 hours, so last night's score is still there in the morning." },
+        "show_logos": { "type": "boolean", "default": true, "description": "Draw the team logos." },
+        "verbose_text": { "type": "boolean", "default": false, "description": "Spell results out (\"Lions win · Final\", \"Lions play at 7:30\") instead of just Final or the time. The scores already show who won." }
+      }
+    },
+    "opt_news": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_stories": { "type": "integer", "minimum": 1, "maximum": 4, "default": 1 },
+        "max_headline_chars": { "type": "integer", "minimum": 40, "maximum": 200, "default": 110 },
+        "keywords": { "type": "array", "maxItems": 100, "items": { "type": "string", "maxLength": 40 }, "description": "Used by feeds whose filter is 'keywords'. Empty = every story counts." },
+        "show_source": { "type": "boolean", "default": false },
+        "max_age_hours": { "type": "integer", "minimum": 1, "maximum": 168, "default": 36 }
+      }
+    }
+  }
+}

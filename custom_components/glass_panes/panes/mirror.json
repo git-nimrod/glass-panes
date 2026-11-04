@@ -1,0 +1,280 @@
+{
+  "schema_version": 1,
+  "id": "mirror",
+  "name": "Mirror",
+  "description": "Small, dim, hugging the right edge so the glass stays a mirror.",
+  "canvas": {
+    "width": 1080,
+    "height": 1920
+  },
+  "background": "#000000",
+  "brightness": 35,
+  "widgets": [
+    {
+      "id": "logo",
+      "name": "Logo",
+      "type": "image",
+      "x": 43,
+      "y": 43,
+      "w": 76,
+      "h": 76,
+      "style": {
+        "opacity": 0.7
+      },
+      "options": {
+        "asset": null,
+        "fit": "contain"
+      }
+    },
+    {
+      "id": "topline",
+      "name": "Next up",
+      "type": "calendar_agenda",
+      "x": 130,
+      "y": 10,
+      "w": 658,
+      "h": 40,
+      "style": {
+        "size": 25,
+        "color": "#9a9a9a",
+        "align": "center"
+      },
+      "options": {
+        "max_items": 1,
+        "hide_when_empty": true
+      }
+    },
+    {
+      "id": "clock",
+      "name": "Clock",
+      "type": "clock",
+      "x": 540,
+      "y": 43,
+      "w": 497,
+      "h": 100,
+      "style": {
+        "align": "right",
+        "size": 86,
+        "weight": 300,
+        "color": "#c4c4c4"
+      },
+      "options": {
+        "hide_meridiem": true
+      }
+    },
+    {
+      "id": "date",
+      "name": "Date",
+      "type": "date",
+      "x": 540,
+      "y": 150,
+      "w": 497,
+      "h": 38,
+      "style": {
+        "align": "right",
+        "size": 28,
+        "color": "#707070"
+      }
+    },
+    {
+      "id": "weather",
+      "name": "Weather",
+      "type": "weather",
+      "x": 540,
+      "y": 198,
+      "w": 497,
+      "h": 44,
+      "style": {
+        "align": "right",
+        "size": 30,
+        "color": "#8a8a8a"
+      },
+      "options": {
+        "layout": "line"
+      }
+    },
+    {
+      "id": "greeting",
+      "name": "Greeting",
+      "type": "message",
+      "x": 540,
+      "y": 250,
+      "w": 497,
+      "h": 36,
+      "auto_height": true,
+      "flow": {
+        "after": "weather",
+        "gap": 8
+      },
+      "style": {
+        "align": "right",
+        "size": 26,
+        "italic": true,
+        "color": "#8a8a8a"
+      },
+      "options": {
+        "lines": [
+          "Have a good day",
+          "Looking good",
+          "Drink some water",
+          "You're doing great"
+        ]
+      }
+    },
+    {
+      "id": "rule_header",
+      "name": "Divider",
+      "type": "divider",
+      "x": 897,
+      "y": 296,
+      "w": 140,
+      "h": 2,
+      "flow": {
+        "after": "greeting",
+        "gap": 10
+      },
+      "style": {
+        "color": "faint",
+        "opacity": 0.5
+      },
+      "options": {
+        "thickness": 1
+      }
+    },
+    {
+      "id": "sports",
+      "name": "Sports",
+      "type": "sports",
+      "x": 540,
+      "y": 310,
+      "w": 497,
+      "h": 74,
+      "auto_height": true,
+      "flow": {
+        "after": "rule_header",
+        "gap": 14
+      },
+      "style": {
+        "align": "right",
+        "size": 28,
+        "color": "#9a9a9a"
+      },
+      "options": {
+        "layout": "line",
+        "max_games": 2,
+        "show_next": false,
+        "game_day_only": true
+      }
+    },
+    {
+      "id": "warnings",
+      "name": "Warnings",
+      "type": "status_summary",
+      "x": 540,
+      "y": 390,
+      "w": 497,
+      "h": 74,
+      "auto_height": true,
+      "flow": {
+        "after": "sports",
+        "gap": 8
+      },
+      "style": {
+        "align": "right",
+        "size": 27,
+        "color": "warn"
+      },
+      "options": {
+        "hide_when_ok": true,
+        "max_items": 3
+      }
+    },
+    {
+      "id": "rule_alerts",
+      "name": "Divider",
+      "type": "divider",
+      "x": 897,
+      "y": 470,
+      "w": 140,
+      "h": 2,
+      "flow": {
+        "after": "warnings",
+        "gap": 10
+      },
+      "style": {
+        "color": "faint",
+        "opacity": 0.5
+      },
+      "options": {
+        "thickness": 1
+      }
+    },
+    {
+      "id": "agenda",
+      "name": "Today",
+      "type": "calendar_agenda",
+      "x": 540,
+      "y": 484,
+      "w": 497,
+      "h": 152,
+      "auto_height": true,
+      "flow": {
+        "after": "rule_alerts",
+        "gap": 14
+      },
+      "style": {
+        "align": "right",
+        "size": 28,
+        "color": "#9a9a9a"
+      },
+      "options": {
+        "max_items": 4,
+        "skip": 1,
+        "hide_when_empty": true
+      }
+    },
+    {
+      "id": "rule_agenda",
+      "name": "Divider",
+      "type": "divider",
+      "x": 897,
+      "y": 646,
+      "w": 140,
+      "h": 2,
+      "flow": {
+        "after": "agenda",
+        "gap": 10
+      },
+      "style": {
+        "color": "faint",
+        "opacity": 0.5
+      },
+      "options": {
+        "thickness": 1
+      }
+    },
+    {
+      "id": "reminders",
+      "name": "Reminders",
+      "type": "todo_list",
+      "x": 540,
+      "y": 660,
+      "w": 497,
+      "h": 152,
+      "auto_height": true,
+      "flow": {
+        "after": "rule_agenda",
+        "gap": 14
+      },
+      "style": {
+        "align": "right",
+        "size": 28,
+        "color": "dim"
+      },
+      "options": {
+        "max_items": 4,
+        "hide_when_empty": true
+      }
+    }
+  ]
+}

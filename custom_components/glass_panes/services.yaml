@@ -1,0 +1,512 @@
+set_pane_bindings:
+  fields:
+    pane:
+      required: true
+      example: moss_morning
+      selector:
+        text:
+    bindings:
+      required: true
+      example: '{"agenda": {"calendars": ["calendar.family"]}, "weather": {"weather": "weather.home"}}'
+      selector:
+        object:
+
+list_media:
+
+get_schema:
+
+list_panes:
+
+get_pane:
+  fields:
+    pane:
+      required: true
+      example: mirror
+      selector:
+        text:
+
+create_pane:
+  fields:
+    name:
+      required: true
+      example: Movie night
+      selector:
+        text:
+    description:
+      selector:
+        text:
+    copy_from:
+      example: house
+      selector:
+        text:
+
+save_pane:
+  fields:
+    pane:
+      required: true
+      example: '{"schema_version": 1, "id": "movie_night", "name": "Movie night", "canvas": {"width": 1080, "height": 1920}, "widgets": []}'
+      selector:
+        object:
+
+delete_pane:
+  fields:
+    pane:
+      required: true
+      example: movie_night
+      selector:
+        text:
+
+show_pane:
+  fields:
+    display:
+      required: true
+      example: mirror
+      selector:
+        text:
+    pane:
+      required: true
+      example: house
+      selector:
+        text:
+
+set_bindings:
+  fields:
+    bindings:
+      required: true
+      example: '{"mirror": {"agenda": {"calendars": ["calendar.family"]}}}'
+      selector:
+        object:
+
+get_bindings:
+
+save_display:
+  fields:
+    name:
+      required: true
+      example: Hallway mirror
+      selector:
+        text:
+    id:
+      example: hallway_mirror
+      selector:
+        text:
+    timezone:
+      example: America/Chicago
+      selector:
+        text:
+    pane:
+      example: mirror
+      selector:
+        text:
+    endpoint:
+      example: mirror.local:8099
+      selector:
+        text:
+
+delete_display:
+  fields:
+    display:
+      required: true
+      example: hallway_mirror
+      selector:
+        text:
+
+get_mirror_status:
+  fields:
+    display:
+      required: true
+      example: hallway_mirror
+      selector:
+        text:
+
+set_mirror_presence:
+  fields:
+    display:
+      required: true
+      example: hallway_mirror
+      selector:
+        text:
+    enabled:
+      required: true
+      selector:
+        boolean:
+
+tune_mirror_presence:
+  fields:
+    display:
+      required: true
+      example: hallway_mirror
+      selector:
+        text:
+    scans:
+      selector:
+        number:
+          min: 1
+          max: 240
+          mode: box
+    vscans:
+      selector:
+        number:
+          min: 1
+          max: 240
+          mode: box
+    hold:
+      selector:
+        number:
+          min: 5
+          max: 600
+          mode: box
+          unit_of_measurement: s
+    thr:
+      selector:
+        number:
+          min: 2
+          max: 60
+          mode: box
+    fps:
+      selector:
+        number:
+          min: 0
+          max: 30
+          mode: box
+    report:
+      selector:
+        number:
+          min: 10
+          max: 3600
+          mode: box
+          unit_of_measurement: s
+
+set_mirror_brightness:
+  fields:
+    display:
+      required: true
+      example: hallway_mirror
+      selector:
+        text:
+    brightness:
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 100
+          mode: box
+          unit_of_measurement: "%"
+
+measure_presence_cost:
+  fields:
+    display:
+      required: true
+      example: hallway_mirror
+      selector:
+        text:
+    confirm:
+      required: true
+      selector:
+        boolean:
+
+
+# ---- agent tools: generated from draft_tools.py, do not edit by hand ----
+start_draft:
+  fields:
+    name:
+      example: "Morning at a glance"
+      selector:
+        text:
+    description:
+      selector:
+        text:
+    copy_from:
+      example: "mirror"
+      selector:
+        text:
+    edit:
+      example: "mirror"
+      selector:
+        text:
+
+list_drafts:
+
+get_draft:
+  fields:
+    draft:
+      required: true
+      example: "d_1a2b3c4d"
+      selector:
+        text:
+
+add_widget:
+  fields:
+    draft:
+      required: true
+      example: "d_1a2b3c4d"
+      selector:
+        text:
+    type:
+      required: true
+      example: "weather"
+      selector:
+        text:
+    name:
+      example: "Weather"
+      selector:
+        text:
+    x:
+      selector:
+        number:
+          min: 0
+          max: 1080
+          mode: box
+    y:
+      selector:
+        number:
+          min: 0
+          max: 1920
+          mode: box
+    w:
+      selector:
+        number:
+          min: 40
+          max: 1080
+          mode: box
+    h:
+      selector:
+        number:
+          min: 40
+          max: 1920
+          mode: box
+    below:
+      example: "clock"
+      selector:
+        text:
+    gap:
+      selector:
+        number:
+          min: 0
+          max: 400
+          mode: box
+    options:
+      selector:
+        object:
+    style:
+      selector:
+        object:
+    auto_height:
+      selector:
+        boolean:
+    entities:
+      example: "{\"weather\": \"weather.home\"}"
+      selector:
+        object:
+
+update_widget:
+  fields:
+    draft:
+      required: true
+      example: "d_1a2b3c4d"
+      selector:
+        text:
+    widget:
+      required: true
+      example: "clock"
+      selector:
+        text:
+    name:
+      selector:
+        text:
+    options:
+      selector:
+        object:
+    style:
+      selector:
+        object:
+    auto_height:
+      selector:
+        boolean:
+    when_hidden:
+      selector:
+        select:
+          options:
+            - collapse
+            - keep
+    show_when:
+      example: "{\"conditions\": [{\"kind\": \"empty\", \"widget\": \"sports\"}]}"
+      selector:
+        object:
+    clear_show_when:
+      selector:
+        boolean:
+
+place_widget:
+  fields:
+    draft:
+      required: true
+      example: "d_1a2b3c4d"
+      selector:
+        text:
+    widget:
+      required: true
+      example: "clock"
+      selector:
+        text:
+    x:
+      selector:
+        number:
+          min: 0
+          max: 1080
+          mode: box
+    y:
+      selector:
+        number:
+          min: 0
+          max: 1920
+          mode: box
+    w:
+      selector:
+        number:
+          min: 40
+          max: 1080
+          mode: box
+    h:
+      selector:
+        number:
+          min: 40
+          max: 1920
+          mode: box
+    below:
+      example: "clock"
+      selector:
+        text:
+    gap:
+      selector:
+        number:
+          min: 0
+          max: 400
+          mode: box
+    snap:
+      selector:
+        boolean:
+
+remove_widget:
+  fields:
+    draft:
+      required: true
+      example: "d_1a2b3c4d"
+      selector:
+        text:
+    widget:
+      required: true
+      example: "clock"
+      selector:
+        text:
+
+bind_widget:
+  fields:
+    draft:
+      required: true
+      example: "d_1a2b3c4d"
+      selector:
+        text:
+    widget:
+      required: true
+      example: "clock"
+      selector:
+        text:
+    slot:
+      required: true
+      example: "weather"
+      selector:
+        text:
+    entity:
+      example: "weather.home"
+      selector:
+        object:
+    clear:
+      selector:
+        boolean:
+
+align_widgets:
+  fields:
+    draft:
+      required: true
+      example: "d_1a2b3c4d"
+      selector:
+        text:
+    widgets:
+      required: true
+      example: "[\"clock\", \"date\"]"
+      selector:
+        text:
+          multiple: true
+    mode:
+      required: true
+      example: "left"
+      selector:
+        select:
+          options:
+            - left
+            - center
+            - right
+            - top
+            - middle
+            - bottom
+            - distribute-h
+            - distribute-v
+            - same-width
+            - same-height
+
+set_pane:
+  fields:
+    draft:
+      required: true
+      example: "d_1a2b3c4d"
+      selector:
+        text:
+    name:
+      selector:
+        text:
+    description:
+      selector:
+        text:
+    theme:
+      selector:
+        select:
+          options:
+            - moss
+            - cream
+            - creamnight
+            - midnight
+            - paper
+            - slate
+            - original
+    background:
+      example: "#000000"
+      selector:
+        text:
+    brightness:
+      selector:
+        number:
+          min: 0
+          max: 100
+          mode: box
+
+finish_draft:
+  fields:
+    draft:
+      required: true
+      example: "d_1a2b3c4d"
+      selector:
+        text:
+    replace:
+      selector:
+        boolean:
+
+discard_draft:
+  fields:
+    draft:
+      required: true
+      example: "d_1a2b3c4d"
+      selector:
+        text:
+
+# ---- end of generated agent tools ----

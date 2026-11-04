@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "widgets": {
+    "clock": { "label": "Clock", "slots": {} },
+    "date": { "label": "Date", "slots": {} },
+    "text": { "label": "Text", "slots": {} },
+    "image": { "label": "Image", "slots": {} },
+    "video": { "label": "Looping video", "slots": {} },
+    "divider": { "label": "Divider line", "slots": {} },
+    "message": {
+      "label": "Message",
+      "slots": {
+        "entity": {
+          "kind": "entity",
+          "domains": ["input_text", "text", "sensor"],
+          "required": false,
+          "label": "Message source (optional, overrides the rotating lines)"
+        }
+      }
+    },
+    "entity_value": {
+      "label": "Entity value",
+      "slots": {
+        "entity": { "kind": "entity", "domains": [], "required": true, "label": "Entity to show" }
+      }
+    },
+    "weather": {
+      "label": "Weather",
+      "slots": {
+        "weather": { "kind": "entity", "domains": ["weather"], "required": true, "label": "Weather entity" }
+      }
+    },
+    "calendar_agenda": {
+      "label": "Calendar agenda",
+      "slots": {
+        "calendars": { "kind": "entities", "domains": ["calendar"], "required": true, "label": "Calendars" }
+      }
+    },
+    "todo_list": {
+      "label": "To-do list",
+      "slots": {
+        "list": { "kind": "entity", "domains": ["todo"], "required": true, "label": "To-do list" }
+      }
+    },
+    "now_playing": {
+      "label": "Now playing",
+      "slots": {
+        "players": { "kind": "entities", "domains": ["media_player"], "required": true, "label": "Media players" }
+      }
+    },
+    "people": {
+      "label": "People",
+      "slots": {
+        "people": { "kind": "entities", "domains": ["person"], "required": true, "label": "People" }
+      }
+    },
+    "lights_summary": {
+      "label": "Lights summary",
+      "slots": {
+        "lights": { "kind": "entities", "domains": ["light", "group"], "required": true, "label": "Lights or a light group" }
+      }
+    },
+    "status_summary": {
+      "label": "Status summary",
+      "slots": {
+        "checks": { "kind": "checks", "domains": [], "required": true, "label": "Things worth warning about" }
+      }
+    },
+    "progress_ring": {
+      "label": "Progress ring",
+      "slots": {
+        "entity": {
+          "kind": "entity",
+          "domains": ["sensor", "number", "input_number"],
+          "required": true,
+          "label": "Entity with a number"
+        }
+      }
+    },
+    "sports": {
+      "label": "Sports",
+      "slots": {
+        "teams": {
+          "kind": "entities",
+          "domains": ["sensor"],
+          "required": true,
+          "label": "Team Tracker sensors"
+        }
+      }
+    },
+    "news": {
+      "label": "News headlines",
+      "slots": {
+        "feeds": { "kind": "feeds", "domains": ["event"], "required": true, "label": "Feed entities" }
+      }
+    }
+  }
+}

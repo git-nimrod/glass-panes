@@ -1,0 +1,14 @@
+name: Idea or feature request
+description: Something you would like Glass Panes to do
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: What would it let you do that you cannot do now?

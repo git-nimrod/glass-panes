@@ -1,0 +1,36 @@
+name: Release guard
+
+# HACS installs the newest GitHub release that is NOT a pre-release. The mirror app's releases (app-v...) and the Android image
+# releases (mirror-android-...) are never integration updates, so if one of them is ever published as a normal release, HACS would
+# offer it to everyone as the newest Glass Panes and installs would break.
+#
+# This turns such a release back into a pre-release, and takes it off "Latest", within seconds of it being published or edited.
+# Releases made with the right flags (`--prerelease --latest=false`) are left alone.
+on:
+  release:
+    types: [published, released, edited]
+
+permissions:
+  contents: write
+
+jobs:
+  keep-prerelease:
+    name: Keep app and image releases as pre-releases
+    if: startsWith(github.event.release.tag_name, 'app-v') || startsWith(github.event.release.tag_name, 'mirror-android-')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Make it a pre-release and not "Latest"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+          RELEASE_ID: ${{ github.event.release.id }}
+          IS_PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            echo "$TAG is already a pre-release. Nothing to do."
+            exit 0
+          fi
+          echo "::warning::$TAG was published as a normal release. HACS would offer it as a Glass Panes update. Turning it into a pre-release."
+          gh api --method PATCH "repos/${{ github.repository }}/releases/$RELEASE_ID" \
+            -F prerelease=true -f make_latest=false > /dev/null
+          echo "$TAG is now a pre-release and no longer Latest."

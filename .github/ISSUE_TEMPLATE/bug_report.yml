@@ -1,0 +1,56 @@
+name: Bug report
+description: Something does not work the way it should
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing the Glass Panes beta. **Never paste access tokens, webhook addresses or other secrets here.** Blur or remove entity names you would rather not share.
+  - type: input
+    id: version
+    attributes:
+      label: Glass Panes version
+      description: HACS shows it, or `manifest.json` in `custom_components/glass_panes/`. For example 0.10.0.
+    validations:
+      required: true
+  - type: input
+    id: ha
+    attributes:
+      label: Home Assistant version
+      placeholder: "2026.10.4"
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where did it happen?
+      options:
+        - The sidebar builder
+        - A display (the player page)
+        - The mirror app
+        - Services or automations
+        - Installing or updating
+        - Something else
+    validations:
+      required: true
+  - type: input
+    id: display
+    attributes:
+      label: Display hardware and browser
+      description: For example "Lululemon mirror with the Mirror Kiosk app", "tablet, Chrome", "laptop, Firefox".
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How can we make it happen again?
+  - type: textarea
+    id: logs
+    attributes:
+      label: Errors
+      description: Home Assistant log lines mentioning glass_panes, or red errors from your browser's console (F12, Console). Remove anything private.
+      render: text

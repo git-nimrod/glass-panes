@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glass Panes</title>
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="player.css">
+</head>
+<body>
+<div id="stage" class="gp-stage"></div>
+
+<div id="boot"><img src="boot-animation.gif" alt=""></div>
+
+<div id="setup">
+  <div class="gp-card">
+    <img class="gp-markimg" src="logo-mark.png" alt="">
+    <h1 class="gp-wordmark"><span>Glass</span><span>Panes</span></h1>
+    <p class="gp-for" id="forwho"></p>
+    <p class="gp-lead">Let’s sign this display in to Home Assistant. It only takes a moment, and only once.</p>
+    <ol class="gp-steps">
+      <li><span class="gp-n">1</span><div><b>The easy way.</b> In Home Assistant open <b>Glass Panes</b>, go to <b>Displays</b>, press <b>Set up login</b> on this display, and open the link it gives you here.</div></li>
+      <li><span class="gp-n">2</span><div><b>Or by hand.</b> Click your name at the bottom of Home Assistant’s sidebar, open <b>Security</b>, scroll to <b>Long-lived access tokens</b>, press <b>Create token</b>, copy it and paste it below.</div></li>
+    </ol>
+    <input id="tok" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste your token here">
+    <button id="save">Sign in</button>
+    <p id="seterr"></p>
+    <p class="gp-fine">The login is saved only on this device.</p>
+  </div>
+</div>
+<pre id="errors"></pre>
+
+<script type="module" src="player.js"></script>
+</body>
+</html>
