@@ -146,6 +146,15 @@ class ControlService : Service() {
 
                 when {
                     path == "/" || path == "/status" -> reply(s, 200, statusJson())
+                    path == "/alive" -> {
+                        // the player page says it is running. Only the page on the mirror itself may say so.
+                        if (fromThisDevice) {
+                            Kiosk.lastAliveMs = System.currentTimeMillis()
+                            val p = Kiosk.prefs(this)
+                            if (!p.getBoolean("heartbeat", false)) p.edit().putBoolean("heartbeat", true).apply()
+                            reply(s, 200, """{"ok":true}""")
+                        } else reply(s, 403, """{"ok":false,"error":"only the page on the mirror"}""")
+                    }
                     path == "/reload" -> {
                         Kiosk.main.post { Kiosk.activity?.reloadPage() }
                         reply(s, 200, """{"ok":true}""")
@@ -256,6 +265,9 @@ class ControlService : Service() {
         return "{\"ok\":true,\"app\":\"mirror-kiosk\",\"version\":\"" + Kiosk.versionName(this) + "\"," +
             "\"page_ok\":" + Kiosk.pageOk + "," +
             "\"seconds_since_page_load\":" + since + "," +
+            "\"engine_restarts\":" + Kiosk.engineRestarts + "," +
+            "\"blocked_loads\":" + Kiosk.blockedLoads + "," +
+            "\"seconds_since_heartbeat\":" + (if (Kiosk.lastAliveMs == 0L) -1L else (now - Kiosk.lastAliveMs) / 1000) + "," +
             "\"brightness\":" + Kiosk.brightnessPct + "," +
             "\"orientation\":\"" + Kiosk.orientation + "\"," +
             "\"video\":\"" + Kiosk.videoState + "\"," +

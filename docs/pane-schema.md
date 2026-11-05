@@ -34,6 +34,8 @@ That has two benefits:
 - `background`: `#000000` is see-through on a two-way mirror, so only widgets "float".
 - `theme`: optional colour theme, one of `moss cream creamnight midnight paper slate`. A theme sets the pane's background and the named colours (see Themes below) in one go. When set, it replaces `background`. Leave it out for the original look: a pane with no theme renders exactly as it did before themes existed.
 - `brightness`: optional backlight percent to request while the pane shows (replaces the old per-mode brightness table).
+- `burn_in_saver`: optional, `true` to let the whole pane drift a few pixels over about 40 minutes, so a screen that is on for hours never holds the same pixels. Too slow to notice. (Now playing has its own `burn_in_saver` option for just that widget.)
+- `motion`: optional. `{"widgets": "fade"}` makes widgets that "show when" rules switch on and off fade in and out over about half a second instead of popping. Panes made from Glass Panes 0.10.10 on start with it; older panes stay as they were until you tick **Fade** in the builder. A display that asks for reduced motion never fades.
 - Max 64 widgets per pane (a Lululemon Studio mirror has about 950 MB of RAM).
 
 ## Widget (common fields)

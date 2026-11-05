@@ -38,7 +38,7 @@ function h(tag, props, ...kids) {
 
 // simple line icons, drawn here so the panel needs nothing else
 const ICONS = {
-  plus: 'M12 5v14M5 12h14', x: 'M6 6l12 12M18 6L6 18', check: 'M5 13l4 4L19 7',
+  plus: 'M12 5v14M5 12h14', front: 'M12 19V5M6 11l6-6 6 6', back: 'M12 5v14M6 13l6 6 6-6', x: 'M6 6l12 12M18 6L6 18', check: 'M5 13l4 4L19 7',
   undo: 'M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3', redo: 'M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3',
   edit: 'M4 20h4L19 9l-4-4L4 16v4zM13 7l4 4', trash: 'M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13', copy: 'M9 9h10v10H9zM5 15V5h10',
   left: 'M4 4v16M8 8h12M8 14h7', center: 'M12 4v16M6 8h12M8 14h8', right: 'M20 4v16M4 8h12M9 14h7',
@@ -81,6 +81,7 @@ const ELEMENT_INFO = {
 const MIRROR_GLASS = { left: 0.03, right: 0.03, top: 0.03, bottom: 0.22 };
 const MIRROR_STAND = 0.17;                      // the loop's height as a share of the glass height
 const COLORS = ['fg', 'dim', 'faint', 'accent', 'good', 'warn', 'bad'];
+const HEX6 = /^#[0-9a-fA-F]{6}$/;                 // a colour the browser's picker can show
 // the fonts a text item can use: [value in the pane file, name shown]. Same list as the schema's style.font and engine.js FONTS.
 const FONT_CHOICES = [['inter', 'Inter'], ['outfit', 'Outfit'], ['jost', 'Jost'], ['space-grotesk', 'Space Grotesk'], ['jetbrains-mono', 'JetBrains Mono'],
   ['cormorant-garamond', 'Cormorant Garamond (formal serif)'], ['playfair-display', 'Playfair Display (formal serif)'], ['lora', 'Lora (book serif)'],
@@ -753,7 +754,23 @@ class GlassPanesPanel extends HTMLElement {
       const themeSel = h('select', { id: 'themepick', class: 'field', style: 'width:auto;padding:5px 9px', title: 'Colours for this whole pane',
         onChange: (ev) => this._setTheme(ev.target.value) },
       h('option', { value: '', text: 'Original' }), Object.entries(THEMES).map(([id, t]) => h('option', { value: id, selected: pane.theme === id, text: t.label })));
+      // background: only used when no theme is chosen (a theme brings its own). Pure black is see-through on a mirror.
+      const bg = h('input', { type: 'color', class: 'swatch', id: 'bgpick', value: HEX6.test(pane.background || '') ? pane.background : '#000000', disabled: !!pane.theme,
+        title: pane.theme ? 'The theme sets the background. Choose Original to pick your own.' : 'Background. Pure black is see-through on a two-way mirror.',
+        onChange: (ev) => this._setPaneField('background', ev.target.value.toLowerCase() === '#000000' ? null : ev.target.value.toLowerCase()) });
+      // brightness: what the display's backlight is asked for while this pane shows ("As is" leaves it alone)
+      const bright = h('select', { id: 'brightpick', class: 'field', style: 'width:auto;padding:5px 9px', title: 'Backlight while this pane shows',
+        onChange: (ev) => this._setPaneField('brightness', ev.target.value === '' ? null : parseInt(ev.target.value, 10)) },
+      h('option', { value: '', text: 'As is' }), [10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((n) => h('option', { value: n, selected: pane.brightness === n, text: n + '%' })),
+      pane.brightness != null && pane.brightness % 10 ? h('option', { value: pane.brightness, selected: true, text: pane.brightness + '%' }) : null);
       actions.append(h('label', { class: 'lbl', style: 'margin:0 6px 0 0', text: 'Theme' }), themeSel,
+        h('label', { class: 'lbl', style: 'margin:0 6px 0 12px', text: 'Background' }), bg,
+        h('label', { class: 'lbl', style: 'margin:0 6px 0 12px', text: 'Brightness' }), bright,
+        // fade: widgets switched by "show when" rules fade in and out instead of popping
+        h('label', { class: 'check', style: 'margin:0 0 0 12px', title: 'Widgets switched by "Show when" rules fade in and out' },
+          h('input', { type: 'checkbox', id: 'fadepick', checked: !!(pane.motion && pane.motion.widgets === 'fade'), onChange: (ev) => this._setPaneField('motion', ev.target.checked ? { widgets: 'fade' } : null) }), 'Fade'),
+        h('label', { class: 'check', style: 'margin:0 0 0 12px', title: 'The whole pane drifts a few pixels over 40 minutes, so a screen left on never holds the same pixels' },
+          h('input', { type: 'checkbox', id: 'driftpick', checked: pane.burn_in_saver === true, onChange: (ev) => this._setPaneField('burn_in_saver', ev.target.checked ? true : null) }), 'Burn-in drift'),
         h('span', { class: 'hint', style: 'margin-left:10px', text: 'Drag to move, corners to resize, shift-click to pick several. The dashed line is the safe zone.' }));
     }
     this._renderDock();
@@ -765,6 +782,14 @@ class GlassPanesPanel extends HTMLElement {
     if (!this.edit) return;
     const pane = clone(this.edit.pane);
     if (id && THEMES[id]) pane.theme = id; else delete pane.theme;
+    this._commit(pane);
+  }
+
+  /** Set (or clear, with null) one pane-level field such as background or brightness. Undoable, like every edit. */
+  _setPaneField(key, value) {
+    if (!this.edit) return;
+    const pane = clone(this.edit.pane);
+    if (value == null) delete pane[key]; else pane[key] = value;
     this._commit(pane);
   }
 
@@ -945,7 +970,7 @@ class GlassPanesPanel extends HTMLElement {
     const box = this.$('notice');
     box.textContent = '';
     if (!offenders.length) return;
-    const names = offenders.map((w) => w.name || w.type).join(', ');
+    const names = offenders.map((w) => this._label(w)).join(', ');
     box.append(h('div', { class: 'notice' },
       h('b', { text: 'Outside the safe zone' }),
       h('div', { class: 'hint', text: names + (offenders.length > 1 ? ' reach' : ' reaches') + ' into the outer ' + ops.SAFE + ' px, which the mirror’s frame or rounded corners can hide. You can still keep it right at the edge.' }),
@@ -1005,9 +1030,13 @@ class GlassPanesPanel extends HTMLElement {
     overlay.textContent = '';
     if (!this.edit) return;
     overlay.append(h('div', { class: 'safe', title: 'Safe zone' }));
+    // the mirror app plays a video full screen over everything, whatever its box: show that honestly (pointer events pass through)
+    if (this.edit.pane.widgets.some((w) => w.type === 'video')) {
+      overlay.append(h('div', { class: 'vidfull' }, h('span', { text: 'On the mirror the video plays full screen, over everything on this pane' })));
+    }
     this.edit.pane.widgets.forEach((w) => {
       overlay.append(h('div', { class: 'box', 'data-id': w.id, title: 'Covered by another widget? Click it again (or Alt-click) to select the one underneath.' },
-        h('span', { class: 'tagname', text: w.name || w.type }),
+        h('span', { class: 'tagname', text: this._label(w) }),
         h('span', { class: 'why' }),
         h('button', { class: 'x', title: 'Remove' }, icon('x')),
         h('button', { class: 'eye', title: 'Preview this widget on or off (Auto, then Hidden, then Shown). Only changes the preview; nothing is saved.' }, icon('eye')),
@@ -1101,6 +1130,11 @@ class GlassPanesPanel extends HTMLElement {
       const hh = next.auto_height ? rect.h : next.h;
       box.classList.add('dragging');
       box.style.left = next.x + 'px'; box.style.top = next.y + 'px'; box.style.width = next.w + 'px'; box.style.height = Math.max(hh, 36) + 'px';
+      // the real widget follows a move (a transform only: nothing is saved and nothing re-renders until the drop)
+      if (d.mode === 'move') {
+        const real = this.$('stage').querySelector('[data-widget="' + id.replace(/"/g, '') + '"]');
+        if (real) { real.style.translate = (next.x - rect.x) + 'px ' + (next.y - rect.y) + 'px'; d.moved = d.moved || new Set(); d.moved.add(real); }
+      }
     });
   }
 
@@ -1110,6 +1144,7 @@ class GlassPanesPanel extends HTMLElement {
     if (!d) return;
     try { this.$('overlay').releasePointerCapture(e.pointerId); } catch (err) { /* already released */ }
     this._dragging = false;
+    if (d.moved) d.moved.forEach((el) => { el.style.translate = ''; });
     if (!d.active || cancelled) {
       if (!cancelled && !d.active && d.cycle && !d.handle) this._selectWidgets([d.cycle[(d.cycle.indexOf(d.id) + 1) % d.cycle.length]]);   // clicked again, did not drag: the next one underneath
       this._buildOverlay();
@@ -1162,6 +1197,74 @@ class GlassPanesPanel extends HTMLElement {
     ids.forEach((id) => { pane.widgets = ops.removeWidget(pane.widgets, id); delete bindings[id]; });
     this.edit.selected = [];
     this._commit(pane, bindings);
+  }
+
+  /**
+   * "More options": every option of the widget's type that has no hand-made control above, built from the pane schema
+   * (ops.optionFields). The schema is fetched once; until it arrives the section is simply not there.
+   */
+  _moreOptions(box, w) {
+    if (!this._schemaDefs) {
+      if (!this._schemaLoading) {
+        this._schemaLoading = fetch('/glass_panes/schema/pane.schema.json').then((r) => r.json())
+          .then((s) => { this._schemaDefs = s.$defs || {}; this._renderInspector(); }).catch(() => { this._schemaLoading = null; });
+      }
+      return;
+    }
+    const skip = ['text', 'lines', 'media', 'asset', 'sources']
+      .concat((TOGGLES[w.type] || []).map((t) => t[0]), (CHOICES[w.type] || []).map((c) => c[0]));
+    const fields = ops.optionFields(this._schemaDefs['opt_' + w.type], skip);
+    if (!fields.length) return;
+    const opts = w.options || {};
+    const apply = (f, raw) => {
+      const v = ops.optionValue(f, raw);
+      if (v === null) { this.toast(f.label + ': that does not fit. ' + f.hint); this._renderInspector(); return; }
+      this._patch(w.id, (x) => { x.options = { ...(x.options || {}) }; if (v === undefined) delete x.options[f.key]; else x.options[f.key] = v; });
+    };
+    const shown = (f) => (opts[f.key] !== undefined ? opts[f.key] : f.dflt);
+    const words = (v) => String(v).replace(/_/g, ' ');
+    // remember open/closed the moment the heading is clicked (the 'toggle' event comes a little later, and a quick edit
+    // re-draws the inspector before it: the section would close under the person's hands)
+    const more = h('details', { class: 'more', open: this._moreOpen === true },
+      h('summary', { class: 'lbl', text: 'More options (' + fields.length + ')', onClick: () => { this._moreOpen = !more.open; } }));
+    more.addEventListener('toggle', () => { if (more.isConnected) this._moreOpen = more.open; });
+    fields.forEach((f) => {
+      const row = h('div', { class: 'opt', 'data-opt': f.key });
+      if (f.kind === 'bool') {
+        row.append(h('label', { class: 'check', title: f.hint }, h('input', { type: 'checkbox', checked: !!shown(f), onChange: (ev) => apply(f, ev.target.checked) }), f.label));
+      } else {
+        row.append(h('label', { class: 'lbl', text: f.label }));
+        if (f.kind === 'enum') {
+          const cur = shown(f);
+          row.append(h('select', { class: 'field', onChange: (ev) => (ev.target.value === '' ? apply(f, undefined) : apply(f, ev.target.value)) },
+            f.dflt === undefined ? h('option', { value: '', text: 'Default', selected: cur === undefined }) : null,
+            f.values.map((v, i) => h('option', { value: i, selected: v === cur, text: words(v) + (v === f.dflt ? ' (default)' : '') }))));
+        } else if (f.kind === 'int' || f.kind === 'number') {
+          row.append(h('input', { class: 'field', type: 'number', min: f.min, max: f.max, step: f.kind === 'int' ? 1 : 'any', value: opts[f.key] !== undefined ? opts[f.key] : '',
+            placeholder: f.dflt !== undefined ? String(f.dflt) : 'Auto', onChange: (ev) => apply(f, ev.target.value) }));
+        } else if (f.kind === 'text') {
+          row.append(h('input', { class: 'field', type: 'text', maxlength: f.max, value: opts[f.key] || '', placeholder: f.dflt !== undefined ? String(f.dflt) : '', onChange: (ev) => apply(f, ev.target.value) }));
+        } else if (f.kind === 'multi') {
+          const cur = shown(f) || [];
+          row.append(h('div', { class: 'grid2' }, f.values.map((v) => h('label', { class: 'check' },
+            h('input', { type: 'checkbox', checked: cur.includes(v), onChange: (ev) => apply(f, ev.target.checked ? cur.concat(v) : cur.filter((x) => x !== v)) }), words(v)))));
+        } else if (f.kind === 'list') {
+          row.append(h('textarea', { class: 'field', rows: 3, placeholder: 'One per line', onChange: (ev) => apply(f, ev.target.value) }, (opts[f.key] || []).join('\n')));
+        }
+        if (f.hint) row.append(h('div', { class: 'hint', text: f.hint }));
+      }
+      more.append(row);
+    });
+    box.append(more);
+  }
+
+  /** Bring a widget over ('up') or under ('down') the widgets it overlaps, as one undoable step (ops.restacked). */
+  _restack(id, dir) {
+    if (!this.edit) return;
+    const pane = clone(this.edit.pane);
+    const rects = new Map(pane.widgets.map((w) => [w.id, this._rectOf(w)]));
+    pane.widgets = ops.restacked(pane.widgets, id, rects, dir);
+    this._commit(pane);
   }
 
   _duplicateWidgets(ids) {
@@ -1224,6 +1327,14 @@ class GlassPanesPanel extends HTMLElement {
   }
 
   // ---------------------------------------------------------------- the inspector (the panel on the right)
+  /** A readable label for a widget: its name, or its kind plus a hint of what it shows (ops.widgetLabel). */
+  _label(w) {
+    if (!w) return '';
+    const b = this.edit ? (this.edit.bindings[w.id] || {}) : {};
+    const first = Object.values(b).map((v) => (Array.isArray(v) ? v[0] : v)).find((v) => typeof v === 'string' || (v && v.entity));
+    return ops.widgetLabel(w, this.state.registry, first ? this._friendly(typeof first === 'string' ? first : first.entity) : null);
+  }
+
   _friendly(id) {
     const s = this._hass && this._hass.states[id];
     return (s && s.attributes && s.attributes.friendly_name) || id;
@@ -1265,7 +1376,9 @@ class GlassPanesPanel extends HTMLElement {
 
     box.append(h('button', { class: 'btn sm ghost', style: 'margin: -4px 0 6px -6px', onClick: () => this._selectWidgets([]) }, '← Add something'));
     box.append(
-      h('div', { class: 'row' }, h('div', { class: 'grow' }, h('h3', { text: w.name || reg.label }), h('div', { class: 'sub', text: reg.label })),
+      h('div', { class: 'row' }, h('div', { class: 'grow' }, h('h3', { text: this._label(w) }), h('div', { class: 'sub', text: reg.label })),
+        h('button', { class: 'btn sm ghost', title: 'Bring forward (over what it overlaps)', 'data-act': 'front', onClick: () => this._restack(w.id, 'up') }, icon('front')),
+        h('button', { class: 'btn sm ghost', title: 'Send back (under what it overlaps)', 'data-act': 'back', onClick: () => this._restack(w.id, 'down') }, icon('back')),
         h('button', { class: 'btn sm ghost', title: 'Duplicate', onClick: () => this._duplicateWidgets([w.id]) }, icon('copy')),
         h('button', { class: 'btn sm ghost danger', title: 'Remove', onClick: () => this._removeWidgets([w.id]) }, icon('trash'))),
       h('label', { class: 'lbl', text: 'Name' }), h('input', { class: 'field', value: w.name || '', maxlength: 80, onChange: (ev) => this._patch(w.id, (x) => { x.name = ev.target.value; }) }));
@@ -1321,6 +1434,8 @@ class GlassPanesPanel extends HTMLElement {
           values.map(([v, text]) => h('option', { value: v, selected: v === current, text }))));
     });
 
+    this._moreOptions(box, w);
+
     if (!['divider', 'image', 'video'].includes(w.type)) {
       box.append(h('label', { class: 'lbl', text: 'Text' }),
         h('label', { class: 'lbl', text: 'Font' }),
@@ -1331,12 +1446,34 @@ class GlassPanesPanel extends HTMLElement {
             h('select', { class: 'field', onChange: (ev) => setStyle('weight', ev.target.value ? parseInt(ev.target.value, 10) : null) },
               h('option', { value: '', text: 'Default' }), [200, 300, 400, 500, 700].map((n) => h('option', { value: n, selected: style.weight === n, text: n }))))),
         h('label', { class: 'lbl', text: 'Colour' }),
-        h('select', { class: 'field', onChange: (ev) => setStyle('color', ev.target.value || null) },
-          h('option', { value: '', text: 'Default' }), COLORS.map((c) => h('option', { value: c, selected: style.color === c, text: c })),
-          style.color && !COLORS.includes(style.color) ? h('option', { value: style.color, selected: true, text: style.color }) : null),
+        h('div', { class: 'row', style: 'gap:6px;flex-wrap:nowrap' },
+          h('select', { class: 'field', style: 'flex:1', onChange: (ev) => setStyle('color', ev.target.value || null) },
+            h('option', { value: '', text: 'Default' }), COLORS.map((c) => h('option', { value: c, selected: style.color === c, text: c })),
+            style.color && !COLORS.includes(style.color) ? h('option', { value: style.color, selected: true, text: style.color }) : null),
+          // any colour: the browser's own colour picker, stored as #rrggbb
+          h('input', { type: 'color', class: 'swatch', title: 'Pick any colour', value: HEX6.test(style.color || '') ? style.color : '#ffffff', onChange: (ev) => setStyle('color', ev.target.value.toLowerCase()) })),
         this._readabilityNote(w),
+        h('div', { class: 'grid2', style: 'margin-top:8px' },
+          h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !!style.italic, onChange: (ev) => setStyle('italic', ev.target.checked || null) }), 'Italic'),
+          h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !!style.uppercase, onChange: (ev) => setStyle('uppercase', ev.target.checked || null) }), 'ALL CAPS')),
+        h('div', { class: 'grid2' },
+          h('div', {}, h('label', { class: 'lbl', text: 'Letter spacing (px)' }),
+            h('input', { class: 'field', type: 'number', min: -10, max: 40, step: 0.5, value: style.letter_spacing != null ? style.letter_spacing : 0,
+              onChange: (ev) => { const v = parseFloat(ev.target.value); setStyle('letter_spacing', isNaN(v) || v === 0 ? null : Math.max(-10, Math.min(40, v))); } })),
+          h('div', {}, h('label', { class: 'lbl', text: 'Line height' }),
+            h('input', { class: 'field', type: 'number', min: 0.8, max: 3, step: 0.05, value: style.line_height != null ? style.line_height : '', placeholder: 'Auto',
+              onChange: (ev) => { const v = parseFloat(ev.target.value); setStyle('line_height', isNaN(v) ? null : Math.max(0.8, Math.min(3, v))); } }))),
         h('label', { class: 'lbl', text: 'Alignment' }),
         h('div', { class: 'seg' }, ['left', 'center', 'right'].map((a) => h('button', { class: (style.align || 'left') === a ? 'on' : '', onClick: () => setStyle('align', a === 'left' ? null : a), text: a }))));
+    }
+    if (w.type !== 'video') {
+      const pct = Math.round((style.opacity == null ? 1 : style.opacity) * 100);
+      const out = h('span', { class: 'hint', text: pct + '%' });
+      box.append(h('label', { class: 'lbl', text: 'Opacity' }),
+        h('div', { class: 'row', style: 'gap:8px;flex-wrap:nowrap' },
+          h('input', { type: 'range', min: 10, max: 100, step: 5, value: pct, style: 'flex:1',
+            onInput: (ev) => { out.textContent = ev.target.value + '%'; },
+            onChange: (ev) => { const v = parseInt(ev.target.value, 10); setStyle('opacity', v >= 100 ? null : v / 100); } }), out));
     }
   }
 
@@ -1375,7 +1512,7 @@ class GlassPanesPanel extends HTMLElement {
     const e = this.edit;
     const slotEntity = (slot) => ((e.bindings[w.id] || {})[slot]);
     return {
-      h, icon, w, widgets: e.pane.widgets, rect: this._rectOf(w),
+      h, icon, w, widgets: e.pane.widgets, rect: this._rectOf(w), label: (x) => this._label(x),
       entityName: (slot) => { const id = slotEntity(slot); return id ? this._friendly(typeof id === 'string' ? id : id.entity) : null; },
       chooseEntity: (slot) => this._openDrawer('bind', { id: w.id, slot, def: { kind: 'entity', domains: [], label: 'Entity for this condition' } }),
       edit: (fn) => this._editRule(w.id, fn),
@@ -1403,7 +1540,7 @@ class GlassPanesPanel extends HTMLElement {
     const pane = this._shownPane();
     menu.textContent = '';
     (pane ? pane.widgets : []).filter((w) => usesRules(w) || w.auto_height).forEach((w) => {
-      menu.append(h('div', { class: 'item' }, h('span', { class: 'name', text: w.name || w.type }), forceControl(h, this._forceMap()[w.id], (mode) => this._setForce(w.id, mode))));
+      menu.append(h('div', { class: 'item' }, h('span', { class: 'name', text: this._label(w) }), forceControl(h, this._forceMap()[w.id], (mode) => this._setForce(w.id, mode))));
     });
   }
 
@@ -1429,8 +1566,32 @@ class GlassPanesPanel extends HTMLElement {
   // ---------------------------------------------------------------- uploaded pictures and videos
   // A picture or video comes from the media library. "Upload" opens the device's own chooser: on a computer a file window, on a phone
   // the photo library, the camera or the files app. The file goes to Home Assistant's upload endpoint first, then Glass Panes takes it.
+  /** Width, height and (for a video) duration, read in this browser before uploading. Missing values just mean fewer checks. */
+  async _measureMedia(file) {
+    const kind = /^video\//.test(file.type) || /\.(mp4|mov|m4v|webm)$/i.test(file.name) ? 'video' : 'image';
+    const info = { kind, type: file.type, name: file.name, size: file.size };
+    const url = URL.createObjectURL(file);
+    try {
+      await Promise.race([new Promise((done) => {
+        if (kind === 'video') {
+          const v = document.createElement('video');
+          v.preload = 'metadata'; v.muted = true;
+          v.onloadedmetadata = () => { info.width = v.videoWidth; info.height = v.videoHeight; info.duration = v.duration; done(); };
+          v.onerror = done; v.src = url;
+        } else {
+          const img = new Image();
+          img.onload = () => { info.width = img.naturalWidth; info.height = img.naturalHeight; done(); };
+          img.onerror = done; img.src = url;
+        }
+      }), new Promise((done) => setTimeout(done, 5000))]);
+    } finally { URL.revokeObjectURL(url); }
+    return info;
+  }
+
   async _uploadMedia(file) {
     if (!file) return null;
+    const warnings = ops.mediaWarnings(await this._measureMedia(file).catch(() => ({})));
+    if (warnings.length && !confirm('A heads-up about ' + file.name + ':\n\n• ' + warnings.join('\n\n• ') + '\n\nUpload it anyway?')) return null;
     try {
       if (!this._hass.fetchWithAuth) throw new Error('This version of Home Assistant cannot upload from here');
       this.toast('Uploading ' + file.name + '…');

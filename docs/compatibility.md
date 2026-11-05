@@ -10,6 +10,8 @@ Everything the **player page** shows (panes, widgets, themes, fonts, Now playing
 
 | Mirror app version | What it adds | Needed for |
 |---|---|---|
+| 0.10.7 | Steadier: the camera is reopened by itself if it fails or goes quiet (presence used to stop until a restart), an engine that keeps crashing is rebuilt with growing pauses instead of in a tight loop, and the mirror refuses to load any page but your Home Assistant one (the browser engine no longer gets security fixes on Android 6). New `/status` numbers: `presence.seconds_since_frame`, `presence.camera_restarts`, `engine_restarts`, `blocked_loads`. | Recommended for everyone using presence |
+| 0.10.6 | Reloads a stuck or frozen page by itself, using the player's heartbeat (Glass Panes 0.10.9+). `seconds_since_heartbeat` in `/status`. | Stuck-page protection |
 | 0.10.5 | Security update: web pages from other sites can no longer drive the mirror, `/video/start` only plays web addresses, a sturdier control server, keys with symbols work, debugging off in release builds. | Recommended for everyone |
 | 0.10.3 (and the identical 0.10.4) | The first signed release. A launch screen with the boot animation. Memory numbers in `/status`. Presence settings and the reporting rate. The control-server calls listed in [mirror-app/api.md](mirror-app/api.md). Updates install over the top and keep your settings. | Everything in the integration so far |
 

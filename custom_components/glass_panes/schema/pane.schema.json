@@ -34,6 +34,18 @@
       "minimum": 0,
       "maximum": 100
     },
+    "burn_in_saver": {
+      "description": "Drift the whole pane a few pixels, very slowly (one lap about every 40 minutes), so a screen left on for hours never holds the same pixels. Too slow to notice.",
+      "type": "boolean"
+    },
+    "motion": {
+      "description": "How things move on this pane. `widgets: fade` fades a widget in and out when its show-when rule switches it (about half a second). Left out means no fade. Displays that ask for reduced motion never fade.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "widgets": { "enum": ["none", "fade"] }
+      }
+    },
     "widgets": {
       "type": "array",
       "maxItems": 64,

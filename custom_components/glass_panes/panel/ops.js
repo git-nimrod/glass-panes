@@ -312,3 +312,125 @@ export function whyEmpty(type, entityIds, states, now = Date.now()) {
   }
   return (notes.join('. ') || 'No games right now') + '.';
 }
+
+/**
+ * A name a person can read for a widget with no name of its own: its kind plus a hint of what it shows
+ * (`Text: "SPORTS"`, `Message: "Welcome home"`, `Entity value: Living room`), instead of "text" eight times.
+ */
+export function widgetLabel(w, registry = {}, entityName = null) {
+  if (w.name) return w.name;
+  const base = (registry[w.type] && registry[w.type].label) || w.type;
+  const o = w.options || {};
+  const quoted = typeof o.text === 'string' ? o.text : Array.isArray(o.lines) && typeof o.lines[0] === 'string' ? o.lines[0] : '';
+  let snip = (quoted || entityName || '').replace(/\s+/g, ' ').trim();
+  if (!snip) return base;
+  if (snip.length > 24) snip = snip.slice(0, 23) + '…';
+  return base + ': ' + (quoted ? '“' + snip + '”' : snip);
+}
+
+const overlapping = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+/**
+ * Bring forward ('up') or send back ('down') one widget among those it overlaps. Returns a new list.
+ * Paint order is `z` first, then the list order (later draws on top), so the widget takes the highest (lowest) z of the
+ * widgets it touches and moves to the end (start) of the list. z 0 is written as no z at all, which keeps pane files tidy.
+ */
+export function restacked(widgets, id, rects, dir) {
+  const i = widgets.findIndex((w) => w.id === id);
+  if (i < 0 || !rects.get(id)) return widgets;
+  const me = rects.get(id);
+  const zs = widgets.filter((w) => w.id !== id && rects.get(w.id) && overlapping(me, rects.get(w.id))).map((w) => w.z || 0);
+  const w = { ...widgets[i] };
+  const z = dir === 'up' ? (zs.length ? Math.max(...zs) : w.z || 0) : (zs.length ? Math.min(...zs) : w.z || 0);
+  if (z > 0) w.z = Math.min(99, z); else delete w.z;
+  const out = widgets.filter((x) => x.id !== id);
+  if (dir === 'up') out.push(w); else out.unshift(w);
+  return out;
+}
+
+/**
+ * The inspector's "More options" form, read from the pane schema: one field per option of a widget type that is not already
+ * edited by a hand-made control (`skip`). Kinds: bool (checkbox), enum (select; values keep their type), int / number
+ * (number field with min/max), text, multi (an array of fixed choices: a checkbox each), list (an array of words: one per line).
+ * Anything else (objects, odd arrays) is left out rather than guessed at.
+ */
+export function optionFields(def, skip = []) {
+  const props = (def && def.properties) || {};
+  const words = (k) => k.charAt(0).toUpperCase() + k.slice(1).replace(/_/g, ' ');
+  const out = [];
+  for (const [key, p] of Object.entries(props)) {
+    if (skip.includes(key)) continue;
+    const t = Array.isArray(p.type) ? p.type.filter((x) => x !== 'null')[0] : p.type;
+    const f = { key, label: words(key), hint: p.description || '', dflt: p.default };
+    if (Array.isArray(p.enum)) Object.assign(f, { kind: 'enum', values: p.enum });
+    else if (t === 'boolean') f.kind = 'bool';
+    else if (t === 'integer' || t === 'number') Object.assign(f, { kind: t === 'integer' ? 'int' : 'number', min: p.minimum, max: p.maximum });
+    else if (t === 'string') Object.assign(f, { kind: 'text', max: p.maxLength, pattern: p.pattern });
+    else if (t === 'array' && p.items && Array.isArray(p.items.enum)) Object.assign(f, { kind: 'multi', values: p.items.enum });
+    else if (t === 'array' && p.items && p.items.type === 'string') Object.assign(f, { kind: 'list', max: p.maxItems });
+    else continue;
+    out.push(f);
+  }
+  return out;
+}
+
+/**
+ * Turn what a person typed into the value to store, or undefined to remove the option (empty, or the same as the default, so
+ * pane files stay tidy). Out-of-range numbers are pulled into range; a text that breaks the schema's pattern is refused (null).
+ */
+export function optionValue(f, raw) {
+  let v;
+  if (f.kind === 'bool') v = !!raw;
+  else if (f.kind === 'enum') v = f.values[Number(raw)];
+  else if (f.kind === 'int' || f.kind === 'number') {
+    if (raw === '' || raw == null) return undefined;
+    v = Number(raw);
+    if (!isFinite(v)) return undefined;
+    if (f.kind === 'int') v = Math.round(v);
+    if (f.min != null) v = Math.max(f.min, v);
+    if (f.max != null) v = Math.min(f.max, v);
+  } else if (f.kind === 'text') {
+    v = String(raw == null ? '' : raw);
+    if (!v.trim()) return undefined;
+    if (f.max) v = v.slice(0, f.max);
+    if (f.pattern && !new RegExp(f.pattern).test(v)) return null;
+  } else if (f.kind === 'multi') v = f.values.filter((x) => (raw || []).includes(x));
+  else if (f.kind === 'list') {
+    v = String(raw || '').split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
+    if (f.max) v = v.slice(0, f.max);
+    if (!v.length) return undefined;
+  }
+  if (f.dflt !== undefined && JSON.stringify(v) === JSON.stringify(f.dflt)) return undefined;
+  return v;
+}
+
+/**
+ * Reasons an upload may be hard on a mirror (about 950 MB of memory, Android 6, its own video player), or [] when it looks fine.
+ * `info`: kind ('image' | 'video'), type, name, size (bytes) and, when the browser could read them, width, height, duration (s).
+ * Warnings only: the person can still upload. Pictures are shown at most 1080 x 1920, so anything far bigger only costs memory.
+ */
+export function mediaWarnings(info) {
+  const out = [];
+  const mb = (n) => Math.round(n / 1048576);
+  const type = String(info.type || '').toLowerCase(), name = String(info.name || '').toLowerCase();
+  if (info.kind === 'image') {
+    const px = (info.width || 0) * (info.height || 0);
+    if (px > 4e6) {
+      out.push(`It is ${info.width} x ${info.height} (${Math.round(px / 1e5) / 10} megapixels). The mirror unpacks it to about ${mb(px * 4)} MB of memory but never shows more than 1080 x 1920. Shrinking it first keeps the mirror smooth.`);
+    }
+    if ((type === 'image/gif' || name.endsWith('.gif')) && info.size > 2 * 1048576) {
+      out.push(`It is a ${mb(info.size) || 1} MB GIF. Big animated GIFs are slow to draw on the mirror; a short MP4 video loops more smoothly.`);
+    }
+  } else if (info.kind === 'video') {
+    if (type === 'video/webm' || name.endsWith('.webm')) {
+      out.push('It is a WebM video. The mirror\'s player handles MP4 (H.264) best; WebM (VP9) may stutter or not play.');
+    }
+    if ((info.width || 0) * (info.height || 0) > 1920 * 1080) {
+      out.push(`It is ${info.width} x ${info.height}. Bigger than 1080p is more than the mirror needs and may stutter; 1080 x 1920 (portrait) is ideal.`);
+    }
+    if (info.duration > 0 && (info.size * 8) / info.duration > 12e6) {
+      out.push(`It streams about ${Math.round((info.size * 8) / info.duration / 1e6)} Mbit/s. Over Wi-Fi the mirror is happiest under about 8.`);
+    }
+  }
+  return out;
+}

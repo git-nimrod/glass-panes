@@ -65,7 +65,8 @@ export function ruleSection(ctx) {
   const { h, icon, w, widgets } = ctx;
   const conditions = conditionsOf(w);
   const others = widgets.filter((x) => x.id !== w.id);
-  const nameOf = (id) => { const x = widgets.find((y) => y.id === id); return x ? (x.name || x.type) : id; };
+  const label = ctx.label || ((x) => x.name || x.type);
+  const nameOf = (id) => { const x = widgets.find((y) => y.id === id); return x ? label(x) : id; };
   const rule = w.show_when;
   const showing = conditions.length > 0 || ctx.open;
   const root = h('div', { class: 'rules' });
@@ -144,7 +145,7 @@ function conditionCard(ctx, c, index, others, nameOf) {
   if (c.kind === 'has_content' || c.kind === 'empty') {
     card.append(h('div', { class: 'row' },
       h('select', { class: 'field', style: 'flex:1', 'data-field': 'widget', onChange: (ev) => set({ widget: ev.target.value }) },
-        others.map((o) => h('option', { value: o.id, selected: o.id === c.widget, text: o.name || o.type })),
+        others.map((o) => h('option', { value: o.id, selected: o.id === c.widget, text: (ctx.label ? ctx.label(o) : o.name || o.type) })),
         others.some((o) => o.id === c.widget) ? null : h('option', { value: c.widget, selected: true, text: c.widget + ' (missing)' })),
       h('select', { class: 'field', style: 'width:auto', 'data-field': 'kind', onChange: (ev) => set({ kind: ev.target.value }) },
         h('option', { value: 'has_content', selected: c.kind === 'has_content', text: 'has something to show' }),
@@ -216,7 +217,7 @@ function placeBelow(ctx, others, nameOf) {
         x.flow = { after: id, gap: (x.flow && x.flow.gap) || 0 };
       });
     } }, h('option', { value: '', selected: !after.length, text: 'Nothing: stay where I put it' }),
-    choices.map((o) => h('option', { value: o.id, selected: after.length === 1 && after[0] === o.id, text: o.name || o.type })),
+    choices.map((o) => h('option', { value: o.id, selected: after.length === 1 && after[0] === o.id, text: (ctx.label ? ctx.label(o) : o.name || o.type) })),
     after.length > 1 ? h('option', { value: '', selected: true, disabled: true, text: 'Several widgets: ' + after.map(nameOf).join(', ') }) : null));
   if (after.length) {
     wrap.append(h('div', { class: 'grid2', style: 'margin-top:6px' }, h('div', {}, h('label', { class: 'lbl', text: 'Gap (px)' }),

@@ -20,6 +20,7 @@ import android.os.Bundle
 import android.view.View
 import android.view.WindowManager
 import kotlin.concurrent.thread
+import org.mozilla.geckoview.AllowOrDeny
 import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.GeckoRuntime
 import org.mozilla.geckoview.GeckoRuntimeSettings
@@ -52,6 +53,30 @@ class MainActivity : Activity() {
     private var videoUrl: String? = null
     private lateinit var session: GeckoSession
     private val retryLoad = Runnable { loadPage() }
+
+    // Page watchdog. A page can "load" and still be broken: Home Assistant answers "404: Not Found" while it is still starting, or a
+    // script fails. Once a player has ever sent a heartbeat (so older players are not affected), the page must say it is alive within
+    // 60 s of loading and then at least every 3 minutes. If not, it is loaded again, waiting longer each time (10 s up to 5 min).
+    private var watchdogReloads = 0
+    private var nextWatchdogReloadMs = 0L
+    private val watchdog = object : Runnable {
+        override fun run() {
+            Kiosk.main.postDelayed(this, 30_000)
+            val p = Kiosk.prefs(this@MainActivity)
+            if (!p.getBoolean("heartbeat", false) || (p.getString("url", "") ?: "").isEmpty() || Kiosk.lastLoadMs == 0L) return
+            val now = System.currentTimeMillis()
+            if (Kiosk.lastAliveMs > Kiosk.lastLoadMs) watchdogReloads = 0
+            val neverAlive = Kiosk.lastAliveMs < Kiosk.lastLoadMs && now - Kiosk.lastLoadMs > 60_000
+            val wentQuiet = Kiosk.lastAliveMs >= Kiosk.lastLoadMs && now - Kiosk.lastAliveMs > 180_000
+            if ((neverAlive || wentQuiet) && now >= nextWatchdogReloadMs) {
+                val waits = longArrayOf(10_000, 30_000, 60_000, 120_000, 300_000)
+                nextWatchdogReloadMs = now + waits[minOf(watchdogReloads, waits.size - 1)]
+                watchdogReloads++
+                Kiosk.pageOk = false
+                loadPage()
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -93,6 +118,7 @@ class MainActivity : Activity() {
         // do it again once boot has settled, because the system can re-enable it a little later.
         DisplayPostProc.ensureOff(this)
         Kiosk.main.postDelayed({ DisplayPostProc.ensureOff(this) }, 25_000)
+        Kiosk.main.postDelayed(watchdog, 30_000)
 
         blackWallpaperOnce()
     }
@@ -120,6 +146,8 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         Kiosk.main.removeCallbacks(retryLoad)
+        Kiosk.main.removeCallbacks(watchdog)
+        Kiosk.main.removeCallbacks(restartNow)
         if (Kiosk.activity === this) Kiosk.activity = null
         super.onDestroy()
     }
@@ -155,6 +183,20 @@ class MainActivity : Activity() {
         // Network not up yet (the mirror's Wi-Fi takes a couple of minutes after boot): show a
         // black page instead of Firefox's white error page, and keep retrying.
         s.navigationDelegate = object : GeckoSession.NavigationDelegate {
+            // Navigation lock: the engine (GeckoView 143) is the last one Mozilla made for Android 6 and gets no more security
+            // fixes, so the page may only ever be the Home Assistant address the mirror was given (same scheme, host and port)
+            // or our own black waiting page. Links, redirects and scripts that try to go anywhere else are refused.
+            // New windows (window.open, target=_blank) are refused too: onNewSession is not overridden, which denies them.
+            override fun onLoadRequest(
+                session: GeckoSession,
+                request: GeckoSession.NavigationDelegate.LoadRequest
+            ): GeckoResult<AllowOrDeny> {
+                val page = Kiosk.prefs(this@MainActivity).getString("url", "") ?: ""
+                val ok = request.uri == BLACK_PAGE || request.uri == "about:blank" || Origins.same(request.uri, page)
+                if (!ok) Kiosk.blockedLoads++
+                return GeckoResult.fromValue(if (ok) AllowOrDeny.ALLOW else AllowOrDeny.DENY)
+            }
+
             override fun onLoadError(
                 session: GeckoSession,
                 uri: String?,
@@ -173,12 +215,26 @@ class MainActivity : Activity() {
         session = s
     }
 
+    // Crash backoff: a page that crashes the engine every time would otherwise rebuild it in a tight loop.
+    // Crashes close together wait longer each time (1 s, 5 s, 15 s, 1 min, 5 min); 10 calm minutes reset it.
+    private var lastCrashMs = 0L
+    private var crashesInRow = 0
+    private val restartNow = Runnable {
+        try { session.close() } catch (e: Exception) { /* already gone */ }
+        newSession()
+        loadPage()
+    }
+
     private fun restartSession() {
         Kiosk.main.post {
+            val now = System.currentTimeMillis()
+            crashesInRow = if (now - lastCrashMs > 600_000) 0 else crashesInRow + 1
+            lastCrashMs = now
+            Kiosk.engineRestarts++
+            val waits = longArrayOf(1_000, 5_000, 15_000, 60_000, 300_000)
             showSplash(getString(R.string.splash_starting))
-            try { session.close() } catch (e: Exception) { /* already gone */ }
-            newSession()
-            loadPage()
+            Kiosk.main.removeCallbacks(restartNow)
+            Kiosk.main.postDelayed(restartNow, waits[minOf(crashesInRow, waits.size - 1)])
         }
     }
 

@@ -143,7 +143,7 @@ class Manager:
             pane = json.loads(json.dumps(source[0]))      # a deep copy, so the original is never touched
         else:
             pane = {"schema_version": 1, "id": "", "name": "", "canvas": {"width": panes_lib.CANVAS_WIDTH, "height": panes_lib.CANVAS_HEIGHT},
-                    "background": "#000000", "widgets": []}
+                    "background": "#000000", "motion": {"widgets": "fade"}, "widgets": []}
         async with self._lock:
             pane["id"] = displays_lib.unique_id(name, set(self.pane_ids()), "pane")
             pane["name"] = name.strip()
@@ -256,7 +256,7 @@ class Manager:
                     pane["name"] = f"{pane.get('name', source_id)} (copy)"
             else:
                 pane = {"schema_version": 1, "id": "", "name": name.strip(), "canvas": {"width": panes_lib.CANVAS_WIDTH, "height": panes_lib.CANVAS_HEIGHT},
-                        "background": "#000000", "widgets": []}
+                        "background": "#000000", "motion": {"widgets": "fade"}, "widgets": []}
                 bindings = {}
             pane["id"] = draft_id
             if description.strip():

@@ -489,6 +489,12 @@ set_pane:
           min: 0
           max: 100
           mode: box
+    fade:
+      selector:
+        boolean:
+    burn_in_saver:
+      selector:
+        boolean:
 
 finish_draft:
   fields:

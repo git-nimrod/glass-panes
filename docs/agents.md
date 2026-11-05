@@ -20,7 +20,7 @@ An agent works in a **draft**. A draft is private. It isn't shown on any display
 | Move and resize | `place_widget` | `x`, `y`, `w`, `h`, or `below` another widget. Everything stays on the canvas. `snap` rounds to the 40 px grid. |
 | Bind entities | `bind_widget` | Bind an entity (or a list) to one of a widget's slots, or clear it. Slot names and the right kind of entity come from `get_schema`. |
 | Tidy | `align_widgets` | left, center, right, top, middle, bottom, same-width, same-height, and (three or more) distribute-h and distribute-v. |
-| The pane itself | `set_pane` | Name, description, theme, background colour and brightness. |
+| The pane itself | `set_pane` | Name, description, theme, background colour, brightness, `fade` (show-when widgets fade in and out; new drafts start with it on) and `burn_in_saver` (the whole pane drifts slowly). |
 | Remove | `remove_widget` | Whatever flowed after it closes up, and its entities are forgotten. |
 | Look | `get_draft`, `list_drafts` | The whole draft (every widget and its bindings), or all your drafts. |
 | Finish | `finish_draft` | Saves a **new** pane (its id comes from the name). A draft started with `edit` can overwrite that pane, but only if you pass `replace: true`. |

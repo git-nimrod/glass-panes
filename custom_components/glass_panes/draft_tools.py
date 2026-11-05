@@ -137,7 +137,7 @@ TOOLS: tuple[Tool, ...] = (
     ),
     Tool(
         "set_pane", "Change the pane itself",
-        "Change the draft's name, description, theme, background colour or brightness. Themes: moss, cream, creamnight, midnight, paper, slate, or original to remove it.",
+        "Change the draft's name, description, theme, background colour, brightness or fade. Themes: moss, cream, creamnight, midnight, paper, slate, or original to remove it.",
         (
             DRAFT,
             Field("name", "text", "The pane's name."),
@@ -145,6 +145,8 @@ TOOLS: tuple[Tool, ...] = (
             Field("theme", "text", "A colour theme, or original to remove it.", options=("moss", "cream", "creamnight", "midnight", "paper", "slate", "original")),
             Field("background", "text", "A background colour like #000000 (black is see-through on a two-way mirror). A theme replaces it.", example="#000000"),
             Field("brightness", "number", "Backlight percent to ask for while this pane shows (0 to 100).", minimum=0, maximum=100),
+            Field("fade", "boolean", "Fade widgets in and out when their show-when rule switches them (new panes start with this on)."),
+            Field("burn_in_saver", "boolean", "Drift the whole pane a few pixels very slowly, against burn-in on screens left on for hours."),
         ),
     ),
     Tool(
@@ -210,7 +212,7 @@ async def call(manager: Manager, name: str, data: dict[str, Any]) -> dict[str, A
     elif name == "align_widgets":
         problems, result = await manager.edit_draft(draft_id, "align_widgets", widgets=data.get("widgets"), mode=data.get("mode"))
     else:  # set_pane
-        args = _present(data, "name", "description", "background", "brightness")
+        args = _present(data, "name", "description", "background", "brightness", "fade", "burn_in_saver")
         if "theme" in data and data["theme"] is not None:
             args["theme"] = None if data["theme"] == "original" else data["theme"]
         problems, result = await manager.edit_draft(draft_id, "set_pane", **args)

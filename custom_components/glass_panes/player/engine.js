@@ -62,6 +62,10 @@ export class PaneRenderer {
     this.clear();
     // a theme (if the pane has one) supplies the colours and the background; with no theme this is the plain background it always was
     this.stage.style.background = applyTheme(this.stage, pane.theme) || pane.background || '#000000';
+    // pane.motion.widgets "fade": widgets switched by show-when rules fade instead of popping (player.css; off with reduced motion)
+    this.stage.classList.toggle('gp-fade', !!(pane.motion && pane.motion.widgets === 'fade'));
+    // pane.burn_in_saver: the whole pane wanders 6 px over 40 minutes (player.css). `translate`, so the stage's own scale transform is kept.
+    this.stage.classList.toggle('gp-pane-drift', pane.burn_in_saver === true);
     this.slotsFor = slotsFor;
     (pane.widgets || []).forEach((w) => this.mounted.push(this._mount(pane, w, slotsFor[w.id] || {})));
     this._startRules(pane);

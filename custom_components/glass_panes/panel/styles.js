@@ -97,7 +97,7 @@ main { display: flex; flex-direction: column; min-width: 0; min-height: 0; posit
 .stagebar .title { font-size: 20px; font-weight: 650; letter-spacing: -.015em; }
 .stagebar .actions { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
 .details { margin: 4px 20px 0; display: none; }
-#wrap { flex: 1; min-height: 0; display: flex; justify-content: center; align-items: center; padding: 14px 20px 92px; overflow: hidden;
+#wrap { flex: 1; min-height: 0; display: flex; justify-content: center; align-items: center; padding: 14px 20px 14px; overflow: hidden;
   background-color: #f3f1e3; background-image: radial-gradient(rgba(20, 60, 35, .22) 1px, transparent 1px); background-size: 22px 22px; }   /* always cream, in the dark look too */
 #device { position: relative; padding: 9px; border-radius: 26px; background: #16171a; box-shadow: 0 0 0 1px rgba(255,255,255,.08) inset, 0 24px 60px rgba(0,0,0,.35), 0 4px 12px rgba(0,0,0,.25); }
 #preview { position: relative; overflow: hidden; border-radius: 17px; background: #000; }
@@ -105,7 +105,13 @@ main { display: flex; flex-direction: column; min-width: 0; min-height: 0; posit
 .editing #overlay { display: block; background-image: radial-gradient(rgba(255,255,255,.28) calc(1.4px * var(--inv, 3)), transparent calc(1.4px * var(--inv, 3))); background-size: 40px 40px; background-position: 0 0; }
 
 /* ---------- dock (the floating toolbar) */
-.dock { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 7px; border-radius: 18px; background: color-mix(in srgb, var(--ui-surface) 90%, transparent); backdrop-filter: blur(14px); border: 1px solid var(--ui-line); box-shadow: var(--ui-shadow); z-index: 3; max-width: calc(100% - 24px); flex-wrap: wrap; justify-content: center; }
+#stage.gp-pane-drift { animation: none; }   /* the drift is for the display; in the builder it would pull the content away from the outlines */
+details.more { margin-top: 14px; border-top: 1px solid var(--ui-line); padding-top: 4px; }
+details.more > summary { cursor: pointer; list-style: revert; }
+details.more .opt .hint { margin-top: 3px; }
+.vidfull { position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(135deg, rgba(120, 160, 255, .10) 0 40px, rgba(120, 160, 255, .04) 40px 80px); outline: 6px dashed rgba(120, 160, 255, .55); outline-offset: -6px; display: flex; align-items: flex-end; justify-content: center; }
+.vidfull span { margin-bottom: 120px; padding: 18px 30px; border-radius: 40px; background: rgba(0, 0, 0, .7); color: #cfe0ff; font: 600 34px/1.2 system-ui, sans-serif; }
+.dock { position: relative; align-self: center; margin: 0 auto 14px; display: flex; align-items: center; gap: 6px; padding: 7px; border-radius: 18px; background: color-mix(in srgb, var(--ui-surface) 90%, transparent); backdrop-filter: blur(14px); border: 1px solid var(--ui-line); box-shadow: var(--ui-shadow); z-index: 3; max-width: calc(100% - 24px); flex-wrap: wrap; justify-content: center; }
 .dock .sep { width: 1px; height: 24px; background: var(--ui-line); margin: 0 4px; flex: none; }
 .dock .btn { border-radius: 12px; }
 .switch { display: inline-flex; align-items: center; gap: 8px; padding: 0 8px; cursor: pointer; font-weight: 550; user-select: none; white-space: nowrap; }
@@ -194,6 +200,8 @@ main { display: flex; flex-direction: column; min-width: 0; min-height: 0; posit
 .has-inspector .inspector { display: flex; }
 .inspector h3 { margin: 0 0 2px; font-size: 16px; letter-spacing: -.01em; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.swatch { width: 38px; height: 32px; padding: 2px; border: 1px solid var(--gp-line, #444); border-radius: 6px; background: none; cursor: pointer; flex: none; }
+.swatch:disabled { opacity: .35; cursor: not-allowed; }
 .seg { display: inline-grid; grid-auto-flow: column; gap: 2px; padding: 3px; border-radius: 10px; background: var(--ui-sunken); }
 .seg button { border: 0; background: transparent; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-weight: 550; color: var(--ui-muted); }
 .seg button.on { background: var(--ui-surface); color: var(--ui-text); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
@@ -235,12 +243,12 @@ main { display: flex; flex-direction: column; min-width: 0; min-height: 0; posit
   .layout, .layout.has-inspector { grid-template-columns: 1fr; }
   main { order: -1; }
   .rail { border-right: 0; border-top: 1px solid var(--ui-line); }
-  #wrap { flex: none; height: calc(100vh - 190px); min-height: 380px; padding: 8px 12px 84px; }
+  #wrap { flex: none; height: calc(100vh - 250px); min-height: 380px; padding: 8px 12px; }
   .stagebar { padding: 12px 14px 4px; }
   .stagebar .actions { margin-left: 0; }
   .inspector { position: fixed; left: 0; right: 0; bottom: 0; max-height: 42vh; border-left: 0; border-top: 1px solid var(--ui-line); border-radius: 18px 18px 0 0; box-shadow: var(--ui-shadow); z-index: 5; }
-  .dock { position: fixed; bottom: 14px; }
-  .has-inspector .dock { bottom: calc(42vh + 10px); }
+  .dock { margin: 0 auto 10px; }
+  .has-inspector .dock { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(42vh + 10px); margin: 0; }
   #toast { position: fixed; }
   .drawer { position: fixed; width: 100%; }
   .scrim { position: fixed; }

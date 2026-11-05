@@ -119,9 +119,19 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; cursor
 .gp-drift { animation: gp-drift 2400s linear infinite; will-change: transform; }
 @keyframes gp-drift { 0% { transform: translate(0, 0); } 25% { transform: translate(6px, 0); } 50% { transform: translate(6px, 6px); } 75% { transform: translate(0, 6px); } 100% { transform: translate(0, 0); } }
 /* people who ask their display for less movement get a still record, and the arm just appears in place */
+/* pane.burn_in_saver: the whole stage wanders 6 px, one lap every 40 minutes. The `translate` property, not `transform`,
+   because the player scales the stage with transform. One layer, no JS. */
+.gp-stage.gp-pane-drift { animation: gp-pane-drift 2400s linear infinite; }
+@keyframes gp-pane-drift { 0% { translate: 0 0; } 25% { translate: 6px 0; } 50% { translate: 6px 6px; } 75% { translate: 0 6px; } 100% { translate: 0 0; } }
+
+/* pane.motion.widgets "fade": a widget switched on or off by its show-when rule fades over .6 s instead of popping.
+   Fading out, visibility waits until the fade ends; fading in, it turns on at once. !important beats a widget's own opacity. */
+.gp-fade .gp-widget { transition: opacity .6s ease, visibility 0s linear 0s; }
+.gp-fade .gp-widget.gp-hidden { opacity: 0 !important; transition: opacity .6s ease, visibility 0s linear .6s; }
 @media (prefers-reduced-motion: reduce) {
   .gp-np.playing .gp-spin { animation: none; }
   .gp-arm { transition: none; }
+  .gp-fade .gp-widget, .gp-fade .gp-widget.gp-hidden { transition: none; }
 }
 
 /* people */

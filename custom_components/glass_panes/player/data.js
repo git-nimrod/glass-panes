@@ -141,11 +141,28 @@ export class HAClient {
     let ws;
     try { ws = new WebSocket(url); } catch (e) { this._retry(); return; }
     this.ws = ws;
+    // A connection can die without closing (the Home Assistant host freezes, a router reboots, Wi-Fi drops). Then nothing arrives and
+    // entity widgets would freeze while the clock keeps ticking. So: login must finish within 15 s, every ping must be answered within
+    // 10 s, and 75 s of silence counts as dead. Message ids always increase (Home Assistant ignores a reused id).
+    this.lastMsg = Date.now();
+    this.nextId = 2;
+    this.pendingPing = null;
+    const authTimer = setTimeout(() => { if (this.ws === ws && !this.live) this._down(); }, 15000);
+    clearInterval(this.watchdog);
+    this.watchdog = setInterval(() => {
+      if (this.ws !== ws || !this.live) return;
+      const late = this.pendingPing && Date.now() - this.pendingPing.at > 10000;
+      if (late || Date.now() - this.lastMsg > 75000) this._down();
+    }, 5000);
     ws.onmessage = (ev) => {
       let m;
       try { m = JSON.parse(ev.data); } catch (e) { return; }
+      this.lastMsg = Date.now();
+      if (m.type === 'pong' && this.pendingPing && m.id === this.pendingPing.id) { this.pendingPing = null; return; }
+      if (m.type === 'result' && m.id === 1 && m.success === false) { this._down(); return; }   // the subscription was refused
       if (m.type === 'auth_required') ws.send(JSON.stringify({ type: 'auth', access_token: this.getToken() }));
       else if (m.type === 'auth_ok') {
+        clearTimeout(authTimer);
         this.generation = (this.generation || 0) + 1;      // counts connections: a new one after a drop may mean Home Assistant restarted
         ws.send(JSON.stringify({ id: 1, type: 'subscribe_events', event_type: 'state_changed' }));
         this.cache.clear();
@@ -153,7 +170,9 @@ export class HAClient {
         this.tries = 0;
         clearInterval(this.pingTimer);
         this.pingTimer = setInterval(() => {
-          try { ws.send(JSON.stringify({ id: 2 + (this.pingId++ % 1000), type: 'ping' })); } catch (e) { /* closed */ }
+          const id = this.nextId++;
+          this.pendingPing = { id, at: Date.now() };
+          try { ws.send(JSON.stringify({ id, type: 'ping' })); } catch (e) { /* closed */ }
         }, 30000);
         this.listeners.forEach((fn) => fn(null, null));   // everything may have changed while we were away
       } else if (m.type === 'auth_invalid') {
@@ -173,6 +192,8 @@ export class HAClient {
     this.live = false;
     this.cache.clear();
     clearInterval(this.pingTimer);
+    clearInterval(this.watchdog);
+    this.pendingPing = null;
     if (this.ws) {
       try { this.ws.onclose = this.ws.onerror = null; this.ws.close(); } catch (e) { /* already closed */ }
       this.ws = null;
@@ -182,7 +203,9 @@ export class HAClient {
 
   _retry() {
     if (this.rejected) return;                     // a refused login is not retried (see _refused)
-    setTimeout(() => this.connect(), Math.min(30000, 2000 * Math.pow(2, Math.min(this.tries, 4))));
+    // 2 s, 4 s, 8 s ... up to 60 s, each with up to 20 % random jitter so many displays don't all reconnect in the same instant
+    const base = Math.min(60000, 2000 * Math.pow(2, Math.min(this.tries, 5)));
+    setTimeout(() => this.connect(), base * (0.8 + Math.random() * 0.4));
     this.tries++;
   }
 }
@@ -335,6 +358,8 @@ export function mockBindings(registry, pane) {
   for (const w of pane.widgets) {
     const slots = (registry[w.type] || {}).slots || {};
     const out = {};
+    // a message with its own lines shows those lines in the preview too (its entity slot is optional)
+    if (w.type === 'message' && w.options && Array.isArray(w.options.lines) && w.options.lines.length) continue;
     for (const [name, spec] of Object.entries(slots)) {
       const dom = (spec.domains && spec.domains[0]) || 'sensor';
       if (spec.kind === 'entity') out[name] = dom + '.demo_' + w.id;

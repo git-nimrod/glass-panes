@@ -20,6 +20,9 @@ object Kiosk {
     @Volatile var activity: MainActivity? = null
     @Volatile var pageOk = false
     @Volatile var lastLoadMs = 0L
+    @Volatile var blockedLoads = 0         // page loads refused by the navigation lock (anything but the Home Assistant page)
+    @Volatile var engineRestarts = 0       // times the browser engine crashed or was killed and was rebuilt
+    @Volatile var lastAliveMs = 0L         // the last heartbeat from the player page (GET /alive from the mirror itself)
     @Volatile var videoState = "stopped"      // stopped | starting | playing | error <what>/<extra>
     @Volatile var brightnessPct = -1          // -1 = system default, otherwise 0..100
 

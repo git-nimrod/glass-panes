@@ -164,6 +164,7 @@ async function main() {
     });
     if (cfg.bindings) bindingsFile = await (await fetch(cfg.bindings, { cache: 'no-store' })).json();
     else bindingsFile = await client.bindings();
+    if (!cfg.bindings && bindingsFile === null) throw new Error('could not read the bindings from Home Assistant yet');
   }
   renderer = new PaneRenderer({ stage, client, time, assetBase: cfg.assetBase, kiosk: cfg.kiosk, appUrl: cfg.appUrl, debug: cfg.debug, onError: logError });
   // tell the widgets watching an entity when it changes (null = reconnected, so refresh everything)
@@ -172,6 +173,8 @@ async function main() {
   if (cfg.mock && cfg.bindings) bindingsFile = null;
   if (cfg.display && !cfg.mock) {
     const display = await client.display(cfg.display);
+    // no answer usually means Home Assistant is still starting: retry the start rather than show the wrong pane for days
+    if (!display) throw new Error('could not look up display "' + cfg.display + '" yet');
     if (display) {
       if (!q.has('pane')) cfg.pane = display.pane;
       if (!q.has('follow') && display.entity_id) cfg.follow = display.entity_id;
@@ -183,4 +186,19 @@ async function main() {
   if (cfg.follow) await followEntity();
 }
 
-main().catch((e) => { hideBoot(); logError('start', e); });
+// If starting fails (Home Assistant still booting after a power cut, Wi-Fi not up yet ...), load the page again after a calm, growing
+// wait: 10 s, 20 s, 40 s ... up to 5 minutes. The count lives in this tab's session storage and resets once a start succeeds.
+const START_KEY = 'glass_panes_start_failures';
+main().then(() => {
+  try { sessionStorage.removeItem(START_KEY); } catch (e) { /* ignore */ }
+  // Inside the mirror app: tell it every 30 s that the page is alive, so it can reload a page that broke or froze (app 0.10.6+;
+  // an older app answers "not found", which does no harm).
+  if (cfg.kiosk) setInterval(() => { fetch(cfg.appUrl + '/alive', { mode: 'cors' }).catch(() => {}); }, 30000);
+}).catch((e) => {
+  hideBoot();
+  logError('start', e);
+  if (cfg.mock || (e && e.message === '401')) return;           // a refused login keeps the sign-in screen; retrying would only fail again
+  let n = 0;
+  try { n = +(sessionStorage.getItem(START_KEY) || 0); sessionStorage.setItem(START_KEY, String(n + 1)); } catch (err) { /* ignore */ }
+  setTimeout(() => location.reload(), Math.min(300000, 10000 * Math.pow(2, n)));
+});

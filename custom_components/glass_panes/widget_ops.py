@@ -383,9 +383,11 @@ def align_widgets(pane: dict[str, Any], widget_ids: Any, mode: Any) -> dict[str,
 
 
 def set_pane_fields(
-    pane: dict[str, Any], *, name: Any = None, description: Any = None, theme: Any = "unchanged", background: Any = None, brightness: Any = "unchanged"
+    pane: dict[str, Any], *, name: Any = None, description: Any = None, theme: Any = "unchanged", background: Any = None, brightness: Any = "unchanged",
+    fade: Any = None, burn_in_saver: Any = None,
 ) -> dict[str, Any]:
-    """Change the pane's name, description, theme, background or brightness. `theme` and `brightness` accept null to remove them."""
+    """Change the pane's name, description, theme, background, brightness or fade. `theme` and `brightness` accept null to remove them.
+    `fade` true makes show-when widgets fade in and out; false removes it."""
     out = copy.deepcopy(pane)
     if name is not None:
         if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80:
@@ -407,6 +409,20 @@ def set_pane_fields(
             out.pop("brightness", None)
         else:
             out["brightness"] = brightness
+    if fade is not None:
+        if not isinstance(fade, bool):
+            raise OpError("fade must be true or false")
+        if fade:
+            out["motion"] = {**(out.get("motion") or {}), "widgets": "fade"}
+        else:
+            out.pop("motion", None)
+    if burn_in_saver is not None:
+        if not isinstance(burn_in_saver, bool):
+            raise OpError("burn_in_saver must be true or false")
+        if burn_in_saver:
+            out["burn_in_saver"] = True
+        else:
+            out.pop("burn_in_saver", None)
     return out
 
 

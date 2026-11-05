@@ -105,7 +105,9 @@ The Home Assistant address comes from the player address the app was given (its 
 | `present` | Someone is there (movement within the last `hold_s` seconds) |
 | `motion` | The size of the latest change in light, about 0 to 1 |
 | `seconds_since_motion` | Seconds since the last movement, `-1` if none yet |
-| `state` | `off`, `starting`, `running`, `no camera` or `error: ...` |
+| `state` | `off`, `starting`, `running`, `no camera`, `stalled` or `camera error <code>` (the camera went quiet or failed and is being reopened, app 0.10.7+) or `error: ...` |
+| `seconds_since_frame` | Seconds since the camera last sent a picture (app 0.10.7+) |
+| `camera_restarts` | Times the camera was reopened after an error or 30 s without pictures (app 0.10.7+) |
 | `last_report` | The result of the previous report (`HTTP 200`, `HTTP 404`, `failed: ...`) |
 | `settings` | The presence settings in force |
 | `distance_m`, `faces`, `hardware_faces`, `seconds_since_face`, `rotation` | Kept so older automations keep working. Faces are no longer used, so these are always `-1`, `0` or `0` |

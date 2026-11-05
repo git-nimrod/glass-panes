@@ -473,7 +473,7 @@
     },
     "set_pane": {
       "name": "Change the pane itself",
-      "description": "Change the draft's name, description, theme, background colour or brightness. Themes: moss, cream, creamnight, midnight, paper, slate, or original to remove it. Administrators only.",
+      "description": "Change the draft's name, description, theme, background colour, brightness or fade. Themes: moss, cream, creamnight, midnight, paper, slate, or original to remove it. Administrators only.",
       "fields": {
         "draft": {
           "name": "Draft",
@@ -498,6 +498,14 @@
         "brightness": {
           "name": "Brightness",
           "description": "Backlight percent to ask for while this pane shows (0 to 100)."
+        },
+        "fade": {
+          "name": "Fade",
+          "description": "Fade widgets in and out when their show-when rule switches them (new panes start with this on)."
+        },
+        "burn_in_saver": {
+          "name": "Burn in saver",
+          "description": "Drift the whole pane a few pixels very slowly, against burn-in on screens left on for hours."
         }
       }
     },

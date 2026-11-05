@@ -38,6 +38,8 @@ object Presence {
     @Volatile var lastMotionMs = 0L
     @Volatile var present = false
     @Volatile var lastSent = ""
+    @Volatile var lastFrameMs = 0L         // when the camera last handed over a picture (watchdog)
+    @Volatile var cameraRestarts = 0       // times the camera was reopened after dying or going quiet
 
     private var cam: Camera? = null
     private var thread: HandlerThread? = null
@@ -52,9 +54,11 @@ object Presence {
     private var lastReportMs = 0L
     private var sentPresent = false
     @Volatile private var slow = false
+    private var failures = 0               // reopen attempts in a row without a picture arriving (for backoff)
+    private var reopenPending = false
 
     fun start(context: Context) {
-        if (state == "running" || state == "starting") return
+        if (thread != null) return             // already on (running, starting, stalled or retrying after an error)
         ctx = context.applicationContext
         state = "starting"
         val t = HandlerThread("mirror-presence").apply { start() }
@@ -74,12 +78,16 @@ object Presence {
     }
 
     fun stop() {
-        handler?.post {
-            try { cam?.setPreviewCallbackWithBuffer(null); cam?.stopPreview(); cam?.release() } catch (e: Exception) {}
+        val t = thread ?: return
+        val hd = handler
+        thread = null; handler = null           // so start() right after stop() builds a fresh thread
+        hd?.removeCallbacksAndMessages(null)     // drop the tick and any pending reopen
+        hd?.post {
+            try { cam?.setPreviewCallbackWithBuffer(null); cam?.stopPreview(); cam?.release() } catch (e: Throwable) {}
             cam = null
             texture?.release(); texture = null
-            state = "off"; present = false; slow = false; prevGrid = null
-            thread?.quitSafely(); thread = null; handler = null
+            state = "off"; present = false; slow = false; prevGrid = null; failures = 0; reopenPending = false
+            t.quitSafely()
         }
     }
 
@@ -91,7 +99,28 @@ object Presence {
 
     fun resume() { slow = false }
 
+    /**
+     * Watchdog: the camera service can die (on Android 6 it shares a process with video playback) or simply
+     * stop sending pictures. Either way: let go of the camera and open it again, waiting longer each time
+     * (5 s, 15 s, 45 s ... up to 5 min) until pictures flow again.
+     */
+    private fun reopen(why: String) {
+        if (reopenPending) return
+        reopenPending = true
+        try { cam?.setPreviewCallbackWithBuffer(null); cam?.stopPreview() } catch (e: Throwable) {}
+        try { cam?.release() } catch (e: Throwable) {}
+        cam = null
+        texture?.release(); texture = null
+        prevGrid = null
+        state = why
+        cameraRestarts++
+        val wait = minOf(300000L, 5000L * Math.pow(3.0, minOf(failures, 5).toDouble()).toLong())
+        failures++
+        handler?.postDelayed({ reopenPending = false; if (state == why) { state = "starting"; open() } }, wait)
+    }
+
     private fun open() {
+        var c: Camera? = null
         try {
             cameras = Camera.getNumberOfCameras()
             if (cameras < 1) { state = "no camera"; return }
@@ -102,7 +131,7 @@ object Presence {
                 Camera.getCameraInfo(i, info)
                 if (info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) { id = i; break }
             }
-            val c = Camera.open(id)
+            c = Camera.open(id)
             val p = c.parameters
             // Motion needs only a rough picture, so a small one is used (default width 320, change it with
             // /presence/size?w=640). 4:3 shapes are preferred.
@@ -131,10 +160,17 @@ object Presence {
             bufSize = w * h * 3 / 2
             repeat(2) { c.addCallbackBuffer(ByteArray(bufSize)) }
             c.setPreviewCallbackWithBuffer { data, camera -> look(data); camera.addCallbackBuffer(data) }
+            // the camera service died or the camera hit an error: callbacks arrive on this thread's looper
+            c.setErrorCallback { code, _ -> reopen("camera error $code") }
             c.startPreview()
             cam = c
+            lastFrameMs = System.currentTimeMillis()      // the frame watchdog counts from here
             state = "running"
         } catch (e: Exception) {
+            // let go of a half-opened camera, or every retry fails with "Fail to connect to camera service"
+            try { c?.release() } catch (x: Throwable) {}
+            if (cam === c) cam = null
+            texture?.release(); texture = null
             state = "error: " + (e.message ?: e.javaClass.simpleName).replace("\"", "'")
             handler?.postDelayed({ if (state.startsWith("error")) { state = "starting"; open() } }, 30000)
         }
@@ -143,6 +179,7 @@ object Presence {
     // ---- motion: compare a tiny brightness grid with the one from the last look ("scans_per_min", default 120) ----
     private fun look(data: ByteArray) {
         val now = System.currentTimeMillis()
+        lastFrameMs = now; failures = 0
         val prefs = ctx?.let { Kiosk.prefs(it) }
         var perMin = (prefs?.getInt("scans_per_min", 120) ?: 120).coerceIn(1, 240)
         if (slow) perMin = minOf(perMin, (prefs?.getInt("video_scans_per_min", 12) ?: 12).coerceIn(1, 240))
@@ -179,6 +216,8 @@ object Presence {
     // ---- once a second: decide "someone there", report to Home Assistant when it matters ----
     private fun tick() {
         val now = System.currentTimeMillis()
+        // no picture for 30 s while "running" (the slowest look is every 5 s): the camera went quiet
+        if (state == "running" && now - lastFrameMs > 30000) reopen("stalled")
         val holdMs = (ctx?.let { Kiosk.prefs(it).getInt("presence_hold_s", 30) } ?: 30) * 1000L
         present = now - lastMotionMs < holdMs
         val changed = present != sentPresent
@@ -234,6 +273,7 @@ object Presence {
             "\"motion\":${Math.round(motion * 100) / 100.0},\"seconds_since_face\":-1," +
             "\"seconds_since_motion\":${ago(lastMotionMs)},\"state\":\"$state\",\"cameras\":$cameras," +
             "\"hardware_faces\":0,\"preview\":\"$previewSize\",\"fps\":\"$fps\",\"rotation\":0," +
+            "\"seconds_since_frame\":${ago(lastFrameMs)},\"camera_restarts\":$cameraRestarts," +
             "\"last_report\":\"$lastSent\",\"settings\":${settingsJson()}}"
     }
 }

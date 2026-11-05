@@ -269,13 +269,18 @@ function weather(ctx) {
 function calendarAgenda(ctx) {
   const o = ctx.opts, cals = asList(ctx.slots.calendars), S = ctx.style.size || 32;
   const right = ctx.style.align === 'right';
-  let failed = false;
+  let failed = false, gaveUp = false;
   const stamp = (d) => (o.time_style === '24h' ? ctx.time.time24(d) : o.time_style === 'ampm' ? ctx.time.ampm(d) : ctx.time.shortTime(d));
   const render = async () => {
     if (!cals.length) { clear(ctx.root); return; }
     const from = ctx.time.dayStart(o.day_offset || 0), to = ctx.time.dayStart((o.day_offset || 0) + (o.days || 1));
-    failed = false;
-    const lists = await Promise.all(cals.map((c) => ctx.data.calendar(c, from, to).catch(() => { failed = true; return []; })));
+    failed = false; gaveUp = false;
+    const lists = await Promise.all(cals.map((c) => ctx.data.calendar(c, from, to).catch((e) => {
+      failed = true;
+      // 4xx (a deleted calendar, no access, a refused login) will not fix itself in seconds: wait for the next 5-minute refresh
+      if (e && (/^HTTP 4/.test(e.message) || e.message === '401')) gaveUp = true;
+      return [];
+    })));
     const seen = new Set(), items = [];
     lists.forEach((list) => list.forEach((ev) => {
       const allDay = !!(ev.start && ev.start.date);
@@ -304,14 +309,19 @@ function calendarAgenda(ctx) {
       ctx.root.appendChild(row);
     });
   };
-  let retry = null;
+  // A failed fetch retries sooner than the 5-minute refresh: 15 s, 30 s, 1 min, 2 min, then the refresh takes over.
+  // `gone` stops a retry that was still waiting on the network when the widget was removed (it used to loop forever).
+  let retry = null, tries = 0, gone = false;
   const run = async () => {
     clearTimeout(retry);
     await render();
-    if (failed) retry = setTimeout(run, 15000);
+    if (gone) return;
+    if (!failed) { tries = 0; return; }
+    if (gaveUp || tries >= 4) return;
+    retry = setTimeout(run, 15000 * Math.pow(2, tries++));
   };
-  ctx.every(300000, run);
-  ctx.onDestroy(() => clearTimeout(retry));
+  ctx.every(300000, () => { tries = 0; return run(); });
+  ctx.onDestroy(() => { gone = true; clearTimeout(retry); });
 }
 
 function todoList(ctx) {
