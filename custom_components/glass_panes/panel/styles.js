@@ -88,6 +88,18 @@ a { color: var(--ui-accent-text); text-decoration: none; font-size: 13px; font-w
 .thumb svg { display: block; width: 100%; height: 100%; }
 .pane .desc { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .tag { font-size: 10.5px; font-weight: 650; padding: 1px 7px; border-radius: 999px; background: var(--ui-sunken); color: var(--ui-muted); }
+/* what each display is showing: chips in the header (every tab) and tags on the pane cards */
+.showing { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; padding: 2px 4px; }
+.showing::-webkit-scrollbar { display: none; }
+.chip { display: inline-flex; align-items: center; gap: 4px; flex: none; padding: 2px 4px 2px 12px; border-radius: 999px; border: 1px solid var(--ui-line); background: var(--ui-sunken); font-size: 12.5px; white-space: nowrap; }
+.chip .cname { color: var(--ui-muted); font-weight: 600; }
+.chip select { border: 0; background: transparent; color: var(--ui-text); font: inherit; font-weight: 650; max-width: 170px; cursor: pointer; padding: 4px 2px; }
+.chip.addchip { cursor: pointer; color: var(--ui-accent-text); padding-right: 12px; gap: 6px; }
+.showtags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.showtag { border: 0; cursor: pointer; font: inherit; font-size: 10.5px; font-weight: 650; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--ui-accent) 18%, transparent); color: var(--ui-accent-text); }
+.showtag:hover { background: color-mix(in srgb, var(--ui-accent) 30%, transparent); }
+.card.flash { animation: gp-flash 1.6s ease-out; }
+@keyframes gp-flash { 0% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 55%, transparent); } 100% { box-shadow: 0 0 0 3px transparent; } }
 .tag.mine { background: color-mix(in srgb, var(--ui-accent) 18%, transparent); color: var(--ui-accent-text); }
 .newpane { margin-top: 4px; }
 

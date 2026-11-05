@@ -275,10 +275,10 @@ const luminance = ([r, g, b]) => {
  * (the colour or background could not be worked out, for example a photo). Uses the WCAG contrast ratio; big text (48px, or 36px
  * bold) only needs 3:1.
  */
-export function readability(color, background, { opacity = 1, size = 32, weight = 400, theme } = {}) {
+export function readability(color, background, { opacity = 1, size = 32, weight = 400, theme, ownBackground = false } = {}) {
   // a pane theme brings its own background and its own values for the named colours (player/themes.js); without one nothing changes
   const t = themeColors(theme), named = t ? { ...NAMED_COLORS, ...t.named } : NAMED_COLORS;
-  const fg = parseColor(named[color] || color || named.fg), bg = parseColor(t ? t.bg : background || '#000000');
+  const fg = parseColor(named[color] || color || named.fg), bg = parseColor(t && !ownBackground ? t.bg : background || '#000000');   // with ownBackground the pane's own (black) background is behind the text, not the theme's
   if (!fg || !bg) return { ratio: null, level: 'unknown' };
   const mixed = fg.map((v, i) => v * opacity + bg[i] * (1 - opacity));
   const a = luminance(mixed), b = luminance(bg);
@@ -297,6 +297,28 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
  * A plain-language reason a bound widget has nothing to show, for the builder to display. `states` maps entity id -> its state object.
  * Only sports has a specific story (it shows games that are live, ended in the last 18 hours, tonight, or within the next 7 days).
  */
+// What each display is showing right now. A display's select entity says so when it has one and it is working (an automation may have
+// changed it); otherwise the pane saved on the display is used. Returns [{ id, name, pane, paneName, known }], one per display, in order.
+export function showingNow(displays, states, panes) {
+  const names = new Map((panes || []).map((p) => [p.id, p.name]));
+  return (displays || []).map((d) => {
+    const live = d.entity_id && states && states[d.entity_id];
+    const working = live && live.state && live.state !== 'unknown' && live.state !== 'unavailable';
+    const pane = working ? live.state : d.pane;
+    return { id: d.id, name: d.name, pane, paneName: names.get(pane) || pane || '', known: names.has(pane) };
+  });
+}
+
+// The displays that are showing one pane (for the "Showing on ..." tag on its card).
+export function showingOn(paneId, showing) {
+  return (showing || []).filter((s) => s.pane === paneId);
+}
+
+// A short text that changes exactly when something visible about "who shows what" changes, so the screen is only redrawn then.
+export function showingSignature(showing) {
+  return (showing || []).map((s) => s.id + '=' + s.name + '=' + s.pane).join('|');
+}
+
 export function whyEmpty(type, entityIds, states, now = Date.now()) {
   if (type !== 'sports') return 'Nothing to show right now.';
   const notes = [];

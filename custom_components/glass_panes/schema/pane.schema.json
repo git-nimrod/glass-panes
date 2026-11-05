@@ -25,8 +25,12 @@
       "default": "#000000"
     },
     "theme": {
-      "description": "Optional colour theme. It sets the pane background and the named colours fg, dim, faint and accent (light themes also warn, good and bad). When set it replaces `background`. Leave it out for the original look.",
+      "description": "Optional colour theme. It sets the pane background and the named colours fg, dim, faint and accent (light themes also warn, good and bad). The theme's background replaces `background` unless `own_background` is true. Leave it out for the original look.",
       "enum": ["moss", "cream", "creamnight", "midnight", "paper", "slate"]
+    },
+    "own_background": {
+      "type": "boolean",
+      "description": "With a theme: true keeps this pane's own `background` (true black #000000 when it has none) instead of the theme's, and the theme still sets the text colours. Use it on a mirror, where pure black is see-through and any lit background shows as a visible rectangle. Only for dark themes (a light theme's dark text needs its own light background). Absent or false: the theme's background, as before."
     },
     "brightness": {
       "description": "Backlight percent to ask the display for while this pane is showing. Optional.",

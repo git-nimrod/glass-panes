@@ -5,7 +5,7 @@
 // Home Assistant addresses or tokens.
 
 import { widgets } from './widgets.js';
-import { applyTheme } from './themes.js';
+import { applyTheme, paneBackground } from './themes.js';
 import { widgetShouldShow, conditionsOf, entitySlots, usesClock, clockOf, evaluateCondition, nextMinuteDelay } from './conditions.js';
 
 export const COLORS = { fg: 'var(--gp-fg)', dim: 'var(--gp-dim)', faint: 'var(--gp-faint)', accent: 'var(--gp-accent)', warn: 'var(--gp-warn)', good: 'var(--gp-good)', bad: 'var(--gp-bad)' };
@@ -60,8 +60,9 @@ export class PaneRenderer {
   /** Draw a pane. `slotsFor` maps widget id -> its entity bindings ({slot: entity | [entities] | [rules]}). */
   show(pane, slotsFor = {}) {
     this.clear();
-    // a theme (if the pane has one) supplies the colours and the background; with no theme this is the plain background it always was
-    this.stage.style.background = applyTheme(this.stage, pane.theme) || pane.background || '#000000';
+    // a theme (if the pane has one) supplies the colours, and its background unless the pane keeps its own (own_background: true, for true black on a mirror)
+    applyTheme(this.stage, pane.theme);
+    this.stage.style.background = paneBackground(pane);
     // pane.motion.widgets "fade": widgets switched by show-when rules fade instead of popping (player.css; off with reduced motion)
     this.stage.classList.toggle('gp-fade', !!(pane.motion && pane.motion.widgets === 'fade'));
     // pane.burn_in_saver: the whole pane wanders 6 px over 40 minutes (player.css). `translate`, so the stage's own scale transform is kept.

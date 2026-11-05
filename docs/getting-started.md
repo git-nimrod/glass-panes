@@ -48,6 +48,8 @@ This takes about ten minutes and ends with a pane on a screen. Glass Panes is bu
 
 The login is a separate, ordinary Home Assistant user for that one display. It is not an admin, and it only works from your home network. Home Assistant can't limit a user to certain entities, so it can read whatever any ordinary user can. **Revoke** deletes the user. **Replace** makes a new login and stops the old one working.
 
+**Seeing what each screen shows.** You don't have to open the Displays tab to check. A strip at the top of the builder, on every tab, has one chip per display, like "Hall mirror: House". Open a chip to switch that display to another pane. On the Panes tab, a card for a pane that a display is showing carries a small "Showing on Hall mirror" tag. Click the tag to jump to that display. Both update by themselves when an automation switches a display, so there is nothing to reload.
+
 ## 5. Switch panes automatically
 
 Each display gets a `select` entity (for example `select.glass_panes_hall_mirror`) whose options are your panes, plus a button for each pane. Use them like any other entity:

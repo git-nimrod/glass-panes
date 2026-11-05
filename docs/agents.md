@@ -63,7 +63,7 @@ These work as before, and are handy for automations and for editing whole panes 
 
 Changing anything needs an administrator, like the builder. Panes never contain entity ids. Bindings are kept apart.
 
-A pane can also set `theme` (`moss`, `cream`, `creamnight`, `midnight`, `paper`, `slate`) to restyle its colours and background at once. It is in the schema `get_schema` returns, and leaving it out keeps the original look. `style.font` accepts ten bundled families plus three system stacks (also in the schema).
+A pane can also set `theme` (`moss`, `cream`, `creamnight`, `midnight`, `paper`, `slate`) to restyle its colours and background at once. For a mirror, add `own_background: true` with a dark theme so the pane stays true black (see-through) behind the theme's colours. It is in the schema `get_schema` returns, and leaving it out keeps the original look. `style.font` accepts ten bundled families plus three system stacks (also in the schema).
 
 If you already have a whole finished pane, `create_pane` or `save_pane` plus `set_pane_bindings` still work, and `show_pane` puts it on a display.
 

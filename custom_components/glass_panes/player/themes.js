@@ -23,6 +23,23 @@ export const THEME_IDS = Object.keys(THEMES);
 const VARS = ['--gp-fg', '--gp-dim', '--gp-faint', '--gp-accent', '--gp-warn', '--gp-good', '--gp-bad',
   '--gp-strong', '--gp-soft', '--gp-line', '--gp-line2', '--gp-track', '--gp-rule', '--gp-src', '--gp-ring-track', '--gp-avatar'];
 
+/** True for a theme with a dark background (its text is light), so true black behind it still reads. The light themes (cream, paper) have dark text and need their own light background. */
+export function themeIsDark(id) {
+  const t = THEMES[id];
+  if (!t) return false;
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(t.bg.slice(i, i + 2), 16) / 255);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b < 0.35;
+}
+
+/** The background a pane's stage gets. A theme brings its own, UNLESS the pane sets `own_background: true`: then the pane's own `background`
+ *  (true black when it has none) is used and only the theme's colours apply. True black matters on a two-way mirror, where only pure black is
+ *  see-through and any lit dark shows as a visible rectangle. A pane with a theme and no `own_background` is drawn exactly as it always was. */
+export function paneBackground(pane) {
+  const t = pane && THEMES[pane.theme];
+  if (t && pane.own_background !== true) return t.bg;
+  return (pane && pane.background) || '#000000';
+}
+
 /** Put a theme on a stage element (or take it off when `id` is empty or unknown). Returns the background the stage should use, or null. */
 export function applyTheme(stage, id) {
   VARS.forEach((v) => stage.style.removeProperty(v));

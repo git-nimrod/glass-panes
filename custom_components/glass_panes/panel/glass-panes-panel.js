@@ -14,7 +14,7 @@ import { MockClient, mockBindings } from '/glass_panes/player/data.js';
 import { makeTime } from '/glass_panes/player/util.js';
 import { CSS as PANEL_CSS } from '/glass_panes/panel/styles.js';
 import * as ops from '/glass_panes/panel/ops.js';
-import { THEMES } from '/glass_panes/player/themes.js';
+import { THEMES, themeIsDark, paneBackground } from '/glass_panes/player/themes.js';
 import { ruleSection, RULES_CSS, forceControl } from '/glass_panes/panel/rules-ui.js';          // "Show when" and the preview on/off controls
 import { findRuleLoops, foldShowIf, usesRules } from '/glass_panes/player/conditions.js';
 
@@ -123,7 +123,14 @@ class GlassPanesPanel extends HTMLElement {
     this._hass = hass;
     this.client.setHass(hass);
     if (!this._started) this._start();
-    else if (this.state.tab === 'displays') this._renderRail(false);   // keep each display's "showing" selector in step with its select entity
+    else {
+      // an automation can change what a display shows at any time: redraw the header strip and the pane tags, but only when that really changed
+      if (this._loaded && ops.showingSignature(this._showingNow()) !== this._showSig) {
+        this._renderStrip(false);
+        if (this.state.tab === 'panes') this._renderRail(false);
+      }
+      if (this.state.tab === 'displays') this._renderRail(false);   // keep each display's "showing" selector in step with its select entity
+    }
   }
 
   set narrow(v) { this._narrow = v; if (this._menu) this._menu.narrow = v; }
@@ -141,7 +148,7 @@ class GlassPanesPanel extends HTMLElement {
       <style>${PANEL_CSS}${RULES_CSS}</style>
       <link rel="stylesheet" href="/glass_panes/player/player.css">
       <div class="app">
-        <header class="top"><span id="menu"></span><div class="brand"><img class="logo-img" src="/glass_panes/player/logo-mark.png" alt="">Glass Panes</div><span class="spacer"></span><span id="status"></span><button class="btn sm" id="themebtn" title="Switch between the cream and dark look"></button></header>
+        <header class="top"><span id="menu"></span><div class="brand"><img class="logo-img" src="/glass_panes/player/logo-mark.png" alt="">Glass Panes</div><div class="showing" id="showing"></div><span class="spacer"></span><span id="status"></span><button class="btn sm" id="themebtn" title="Switch between the cream and dark look"></button></header>
         <div class="layout" id="layout">
           <aside class="rail">
             <div class="tabs"><button class="tab on" data-tab="panes">Panes</button><button class="tab" data-tab="displays">Displays</button></div>
@@ -259,6 +266,8 @@ class GlassPanesPanel extends HTMLElement {
       try { full[p.id] = (await this.ws({ type: 'glass_panes/panes/get', pane_id: p.id })).pane; } catch (e) { /* no thumbnail */ }
     }));
     this.state.full = full;
+    this._loaded = true;
+    this._renderStrip(true);
     this._renderRail(true);
   }
 
@@ -273,12 +282,48 @@ class GlassPanesPanel extends HTMLElement {
     if (this.state.tab === 'panes') this._renderPanesTab(body); else this._renderDisplaysTab(body);
   }
 
+  // ---------------------------------------------------------------- what each display is showing: a strip in the header (every tab) and tags on the pane cards
+  _showingNow() { return ops.showingNow(this.state.displays, this._hass && this._hass.states, this.state.panes); }
+
+  // one chip per display, "Name: pane v". Choosing a pane goes through the same path as the Showing choice on the Displays tab.
+  _renderStrip(force) {
+    const box = this.$('showing');
+    if (!box) return;
+    const focused = this.shadowRoot.activeElement;
+    if (!force && focused && box.contains(focused)) return;            // do not rebuild under the user's hand
+    const showing = this._showingNow();
+    this._showSig = ops.showingSignature(showing);
+    box.textContent = '';
+    if (!showing.length) {
+      box.append(h('button', { class: 'chip addchip', title: 'A display is any screen that shows panes', onClick: () => { this.state.tab = 'displays'; this._renderRail(true); } }, icon('plus'), 'Add a display'));
+      return;
+    }
+    showing.forEach((s) => {
+      const options = this.state.panes.map((p) => h('option', { value: p.id, selected: p.id === s.pane, text: p.name }));
+      if (!s.known) options.push(h('option', { value: s.pane || '', selected: true, text: s.pane || '(nothing yet)' }));   // a pane that is not in the list
+      const sel = h('select', { 'aria-label': 'What ' + s.name + ' is showing', onChange: () => this._setDisplayPane(s.id, sel.value) }, options);
+      box.append(h('label', { class: 'chip', 'data-display': s.id, title: s.name + ' is showing ' + s.paneName }, h('span', { class: 'cname', text: s.name + ':' }), sel));
+    });
+  }
+
+  // from a "Showing on ..." tag: open the Displays tab and point at that display's card
+  _goDisplay(id) {
+    this.state.tab = 'displays';
+    this._renderRail(true);
+    const card = this.shadowRoot.querySelector('.card[data-display="' + String(id).replace(/"/g, '') + '"]');
+    if (card) {
+      card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      card.classList.add('flash');
+      setTimeout(() => card.classList.remove('flash'), 1800);
+    }
+  }
+
   _thumb(pane) {
     const ns = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(ns, 'svg');
     svg.setAttribute('viewBox', '0 0 1080 1920'); svg.setAttribute('preserveAspectRatio', 'none');
     const add = (tag, attrs) => { const e = document.createElementNS(ns, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); svg.append(e); };
-    add('rect', { width: 1080, height: 1920, fill: (pane && THEMES[pane.theme] && THEMES[pane.theme].bg) || (pane && pane.background) || '#000' });
+    add('rect', { width: 1080, height: 1920, fill: paneBackground(pane) });
     ((pane && pane.widgets) || []).forEach((w) => {
       if (w.type === 'video') add('rect', { x: w.x, y: w.y, width: w.w, height: w.h, fill: '#ffffff22' });
       else add('rect', { x: w.x, y: w.y, width: w.w, height: Math.max(w.h, 24), rx: 14, fill: w.type === 'divider' ? '#ffffff55' : '#ffffffaa', opacity: w.type === 'divider' ? 1 : 0.55 });
@@ -287,11 +332,17 @@ class GlassPanesPanel extends HTMLElement {
   }
 
   _renderPanesTab(body) {
+    const showing = this._showingNow();
     this.state.panes.forEach((p) => {
       const label = p.source === 'user' ? (p.customized ? 'edited' : 'mine') : 'built in';
+      const text = h('div', { class: 'grow' }, h('div', { class: 'name', text: p.name }), h('div', { class: 'sub desc', text: p.description || p.widgets + ' items' }));
+      const on = ops.showingOn(p.id, showing);
+      if (on.length) {      // a tag for every display that is showing this pane; clicking one jumps to that display
+        text.append(h('div', { class: 'showtags' }, on.map((s) => h('button', { class: 'showtag', title: 'Open ' + s.name + ' in Displays', onClick: (e) => { e.stopPropagation(); this._goDisplay(s.id); } }, 'Showing on ' + s.name))));
+      }
       const row = h('div', { class: 'pane' + (this.state.pane && this.state.pane.id === p.id ? ' on' : ''), onClick: () => this._guardedSelect(p.id) },
         h('div', { class: 'thumb' }, this._thumb(this.state.full[p.id])),
-        h('div', { class: 'grow' }, h('div', { class: 'name', text: p.name }), h('div', { class: 'sub desc', text: p.description || p.widgets + ' items' })),
+        text,
         h('span', { class: 'tag' + (p.source === 'user' ? ' mine' : ''), text: label }));
       body.append(row);
     });
@@ -328,7 +379,7 @@ class GlassPanesPanel extends HTMLElement {
       const showing = live && live.state && live.state !== 'unknown' ? live.state : d.pane;
       const sel = h('select', { class: 'field', onChange: () => this._setDisplayPane(d.id, sel.value) },
         this.state.panes.map((p) => h('option', { value: p.id, selected: p.id === showing, text: p.name })));
-      body.append(h('div', { class: 'card' },
+      body.append(h('div', { class: 'card', 'data-display': d.id },
         h('div', { class: 'row' }, h('div', { class: 'grow' }, h('div', { class: 'name', text: d.name }), h('div', { class: 'sub', text: d.entity_id || d.id })),
           h('button', { class: 'btn sm ghost danger', title: 'Remove this display', onClick: () => this._removeDisplay(d) }, icon('trash'))),
         h('label', { class: 'lbl', text: 'Showing' }), sel,
@@ -754,17 +805,23 @@ class GlassPanesPanel extends HTMLElement {
       const themeSel = h('select', { id: 'themepick', class: 'field', style: 'width:auto;padding:5px 9px', title: 'Colours for this whole pane',
         onChange: (ev) => this._setTheme(ev.target.value) },
       h('option', { value: '', text: 'Original' }), Object.entries(THEMES).map(([id, t]) => h('option', { value: id, selected: pane.theme === id, text: t.label })));
-      // background: only used when no theme is chosen (a theme brings its own). Pure black is see-through on a mirror.
-      const bg = h('input', { type: 'color', class: 'swatch', id: 'bgpick', value: HEX6.test(pane.background || '') ? pane.background : '#000000', disabled: !!pane.theme,
-        title: pane.theme ? 'The theme sets the background. Choose Original to pick your own.' : 'Background. Pure black is see-through on a two-way mirror.',
+      // background: used with no theme, or with a dark theme whose own background is switched off (true black stays behind the theme's colours).
+      // Pure black is see-through on a mirror; the theme's own background is lit, so it shows up as a visible rectangle there.
+      const lightTheme = !!pane.theme && !themeIsDark(pane.theme);
+      const useThemeBg = !!pane.theme && (pane.own_background !== true || lightTheme);
+      const themeBgBox = pane.theme ? h('label', { class: 'check', style: 'margin:0 0 0 8px', title: lightTheme ? 'A light theme needs its own light background (its text is dark)' : 'Tick to use the theme\'s own lit background. Untick for your own, true black by default: black is see-through on a mirror.' },
+        h('input', { type: 'checkbox', id: 'themebgpick', checked: useThemeBg, disabled: lightTheme, onChange: (ev) => this._setPaneField('own_background', ev.target.checked ? null : true) }), 'Theme background') : null;
+      const bg = h('input', { type: 'color', class: 'swatch', id: 'bgpick', value: HEX6.test(pane.background || '') ? pane.background : '#000000', disabled: useThemeBg,
+        title: useThemeBg ? 'The theme sets the background. Untick Theme background to pick your own.' : 'Background. Pure black is see-through on a two-way mirror.',
         onChange: (ev) => this._setPaneField('background', ev.target.value.toLowerCase() === '#000000' ? null : ev.target.value.toLowerCase()) });
       // brightness: what the display's backlight is asked for while this pane shows ("As is" leaves it alone)
       const bright = h('select', { id: 'brightpick', class: 'field', style: 'width:auto;padding:5px 9px', title: 'Backlight while this pane shows',
         onChange: (ev) => this._setPaneField('brightness', ev.target.value === '' ? null : parseInt(ev.target.value, 10)) },
       h('option', { value: '', text: 'As is' }), [10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((n) => h('option', { value: n, selected: pane.brightness === n, text: n + '%' })),
       pane.brightness != null && pane.brightness % 10 ? h('option', { value: pane.brightness, selected: true, text: pane.brightness + '%' }) : null);
-      actions.append(h('label', { class: 'lbl', style: 'margin:0 6px 0 0', text: 'Theme' }), themeSel,
+      actions.append(h('label', { class: 'lbl', style: 'margin:0 6px 0 0', text: 'Theme' }), themeSel, ...(themeBgBox ? [themeBgBox] : []),
         h('label', { class: 'lbl', style: 'margin:0 6px 0 12px', text: 'Background' }), bg,
+        h('span', { class: 'hint', style: 'margin-left:6px', text: 'Black is see-through on a mirror.' }),
         h('label', { class: 'lbl', style: 'margin:0 6px 0 12px', text: 'Brightness' }), bright,
         // fade: widgets switched by "show when" rules fade in and out instead of popping
         h('label', { class: 'check', style: 'margin:0 0 0 12px', title: 'Widgets switched by "Show when" rules fade in and out' },
@@ -781,7 +838,11 @@ class GlassPanesPanel extends HTMLElement {
   _setTheme(id) {
     if (!this.edit) return;
     const pane = clone(this.edit.pane);
-    if (id && THEMES[id]) pane.theme = id; else delete pane.theme;
+    if (id && THEMES[id]) {
+      pane.theme = id;
+      // a dark theme starts on true black (see-through on a mirror) with the theme's text colours; a light theme needs its own light background
+      if (!themeIsDark(id)) delete pane.own_background; else if (pane.own_background === undefined) pane.own_background = true;
+    } else { delete pane.theme; delete pane.own_background; }
     this._commit(pane);
   }
 
@@ -1556,7 +1617,7 @@ class GlassPanesPanel extends HTMLElement {
   // a warning when the text could get lost in the background
   _readabilityNote(w) {
     const st = w.style || {};
-    const r = ops.readability(st.color, this.edit.pane.background, { opacity: st.opacity == null ? 1 : st.opacity, size: st.size || 32, weight: st.weight || 400, theme: this.edit.pane.theme });
+    const r = ops.readability(st.color, this.edit.pane.background, { opacity: st.opacity == null ? 1 : st.opacity, size: st.size || 32, weight: st.weight || 400, theme: this.edit.pane.theme, ownBackground: this.edit.pane.own_background === true });
     if (r.level === 'unknown') return h('div', { class: 'hint', style: 'margin-top:8px', text: 'Readability can’t be checked against this kind of background.' });
     if (r.level === 'good') return document.createDocumentFragment();
     return h('div', { class: 'warnbox ' + r.level }, h('b', { text: r.level === 'poor' ? 'Hard to see. ' : 'Might be hard to see. ' }),
