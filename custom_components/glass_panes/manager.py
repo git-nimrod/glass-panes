@@ -581,7 +581,7 @@ class Manager:
             if problem:
                 return f"endpoint: {problem}"
         if key is not None:
-            problem = mirror_lib.key_problem(key)
+            problem = mirror_lib.key_problem(key, new=True)
             if problem:
                 return problem
         async with self._lock:

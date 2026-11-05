@@ -46,7 +46,9 @@ async def call(hass: HomeAssistant, endpoint: str, key: str | None, path: str, p
             declared = response.headers.get("Content-Length", "")
             if declared.isdigit() and int(declared) > MAX_BYTES:
                 raise MirrorError("The mirror's answer was far bigger than expected, so it was ignored.")
-            body = await response.read()
+            body = await response.content.read(MAX_BYTES + 1)        # chunked answers carry no Content-Length, so cap the read itself
+            if len(body) > MAX_BYTES:
+                raise MirrorError("The mirror's answer was far bigger than expected, so it was ignored.")
     except MirrorError:
         raise
     except TimeoutError:

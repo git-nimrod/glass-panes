@@ -30,7 +30,7 @@ A display signs in once and keeps the login on itself, in that browser's own sto
   - Open the link it gives you on the display. The link carries the token in the part after `#`, which is never sent to any server. The player saves the token and removes it from the address.
   - **Replace** makes a new token (the old one stops working). **Revoke** removes the user and with it the token. Removing the display also removes its login.
 - **By hand:** in Home Assistant click your name at the bottom of the sidebar, open **Security**, then **Long-lived access tokens**, then **Create token**. Paste it on the display's sign-in screen.
-- Limits: Home Assistant cannot restrict a user to certain entities, so the display's login can read what any ordinary user can. It cannot change settings. Services never hand out tokens, so an agent calling services never handles one.
+- Limits: Home Assistant cannot restrict a user to certain entities, so the display's login can do what any ordinary user can: read every entity, and also control devices (a lock, a garage door, an alarm without a code). It cannot change Home Assistant's settings, and it only works from your home network. Keep the display's link private, and use **Replace** if a device with it is lost. Services never hand out tokens, so an agent calling services never handles one.
 
 ## Address options
 | Option | Meaning |

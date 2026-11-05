@@ -137,7 +137,11 @@ class SchemaChecker:
                 errors.append(f"{where}: shorter than {schema['minLength']} characters")
             if "maxLength" in schema and len(instance) > schema["maxLength"]:
                 errors.append(f"{where}: longer than {schema['maxLength']} characters")
-            if "pattern" in schema and not re.search(schema["pattern"], instance):
+            # In Python `$` also matches just before a final newline ("mirror\n" would pass "^[a-z]+$"); JSON Schema means the very end.
+            pattern = schema.get("pattern")
+            if pattern is not None and pattern.endswith("$") and not pattern.endswith("\\$"):
+                pattern = pattern[:-1] + r"\Z"
+            if pattern is not None and not re.search(pattern, instance):
                 errors.append(f"{where}: {_short(instance)} does not match {schema['pattern']}")
 
         if _is_number(instance):

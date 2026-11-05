@@ -8,7 +8,8 @@
 //   ctx.onDestroy(fn)                  cleanup when the pane is replaced
 // Nothing here knows any entity ID. Everything comes from ctx.slots.
 
-import { COND, clear, comma, el, FULL_MONTHS, isBad, MONTHS, num, okState, seeded, unitOf } from './util.js';
+import { COND, clear, el, FULL_MONTHS, isBad, MONTHS, num, okState, seeded, strictNumber, unitOf } from './util.js';
+import { describe } from './format.js';
 
 const pad = (n) => (n < 10 ? '0' : '') + n;
 const asList = (v) => (Array.isArray(v) ? v : v ? [v] : []);
@@ -71,10 +72,20 @@ function image(ctx) {
   const img = el('img');
   img.alt = '';
   img.style.cssText = 'width:100%;height:100%;object-fit:' + (o.fit || 'contain');
-  img.onerror = () => { img.style.visibility = 'hidden'; };
   const show = (src) => { if (src && ctx.root.isConnected) { img.src = src; ctx.root.appendChild(img); } };
-  if (o.media) Promise.resolve(ctx.data.mediaUrl && ctx.data.mediaUrl(o.media)).then(show).catch(() => {});
-  else show(ctx.assetBase + o.asset);
+  if (!o.media) { img.onerror = () => { img.style.visibility = 'hidden'; }; show(ctx.assetBase + o.asset); return; }
+  // An uploaded picture's signed link dies when Home Assistant restarts (new signing key) and after 7 days. Ask for a fresh one when
+  // it fails (at most once a minute), when the connection to Home Assistant is re-made, and every 6 hours.
+  const load = (fresh) => Promise.resolve(ctx.data.mediaUrl && ctx.data.mediaUrl(o.media, fresh)).then(show).catch(() => {});
+  let lastTry = 0, gen = ctx.data.generation;
+  img.onerror = () => {
+    img.style.visibility = 'hidden';
+    if (Date.now() - lastTry > 60000) { lastTry = Date.now(); load(true); }
+  };
+  img.onload = () => { img.style.visibility = ''; };
+  load(false);
+  ctx.every(30000, () => { if (ctx.data.generation !== gen) { gen = ctx.data.generation; load(true); } });
+  ctx.every(6 * 3600000, () => load(true));
 }
 
 function divider(ctx) {
@@ -88,34 +99,51 @@ function divider(ctx) {
 function video(ctx) {
   const o = ctx.opts;
   if (!o.media) { playVideo(ctx, (o.sources || []).map((s) => new URL(ctx.assetBase + s, location.href).href)); return; }
+  // the uploaded video's signed link dies on a Home Assistant restart and after 7 days, so playVideo can ask for a fresh one
+  const fresh = () => Promise.resolve(ctx.data.mediaUrl && ctx.data.mediaUrl(o.media, true)).then((url) => (url ? [new URL(url, location.href).href] : null));
   Promise.resolve(ctx.data.mediaUrl && ctx.data.mediaUrl(o.media))
-    .then((url) => { if (url && ctx.root.isConnected) playVideo(ctx, [new URL(url, location.href).href]); })
+    .then((url) => { if (url && ctx.root.isConnected) playVideo(ctx, [new URL(url, location.href).href], fresh); })
     .catch(() => {});
 }
 
-function playVideo(ctx, srcs) {
+// `fresh` (optional) fetches new addresses when the old ones stop working. Retries back off from 30 s to 10 min, so a dead link is
+// never hammered (each failed try would count as a failed login in Home Assistant).
+function playVideo(ctx, srcs, fresh) {
   if (!srcs.length) return;
   if (!ctx.kiosk) {
     const v = el('video');
     v.muted = true; v.loop = true; v.autoplay = true; v.playsInline = true;
     v.style.cssText = 'width:100%;height:100%;object-fit:cover;background:#000';
-    let i = 0;
-    v.onerror = () => { i = (i + 1) % srcs.length; v.src = srcs[i]; };
+    let i = 0, wait = 30000, nextTry = 0;
+    v.onerror = () => {
+      if (srcs.length > 1 && i < srcs.length - 1) { i++; v.src = srcs[i]; return; }
+      if (Date.now() < nextTry) return;
+      nextTry = Date.now() + wait; wait = Math.min(wait * 2, 600000);
+      setTimeout(() => {
+        if (!ctx.root.isConnected) return;
+        Promise.resolve(fresh ? fresh() : null).then((list) => { if (list && list.length) srcs = list; i = 0; v.src = srcs[0]; v.play().catch(() => {}); }).catch(() => {});
+      }, wait);
+    };
+    v.onplaying = () => { wait = 30000; };
     v.src = srcs[0];
     ctx.root.appendChild(v);
     v.play().catch(() => {});
     return;
   }
   const call = (path) => fetch(ctx.appUrl + path, { mode: 'cors' }).then((r) => r.json());
-  let idx = 0, since = Date.now(), tries = 0;
+  let idx = 0, since = Date.now(), tries = 0, gen = ctx.data.generation;
   const start = () => { since = Date.now(); call('/video/start?url=' + encodeURIComponent(srcs[idx])).catch(() => {}); };
+  const renew = () => Promise.resolve(fresh ? fresh() : null).then((list) => { if (list && list.length) { srcs = list; idx = 0; } start(); }).catch(() => {});
   start();
   ctx.every(2000, () => {
+    // Home Assistant came back after a drop: its old links may be dead, so hand the app a fresh one
+    if (fresh && ctx.data.generation !== gen && gen !== undefined) { gen = ctx.data.generation; renew(); return; }
+    gen = ctx.data.generation;
     call('/status').then((st) => {
       const v = st.video;
       if (/^error/.test(v) && idx < srcs.length - 1) { idx++; start(); }
       else if (v === 'starting' && Date.now() - since > 12000) { idx = (idx + 1) % srcs.length; start(); }
-      else if (v === 'stopped' || /^error/.test(v)) { if (++tries % 15 === 0) { idx = 0; start(); } }
+      else if (v === 'stopped' || /^error/.test(v)) { if (++tries % 15 === 0) renew(); }      // every 30 s: try again with a fresh link
     }).catch(() => {});
   });
   ctx.onDestroy(() => { call('/video/stop').catch(() => {}); });
@@ -149,14 +177,16 @@ function entityValue(ctx) {
     clear(ctx.root);
     let v = '-', unit = '';
     if (okState(s)) {
-      const n = parseFloat(s.state);
-      if (isNaN(n)) v = String(s.state);
-      else {
-        const d = o.decimals;
-        v = d != null ? n.toFixed(d) : Math.abs(n) < 100 && !Number.isInteger(n) ? n.toFixed(1) : String(Math.round(n));
-        if (o.thousands_separator !== false && Math.abs(n) >= 1000) v = comma(n) + (d ? '.' + n.toFixed(d).split('.')[1] : '');
-      }
-      unit = o.unit != null ? o.unit : unitOf(s);
+      // the state, or one of its attributes (a thermostat's target temperature, a cover's position, the sun's next rising ...)
+      const a = s.attributes || {}, raw = o.attribute ? a[o.attribute] : s.state;
+      const shown = describe(raw, {
+        domain: String(entity).split('.')[0], deviceClass: o.attribute ? null : a.device_class, format: o.format, decimals: o.decimals,
+        thousands: o.thousands_separator, rawState: o.raw_state, time: ctx.time,
+      });
+      v = shown.text;
+      // the entity's own unit belongs to its state, so an attribute only gets the unit you typed
+      if (!isNaN(shown.n)) unit = o.unit != null ? o.unit : o.attribute ? '' : unitOf(s);
+      else if (o.unit) unit = o.unit;
     }
     const line = el('div', 'gp-ellip', v);
     line.style.lineHeight = '1.05';
@@ -302,6 +332,15 @@ function todoList(ctx) {
 }
 
 // Which look Now playing uses. Anything unknown or missing means the original "card" look, so existing panes render exactly as before.
+// The picture an entity offers. A media player's `entity_picture_local` is served by Home Assistant itself (the remote one may be on the
+// internet, which the mirror should not need). A path starting with "/" is resolved against Home Assistant's address.
+function pictureOf(ctx, a) {
+  const p = (a && (a.entity_picture_local || a.entity_picture)) || '';
+  if (!p) return '';
+  return p.charAt(0) === '/' && ctx.data && ctx.data.base ? ctx.data.base + p : p;
+}
+const cssUrl = (u) => 'url("' + String(u).replace(/["\\\n\r]/g, (c) => encodeURIComponent(c)) + '")';
+
 export const NP_STYLES = ['card', 'vinyl', 'cd'];
 export function npStyle(opts) {
   const s = opts && opts.style;
@@ -328,7 +367,7 @@ function nowPlaying(ctx) {
     stage.style.cssText = '--d:' + d + 'px;margin-right:' + Math.round(S * 1.1) + 'px';
     const spin = el('div', 'gp-spin gp-' + look);             // the part that rotates
     const label = el('div', 'gp-disc-label');                 // the album art (a plain coloured label when there is none)
-    if (o.show_art !== false && a.entity_picture) { const i = el('img'); i.alt = ''; i.src = a.entity_picture; label.appendChild(i); }
+    if (o.show_art !== false && pictureOf(ctx, a)) { const i = el('img'); i.alt = ''; i.src = pictureOf(ctx, a); label.appendChild(i); }
     spin.append(el('div', 'gp-disc-sheen'), label, el('div', 'gp-disc-hole'));
     stage.appendChild(spin);
     if (look === 'vinyl') {
@@ -346,7 +385,7 @@ function nowPlaying(ctx) {
     const p = pickPlayer(list, o.paused_timeout_minutes, Date.now());
     if (look !== 'card' && p) {
       const a = p.attributes || {};
-      const pic = o.show_art !== false && a.entity_picture ? a.entity_picture : '';
+      const pic = o.show_art !== false ? pictureOf(ctx, a) : '';
       // draw the record again only when there is none yet or the album art changed; otherwise just update the words and play/pause
       if (!view || !ctx.root.contains(view.wrap) || pic !== view.pic) {
         clear(ctx.root);
@@ -376,10 +415,10 @@ function nowPlaying(ctx) {
     }
     const a = p.attributes || {}, art = ctx.h;
     const wrap = el('div', 'gp-np' + (o.burn_in_saver === true ? ' gp-drift' : ''));
-    if (o.show_art !== false && a.entity_picture) {
+    if (o.show_art !== false && pictureOf(ctx, a)) {
       const box = el('div', 'gp-np-art');
       box.style.cssText = 'width:' + art + 'px;height:' + art + 'px;margin-right:' + Math.round(S * 1.1) + 'px';
-      ['gp-np-glow', 'gp-np-img'].forEach((c) => { const i = el('img', c); i.alt = ''; i.src = a.entity_picture; box.appendChild(i); });
+      ['gp-np-glow', 'gp-np-img'].forEach((c) => { const i = el('img', c); i.alt = ''; i.src = pictureOf(ctx, a); box.appendChild(i); });
       wrap.appendChild(box);
     }
     wrap.appendChild(infoBlock(p, a, true));
@@ -422,7 +461,7 @@ function people(ctx) {
       if (o.show_avatar !== false) {
         const av = el('div', 'gp-avatar' + (home ? ' home' : ''));
         av.style.cssText = 'width:' + A + 'px;height:' + A + 'px;font-size:' + Math.round(A * 0.5) + 'px;margin-right:' + Math.round(A * 0.4) + 'px';
-        if (a.entity_picture) av.style.backgroundImage = 'url("' + a.entity_picture + '")'; else av.textContent = first.charAt(0);
+        if (pictureOf(ctx, a)) av.style.backgroundImage = cssUrl(pictureOf(ctx, a)); else av.textContent = first.charAt(0);
         row.appendChild(av);
       }
       const txt = el('div');
@@ -467,14 +506,17 @@ function lightsSummary(ctx) {
 }
 
 // "Only tell me when something is wrong." Each check is {entity, name, text?, bad?, ok?, below?, above?}.
+// A check or a feed may be a plain entity id (as the builder and agents bind them) or a rule object.
+const asRules = (list) => asList(list).map((k) => (typeof k === 'string' ? { entity: k } : k)).filter((k) => k && k.entity);
+
 function statusSummary(ctx) {
-  const o = ctx.opts, checks = asList(ctx.slots.checks);
+  const o = ctx.opts, checks = asRules(ctx.slots.checks);
   const staleMs = (o.stale_days != null ? o.stale_days : 30) * 86400000 || Infinity;
   const render = async () => {
     const list = await Promise.all(checks.map((k) => ctx.data.state(k.entity)));
     const issues = [];
     list.forEach((s, i) => {
-      const k = checks[i], v = s ? s.state : 'unavailable', n = parseFloat(v), offline = !s || v === 'unavailable' || v === 'unknown';
+      const k = checks[i], v = s ? s.state : 'unavailable', n = strictNumber(v), offline = !s || v === 'unavailable' || v === 'unknown';
       let why = null;
       if (k.below != null) { if (isNaN(n)) why = 'offline'; else if (n < k.below) why = 'low'; }
       else if (k.above != null) { if (isNaN(n)) why = 'offline'; else if (n > k.above) why = 'high'; }
@@ -507,7 +549,10 @@ function progressRing(ctx) {
   const o = ctx.opts, entity = ctx.slots.entity, S = ctx.style.size || 32;
   const render = async () => {
     const s = entity ? await ctx.data.state(entity) : null, v = num(s);
-    const min = o.min != null ? o.min : 0, max = o.max != null ? o.max : 100;
+    const a = (s && s.attributes) || {}, unit = unitOf(s);
+    // a number or input_number knows its own range; anything else is 0 to 100 unless the options say otherwise
+    const ownMin = strictNumber(a.min), ownMax = strictNumber(a.max);
+    const min = o.min != null ? o.min : !isNaN(ownMin) ? ownMin : 0, max = o.max != null ? o.max : !isNaN(ownMax) ? ownMax : 100;
     const pct = isNaN(v) ? 0 : Math.max(0, Math.min(100, ((v - min) / (max - min)) * 100));
     let color = 'var(--gp-accent)';
     if (!isNaN(v)) {
@@ -522,7 +567,9 @@ function progressRing(ctx) {
       '<circle cx="50" cy="50" r="44" fill="none" stroke="' + color + '" stroke-width="7" stroke-linecap="round" stroke-dasharray="' +
       (c * pct / 100).toFixed(1) + ' ' + c.toFixed(1) + '"/></svg>';
     const mid = el('div', 'gp-ring-v');
-    mid.appendChild(el('b', '', isNaN(v) ? '-' : min === 0 && max === 100 ? Math.round(v) + '%' : String(Math.round(v))));
+    // "%" only when the value really is a percentage; otherwise the entity's own unit (21 °C stays 21 °C)
+    const pctLike = unit === '%' || (!unit && min === 0 && max === 100);
+    mid.appendChild(el('b', '', isNaN(v) ? '-' : Math.round(v) + (pctLike ? '%' : unit ? ' ' + unit : '')));
     if (o.label) { const l = el('span', '', o.label); l.style.fontSize = Math.max(9, Math.round(S * 0.5)) + 'px'; mid.appendChild(l); }
     mid.firstChild.style.fontSize = S + 'px';
     wrap.appendChild(mid);
@@ -673,7 +720,7 @@ function quick(t, max) {
 }
 
 function news(ctx) {
-  const o = ctx.opts, feeds = asList(ctx.slots.feeds), S = ctx.style.size || 32;
+  const o = ctx.opts, feeds = asRules(ctx.slots.feeds), S = ctx.style.size || 32;
   const key = 'glass_panes_news_' + ctx.paneId + '_' + ctx.widgetId;
   let pile = [];
   try { pile = JSON.parse(localStorage.getItem(key) || '[]') || []; } catch (e) { pile = []; }

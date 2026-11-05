@@ -130,7 +130,7 @@ Nothing runs per frame.
 | `video` | Full-screen loop (played natively by the display app) | none | `media` (a video from the media library), or `sources` (older: file names, tried in order) |
 | `divider` | A rule line (add one wherever you want a break; none are on `house` by default) | none | `thickness` |
 | `message` | A rotating line, or an entity's text | `entity` (optional) | `lines`, `rotate_minutes`, `prefix`, `suffix` |
-| `entity_value` | Any entity's value | `entity` | `label`, `unit`, `decimals` |
+| `entity_value` | Any entity's value, or one of its attributes | `entity` | `label`, `unit`, `decimals`, `attribute` (show an attribute such as a thermostat's `temperature` instead of the state), `format` (`auto`, `relative`, `time`, `date`, `datetime`, `raw`: how dates and times read), `raw_state` (keep `on` instead of Home Assistant's word, like "Open") |
 | `weather` | Temperature, condition, high/low | `weather` | `layout` line/stacked, `show`, `day_offset` (tomorrow shows its high, then "low N°") |
 | `calendar_agenda` | Upcoming events | `calendars` | `max_items`, `skip` (leave out the first N, e.g. what a "next up" line already shows), `day_offset`, `days`, `time_style`, `hide_when_empty` |
 | `todo_list` | Open to-do items | `list` | `max_items`, `bullets` |

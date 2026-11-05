@@ -64,7 +64,7 @@ export function matchesState(cond, st) {
   if (st === null) return false;
   const value = String(st.state);
   if (cond.test === 'above' || cond.test === 'below') {
-    const n = parseFloat(value), limit = Number(cond.value);
+    const t = value.trim(), n = /^[-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?$/.test(t) ? Number(t) : NaN, limit = Number(cond.value);   // the whole state must be a number
     if (!isFinite(n) || !isFinite(limit)) return false;
     return cond.test === 'above' ? n > limit : n < limit;
   }

@@ -15,8 +15,8 @@ SCHEMA_VERSION = 1
 MAX_BYTES = 262144          # a bindings document is a few KB; anything near this is a mistake
 MAX_ITEMS = 40              # per slot, same as the schema
 
-_SLUG = re.compile(r"^[a-z0-9_]{1,64}$")
-_ENTITY_ID = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
+_SLUG = re.compile(r"^[a-z0-9_]{1,64}\Z")
+_ENTITY_ID = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+\Z")
 CONDITION_SLOT_PREFIX = "when_"     # slots named when_... hold the entity of a widget's "show when" entity condition
 _RULE_KEYS ={"entity", "name", "text", "bad", "ok", "below", "above", "filter"}
 

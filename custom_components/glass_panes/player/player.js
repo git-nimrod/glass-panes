@@ -23,6 +23,9 @@ import { HAClient, MockClient, mockBindings } from './data.js';
 import { makeTime } from './util.js';
 
 const q = new URLSearchParams(location.search);
+// Served by Home Assistant (the normal case), the player only ever talks to that same Home Assistant: an `ha=` in the address is ignored,
+// so a crafted link can never make it send its login somewhere else.
+const SERVED_BY_HA = location.pathname.startsWith('/glass_panes/');
 const cfg = {
   pane: q.get('pane') || 'mirror',
   follow: q.get('follow'),
@@ -31,7 +34,7 @@ const cfg = {
   bindings: q.get('bindings'),
   kiosk: q.has('kiosk'),
   debug: q.has('debug'),
-  ha: q.get('ha') || '',
+  ha: SERVED_BY_HA ? '' : (q.get('ha') || ''),
   paneBase: q.get('panes') || '../panes/',
   assetBase: q.get('assets') || '../assets/',
   schemaBase: '../schema/',
@@ -40,9 +43,14 @@ const cfg = {
   force: Object.fromEntries((q.get('force') || '').split(',').map((p) => p.split(':')).filter((p) => /^[a-z0-9_]+$/.test(p[0]) && (p[1] === 'show' || p[1] === 'hide'))),
 };
 
-// the name the token is saved under in this browser's storage; only a plain name is accepted
+// the name the token is saved under in this browser's storage; only a plain name is accepted, and never one of Home Assistant's own
+// (its frontend keeps the user's full login under "hassTokens" in this same storage)
 const requestedKey = q.get('tokenkey');
-const TOKEN_KEY = requestedKey && /^[A-Za-z0-9_.-]{1,64}$/.test(requestedKey) ? requestedKey : 'glass_panes_token';
+const plainKey = requestedKey && /^[A-Za-z0-9_.-]{1,64}$/.test(requestedKey) && !/^hass/i.test(requestedKey) ? requestedKey : 'glass_panes_token';
+// a player NOT served by Home Assistant keeps a separate login per Home Assistant address, so a token is only ever sent where it was saved
+let haOrigin = '';
+try { haOrigin = cfg.ha ? new URL(cfg.ha).origin : ''; } catch (e) { haOrigin = 'invalid'; }
+const TOKEN_KEY = haOrigin ? plainKey + '@' + haOrigin : plainKey;
 const getToken = () => { try { return localStorage.getItem(TOKEN_KEY); } catch (e) { return null; } };
 
 // A kiosk app can hand over the access token once, in the address fragment (#t=<token>). A fragment is never sent to any server.
@@ -152,7 +160,7 @@ async function main() {
     client = new HAClient({
       base: cfg.ha, getToken,
       // only forget a token this player saved itself; a borrowed one (?tokenkey=) belongs to whatever saved it
-      onAuthFail: () => { if (TOKEN_KEY === 'glass_panes_token') { try { localStorage.removeItem(TOKEN_KEY); } catch (e) { /* ignore */ } } showSetup('Token rejected. Paste a new one.'); },
+      onAuthFail: () => { if (plainKey === 'glass_panes_token') { try { localStorage.removeItem(TOKEN_KEY); } catch (e) { /* ignore */ } } showSetup('Token rejected. Paste a new one.'); },
     });
     if (cfg.bindings) bindingsFile = await (await fetch(cfg.bindings, { cache: 'no-store' })).json();
     else bindingsFile = await client.bindings();

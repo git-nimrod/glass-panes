@@ -32,6 +32,7 @@ TUNE_RANGES: dict[str, tuple[int, int]] = {
 BRIGHTNESS_RANGE = (0, 100)
 
 _HOSTNAME = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$")
+KEY_MIN = 8
 KEY_MAX = 128
 
 
@@ -102,10 +103,12 @@ def parse_endpoint(value: Any) -> tuple[str | None, str | None]:
     return f"{scheme}://{host_out}:{port}", None
 
 
-def key_problem(value: Any) -> str | None:
-    """Check a key without ever repeating it. The key travels as a URL query value, so it must be plain visible characters."""
-    if not isinstance(value, str) or not 1 <= len(value) <= KEY_MAX:
-        return f"the key must be text of 1 to {KEY_MAX} characters"
+def key_problem(value: Any, new: bool = False) -> str | None:
+    """Check a key without ever repeating it. The key travels as a URL query value, so it must be plain visible characters.
+    A NEW key must be at least KEY_MIN long; a key already stored is only held to the old rule, so an existing record never turns invalid."""
+    shortest = KEY_MIN if new else 1
+    if not isinstance(value, str) or not shortest <= len(value) <= KEY_MAX:
+        return f"the key must be text of {shortest} to {KEY_MAX} characters (a long random one is best)"
     if any(ord(c) < 33 or ord(c) > 126 for c in value):
         return "the key may only use visible characters with no spaces"
     return None

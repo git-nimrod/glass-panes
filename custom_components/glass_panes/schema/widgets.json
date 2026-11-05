@@ -51,7 +51,7 @@
     "people": {
       "label": "People",
       "slots": {
-        "people": { "kind": "entities", "domains": ["person"], "required": true, "label": "People" }
+        "people": { "kind": "entities", "domains": ["person", "device_tracker"], "required": true, "label": "People" }
       }
     },
     "lights_summary": {

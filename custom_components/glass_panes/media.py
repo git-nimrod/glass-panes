@@ -21,7 +21,7 @@ MIME = {
     "jpg": "image/jpeg", "png": "image/png", "gif": "image/gif", "webp": "image/webp",
     "mp4": "video/mp4", "mov": "video/quicktime", "webm": "video/webm",
 }
-_ID = re.compile(r"^m_[0-9a-f]{12}$")
+_ID = re.compile(r"^m_[0-9a-f]{12}\Z")
 
 
 def is_valid_id(value: Any) -> bool:

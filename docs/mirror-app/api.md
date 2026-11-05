@@ -25,7 +25,7 @@ For the Home Assistant side (services, the web API and the websocket API of the 
 | `/` or `/status` | none | Everything about the app in one document (below) | the status JSON |
 | `/reload` | none | Loads the player page again | `{"ok":true}` |
 | `/brightness/<n>` | `n` = `0` to `100`, or `default` | Backlight percent, or hand control back to Android. Remembered | `{"ok":true,"brightness":n}` (`-1` for default) |
-| `/video/start` | `url=<video address>` (URL-encoded) | Plays a looping video in Android's own player above the page | `{"ok":true}` |
+| `/video/start` | `url=<video address>` (URL-encoded, `http` or `https` only from app 0.10.5) | Plays a looping video in Android's own player above the page | `{"ok":true}` |
 | `/video/stop` | none | Stops the video | `{"ok":true}` |
 | `/display/fix` | none | Runs the display clean-up again (turns off Qualcomm's adaptive backlight and post-processing, which stripe thin text) | `{"ok":true}` |
 | `/presence` | none | Camera presence: the numbers and its settings (the same JSON the webhook sends) | the presence JSON |

@@ -14,7 +14,7 @@ from . import mirror_lib
 
 SCHEMA_VERSION = 1
 MAX_DISPLAYS = 20
-_SLUG = re.compile(r"^[a-z0-9_]{1,64}$")
+_SLUG = re.compile(r"^[a-z0-9_]{1,64}\Z")
 _FIELDS = {"id", "name", "timezone", "pane", "endpoint", "key"}
 
 

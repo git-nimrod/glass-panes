@@ -398,9 +398,11 @@ class MainActivity : Activity() {
         /** The engine can only be created once per process, so keep it here. */
         fun runtime(ctx: Context): GeckoRuntime {
             runtime?.let { return it }
+            // remote debugging and about:config only in debug builds: a release mirror should not expose the page to anyone with a cable
+            val debuggable = (ctx.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
             val settings = GeckoRuntimeSettings.Builder()
-                .remoteDebuggingEnabled(true)   // lets us inspect the page from a laptop if needed
-                .aboutConfigEnabled(true)       // about:config works inside this app (unlike release Firefox)
+                .remoteDebuggingEnabled(debuggable)
+                .aboutConfigEnabled(debuggable)
                 .consoleOutput(true)
                 .build()
             return GeckoRuntime.create(ctx.applicationContext, settings).also { runtime = it }

@@ -112,7 +112,7 @@ export const DEFAULTS = {
   video: { w: 1080, h: 1920, options: {} },
   divider: { w: 400, h: 40, style: { color: 'faint' }, options: { thickness: 2 } },
   message: { w: 760, h: 44, style: { size: 32, italic: true, color: 'accent' }, options: { lines: ['Have a good day', 'Looking good'] } },
-  entity_value: { w: 360, h: 120, style: { size: 64, weight: 200 }, options: { decimals: 0 } },
+  entity_value: { w: 360, h: 120, style: { size: 64, weight: 200 }, options: {} },
   weather: { w: 560, h: 60, style: { size: 36 }, options: { layout: 'line' } },
   calendar_agenda: { w: 560, h: 200, auto_height: true, style: { size: 28 }, options: { max_items: 5, hide_when_empty: true } },
   todo_list: { w: 560, h: 160, auto_height: true, style: { size: 28 }, options: { max_items: 5, hide_when_empty: true } },
@@ -161,6 +161,22 @@ export function looksLikeSports(state) {
   return a.team_abbr !== undefined || (a.team_name !== undefined && a.opponent_name !== undefined && SPORT_STATES.includes(state.state));
 }
 
+const NUMERIC = /^[-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?$/;
+/** Is the state a plain number (not a date, a time or a version)? */
+export function looksNumeric(state) {
+  return !!state && NUMERIC.test(String(state.state).trim());
+}
+/** A percentage, for which a ring is the natural picture. */
+export function looksPercent(state) {
+  const a = (state && state.attributes) || {};
+  return looksNumeric(state) && (a.unit_of_measurement === '%' || ['battery', 'humidity', 'moisture'].includes(a.device_class));
+}
+/** Does this look like a Feedreader event entity (what the news widget reads)? */
+export function looksLikeNews(state) {
+  const a = (state && state.attributes) || {};
+  return a.title !== undefined && a.link !== undefined;
+}
+
 /**
  * Widgets that can show this entity, best first: [{type, label, slot, kind}]. `registry` is widgets.json. A widget that needs a kind
  * of data Home Assistant has no built-in entity for (sports) is only offered for an entity that really looks like that data.
@@ -177,10 +193,13 @@ export function candidatesFor(entityId, state, registry) {
     const generic = def.domains.length === 0;
     if (!generic && !def.domains.includes(domain)) continue;
     if (type === 'sports' && !looksLikeSports(state)) continue;
+    if (type === 'news' && !looksLikeNews(state)) continue;
+    if (type === 'progress_ring' && !looksNumeric(state)) continue;
     out.push({ type, label: spec.label, slot, kind: def.kind === 'feeds' ? 'entities' : def.kind, generic });
   }
-  // an entity-specific widget first, the any-entity "value" last; a sports sensor prefers the sports widget over a plain progress ring
-  const rank = (c) => (c.generic ? 2 : c.type === 'sports' ? -1 : 0);
+  // an entity-specific widget first, the any-entity "value" last; a sports sensor prefers the sports widget over a plain progress ring.
+  // The ring goes first only for something that really is a percentage (battery, humidity, a % unit); otherwise the plain value wins.
+  const rank = (c) => (c.type === 'sports' ? -1 : c.type === 'progress_ring' ? (looksPercent(state) ? 0 : 3) : c.generic ? 2 : 0);
   return out.sort((a, b) => rank(a) - rank(b));
 }
 

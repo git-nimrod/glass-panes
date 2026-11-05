@@ -556,7 +556,7 @@ class GlassPanesPanel extends HTMLElement {
       h('label', { class: 'lbl', text: 'Or paste just the token on the display’s sign-in screen' }),
       box(reply.token, 3), h('div', { style: 'margin-top:6px' }, copyButton(reply.token)),
       h('label', { class: 'lbl', text: 'What this login is' }),
-      h('div', { class: 'hint', text: 'A separate ordinary user called “' + reply.user + '”. It cannot change settings and can only sign in from your home network. Home Assistant cannot limit a user to certain entities, so it can read what any ordinary user can. Remove it any time with Revoke.' }),
+      h('div', { class: 'hint', text: 'A separate ordinary user called “' + reply.user + '”. It can read and control your devices like any ordinary user (it cannot change settings), and can only sign in from your home network. Home Assistant cannot limit a user to certain entities, so it can read what any ordinary user can. Remove it any time with Revoke.' }),
       h('label', { class: 'lbl', text: 'Prefer to make a token yourself?' }),
       h('ol', { class: 'steps' }, h('li', { text: 'In Home Assistant, click your name at the bottom of the sidebar.' }), h('li', { text: 'Open the Security tab, then Long-lived access tokens, then Create token.' }),
         h('li', { text: 'Copy it and paste it on the display’s sign-in screen.' })),

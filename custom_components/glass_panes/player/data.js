@@ -29,9 +29,16 @@ export class HAClient {
     return { Authorization: 'Bearer ' + this.getToken(), 'Content-Type': 'application/json' };
   }
 
+  // Once Home Assistant has refused the login (or there is none), stop asking: every refused request is logged as a failed login, and
+  // with a ban threshold set Home Assistant would ban the mirror's address. The sign-in screen takes over until a new login is saved.
+  _refused() {
+    if (!this.rejected) { this.rejected = true; this.onAuthFail(); }
+  }
+
   async _fetch(path, opts = {}) {
+    if (this.rejected || !this.getToken()) throw new Error('401');
     const r = await fetch(this.base + path, { ...opts, headers: this._headers(), cache: 'no-store' });
-    if (r.status === 401) { this.onAuthFail(); throw new Error('401'); }
+    if (r.status === 401) { this._refused(); throw new Error('401'); }
     return r;
   }
 
@@ -44,7 +51,7 @@ export class HAClient {
     this.tracked.add(id);
     if (this.live && this.cache.has(id)) return this.cache.get(id);
     try {
-      const r = await this._fetch('/api/states/' + id);
+      const r = await this._fetch('/api/states/' + encodeURIComponent(id));
       if (r.status === 404) { this.cache.set(id, null); return null; }
       if (!r.ok) return null;
       const j = await r.json();
@@ -59,8 +66,9 @@ export class HAClient {
   // The entity bindings (which entity feeds which widget). They live in the integration behind a login, so this uses the same
   // token as everything else. Returns null if the endpoint is not there (an older integration) or the request fails.
   // The address of an uploaded picture or video: a signed link that opens without a login, valid for days.
-  async mediaUrl(id) {
-    if (!(this._media && Date.now() - this._media.at < 1800000 && this._media.map.has(id))) {
+  // `fresh` skips the cache: a link stops working after a Home Assistant restart (its signing key changes) or after 7 days.
+  async mediaUrl(id, fresh = false) {
+    if (fresh || !(this._media && Date.now() - this._media.at < 1800000 && this._media.map.has(id))) {
       try {
         const r = await this._fetch('/api/glass_panes/media');
         if (r.ok) this._media = { at: Date.now(), map: new Map(((await r.json()).media || []).map((m) => [m.id, m.url])) };
@@ -107,7 +115,7 @@ export class HAClient {
 
   async calendar(id, start, end) {
     const q = '?start=' + encodeURIComponent(start.toISOString()) + '&end=' + encodeURIComponent(end.toISOString());
-    const r = await this._fetch('/api/calendars/' + id + q);
+    const r = await this._fetch('/api/calendars/' + encodeURIComponent(id) + q);
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const list = await r.json();
     return Array.isArray(list) ? list : [];
@@ -127,7 +135,7 @@ export class HAClient {
   }
 
   connect() {
-    if (this.ws || !this.getToken()) return;
+    if (this.ws || this.rejected || !this.getToken()) return;
     const origin = this.base || location.origin;
     const url = origin.replace(/^http/, 'ws') + '/api/websocket';
     let ws;
@@ -138,6 +146,7 @@ export class HAClient {
       try { m = JSON.parse(ev.data); } catch (e) { return; }
       if (m.type === 'auth_required') ws.send(JSON.stringify({ type: 'auth', access_token: this.getToken() }));
       else if (m.type === 'auth_ok') {
+        this.generation = (this.generation || 0) + 1;      // counts connections: a new one after a drop may mean Home Assistant restarted
         ws.send(JSON.stringify({ id: 1, type: 'subscribe_events', event_type: 'state_changed' }));
         this.cache.clear();
         this.live = true;
@@ -149,7 +158,7 @@ export class HAClient {
         this.listeners.forEach((fn) => fn(null, null));   // everything may have changed while we were away
       } else if (m.type === 'auth_invalid') {
         this.live = false;
-        this.onAuthFail();
+        this._refused();
       } else if (m.type === 'event' && m.event && m.event.data) {
         const d = m.event.data;
         if (!this.tracked.has(d.entity_id)) return;
@@ -172,6 +181,7 @@ export class HAClient {
   }
 
   _retry() {
+    if (this.rejected) return;                     // a refused login is not retried (see _refused)
     setTimeout(() => this.connect(), Math.min(30000, 2000 * Math.pow(2, Math.min(this.tries, 4))));
     this.tries++;
   }

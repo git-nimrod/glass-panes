@@ -34,7 +34,7 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     "video": {"w": 1080, "h": 1920, "options": {}},
     "divider": {"w": 400, "h": 40, "style": {"color": "faint"}, "options": {"thickness": 2}},
     "message": {"w": 760, "h": 44, "style": {"size": 32, "italic": True, "color": "accent"}, "options": {"lines": ["Have a good day", "Looking good"]}},
-    "entity_value": {"w": 360, "h": 120, "style": {"size": 64, "weight": 200}, "options": {"decimals": 0}},
+    "entity_value": {"w": 360, "h": 120, "style": {"size": 64, "weight": 200}, "options": {}},
     "weather": {"w": 560, "h": 60, "style": {"size": 36}, "options": {"layout": "line"}},
     "calendar_agenda": {"w": 560, "h": 200, "auto_height": True, "style": {"size": 28}, "options": {"max_items": 5, "hide_when_empty": True}},
     "todo_list": {"w": 560, "h": 160, "auto_height": True, "style": {"size": 28}, "options": {"max_items": 5, "hide_when_empty": True}},

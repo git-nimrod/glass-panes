@@ -73,7 +73,9 @@ class ControlService : Service() {
                 ServerSocket(Kiosk.PORT).use { server ->
                     while (running) {
                         val client = server.accept()
-                        thread(isDaemon = true) { handle(client) }
+                        // at most a few requests at once, so a flood of connections cannot exhaust the app's memory or threads
+                        if (!slots.tryAcquire()) { try { client.close() } catch (e: Exception) { }; continue }
+                        thread(isDaemon = true) { try { handle(client) } finally { slots.release() } }
                     }
                 }
             } catch (e: Exception) {
@@ -83,16 +85,49 @@ class ControlService : Service() {
         }
     }
 
+    private val slots = java.util.concurrent.Semaphore(8)
+    private val MAX_LINE = 4096
+    private val MAX_HEADERS = 64
+    /** The web page origin allowed to read this request's answer (one value per request thread). */
+    private val allowOrigin = ThreadLocal<String>()
+
+    /** One line of the request, at most MAX_LINE characters (null at the end of the stream or if the line is too long). */
+    private fun boundedLine(r: BufferedReader): String? {
+        val sb = StringBuilder()
+        while (true) {
+            val c = r.read()
+            if (c == -1) return if (sb.isEmpty()) null else sb.toString()
+            if (c == '\n'.code) return sb.toString().trimEnd('\r')
+            if (sb.length >= MAX_LINE) return null
+            sb.append(c.toChar())
+        }
+    }
+
+    /** Where the player page lives (scheme://host:port of the saved page address); "" when no page is set. */
+    private fun pageOrigin(): String {
+        val url = Kiosk.prefs(this).getString("url", "") ?: ""
+        return try { val u = java.net.URI(url); if (u.scheme == null || u.host == null) "" else u.scheme + "://" + u.host + (if (u.port > 0) ":" + u.port else "") } catch (e: Exception) { "" }
+    }
+
     private fun handle(sock: Socket) {
         try {
             sock.use { s ->
                 s.soTimeout = 5000
                 val reader = BufferedReader(InputStreamReader(s.getInputStream()))
-                val first = reader.readLine() ?: return
-                while (true) {                                  // read and ignore the headers
-                    val line = reader.readLine() ?: break
+                val first = boundedLine(reader) ?: return
+                var origin = ""
+                for (i in 0 until MAX_HEADERS) {                // read the headers (bounded); only Origin matters
+                    val line = boundedLine(reader) ?: return
                     if (line.isEmpty()) break
+                    if (line.startsWith("origin:", ignoreCase = true)) origin = line.substringAfter(':').trim()
                 }
+                // A web page from another site, opened in any browser on the home network, must not be able to drive the mirror.
+                // Requests with no Origin (Home Assistant, curl, a typed address) and from the player's own page are fine.
+                if (origin.isNotEmpty() && origin != "null" && origin != pageOrigin() && !(s.inetAddress?.isLoopbackAddress == true)) {
+                    reply(s, 403, """{"ok":false,"error":"not allowed from this web page"}""")
+                    return
+                }
+                allowOrigin.set(if (origin.isNotEmpty() && origin == pageOrigin()) origin else "")
                 val target = first.split(" ").getOrElse(1) { "/" }
                 val path = target.substringBefore('?')
                 val query = target.substringAfter('?', "")
@@ -100,8 +135,11 @@ class ControlService : Service() {
                 val wantedKey = Kiosk.prefs(this).getString("key", "") ?: ""
                 val fromThisDevice = s.inetAddress?.isLoopbackAddress == true
                 val givenKey = query.split("&").map { it.split("=", limit = 2) }
-                    .firstOrNull { it[0] == "key" }?.getOrNull(1) ?: ""
-                if (wantedKey.isNotEmpty() && wantedKey != givenKey && !fromThisDevice) {
+                    .firstOrNull { it[0] == "key" }?.getOrNull(1)
+                    ?.let { try { URLDecoder.decode(it, "UTF-8") } catch (e: Exception) { it } } ?: ""
+                // compared in constant time, so the key cannot be guessed a character at a time
+                val keyOk = java.security.MessageDigest.isEqual(wantedKey.toByteArray(Charsets.UTF_8), givenKey.toByteArray(Charsets.UTF_8))
+                if (wantedKey.isNotEmpty() && !keyOk && !fromThisDevice) {
                     reply(s, 403, """{"ok":false,"error":"bad key"}""")
                     return
                 }
@@ -116,8 +154,12 @@ class ControlService : Service() {
                         val raw = query.split("&").map { it.split("=", limit = 2) }
                             .firstOrNull { it[0] == "url" }?.getOrNull(1)
                         val url = raw?.let { URLDecoder.decode(it, "UTF-8") }
+                        val scheme = url?.substringBefore(':', "")?.lowercase()
                         if (url.isNullOrEmpty()) {
                             reply(s, 400, """{"ok":false,"error":"need ?url="}""")
+                        } else if (scheme != "http" && scheme != "https") {
+                            // only web addresses: never files or other apps' content on the device
+                            reply(s, 400, """{"ok":false,"error":"only http and https addresses can be played"}""")
                         } else {
                             Kiosk.main.post { Kiosk.activity?.playVideo(url) }
                             reply(s, 200, """{"ok":true}""")
@@ -202,8 +244,8 @@ class ControlService : Service() {
                     else -> reply(s, 404, """{"ok":false,"error":"not found"}""")
                 }
             }
-        } catch (e: Exception) {
-            // A dropped connection is not worth crashing over.
+        } catch (e: Throwable) {
+            // A dropped connection, or even running out of memory on one request, is not worth crashing the app over.
         }
     }
 
@@ -228,7 +270,7 @@ class ControlService : Service() {
         val text = when (code) { 200 -> "OK"; 400 -> "Bad Request"; 403 -> "Forbidden"; else -> "Not Found" }
         val bytes = body.toByteArray(Charsets.UTF_8)
         val head = "HTTP/1.1 $code $text\r\nContent-Type: application/json\r\n" +
-            "Access-Control-Allow-Origin: *\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n"
+            (allowOrigin.get()?.takeIf { it.isNotEmpty() }?.let { "Access-Control-Allow-Origin: $it\r\nVary: Origin\r\n" } ?: "") + "Content-Length: ${bytes.size}\r\nConnection: close\r\n\r\n"
         s.getOutputStream().apply {
             write(head.toByteArray(Charsets.UTF_8))
             write(bytes)

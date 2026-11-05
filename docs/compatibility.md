@@ -10,6 +10,7 @@ Everything the **player page** shows (panes, widgets, themes, fonts, Now playing
 
 | Mirror app version | What it adds | Needed for |
 |---|---|---|
+| 0.10.5 | Security update: web pages from other sites can no longer drive the mirror, `/video/start` only plays web addresses, a sturdier control server, keys with symbols work, debugging off in release builds. | Recommended for everyone |
 | 0.10.3 (and the identical 0.10.4) | The first signed release. A launch screen with the boot animation. Memory numbers in `/status`. Presence settings and the reporting rate. The control-server calls listed in [mirror-app/api.md](mirror-app/api.md). Updates install over the top and keep your settings. | Everything in the integration so far |
 
 ## What each integration feature needs

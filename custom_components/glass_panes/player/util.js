@@ -32,8 +32,26 @@ export function okState(s) {
   return !!s && !isBad(s.state);
 }
 
+// A state is a number only if the WHOLE text is one. parseFloat would read "2026-11-05" as 2026, "07:30:00" as 7 and an IP address
+// as 192. A leading zero ("02139", a ZIP code) means text, not a number.
+const NUMERIC = /^[-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?$/;
+export function strictNumber(v) {
+  if (typeof v === 'number') return isFinite(v) ? v : NaN;
+  const t = String(v == null ? '' : v).trim();
+  if (!NUMERIC.test(t) || /^[-+]?0\d/.test(t)) return NaN;
+  return Number(t);
+}
+
 export function num(s) {
-  return okState(s) ? parseFloat(s.state) : NaN;
+  return okState(s) ? strictNumber(s.state) : NaN;
+}
+
+// A number for people: `decimals` fixed when given, otherwise one decimal under 100 and whole numbers above (the player's old rule).
+// Thousands get a comma unless `thousands` is false. Rounds correctly (1234.56 with one decimal is "1,234.6").
+export function formatNumber(n, decimals, thousands = true) {
+  let digits = decimals;
+  if (digits == null) digits = Math.abs(n) < 100 && !Number.isInteger(n) ? 1 : 0;
+  return new Intl.NumberFormat('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits, useGrouping: thousands !== false }).format(n);
 }
 
 export function unitOf(s) {
