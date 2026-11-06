@@ -13,6 +13,15 @@ The whole job in one line: **put the mirror in fastboot, flash two files, change
 
 > **Credit.** This path exists because of the Lululemon-mirror community, who worked out how to run Android on this hardware. Thank you to Onemoremichael, lrinQVQ, TimStewartJ, repairman29, porcuswine, vgab7 and everyone else in those threads.
 
+## Step 0: make sure your mirror has the right board
+
+**Do this before you buy, open or flash anything.** These images are built for the Qualcomm **MSM8916** board (`MIR63A0-00-P1`, tested on RevP21). Other owners report that some newer mirrors use a different NXP-based board (i.MX8M Mini). That needs different Android software with different partitions and drivers, **and these images will not work on it**. We have not tested one, and flashing the wrong image can leave a mirror that will not start.
+
+- **Sticker on the main board** (near the micro-USB and Ethernet end): `MIR63A0-00-P1`, ideally `RevP21`. Anything else, stop here and [tell us what yours says](https://github.com/git-nimrod/glass-panes/issues/new/choose).
+- **In fastboot** (step 1 below), `fastboot getvar product` must print `MSM8916`, and the partition sizes must match [the hardware page](hardware.md#what-the-bootloader-reports). If not, **don't flash**.
+
+Rough guide, not a promise: older units seem more likely to be the tested Qualcomm board, and later-production units are the ones to be careful with. The sticker is the real answer.
+
 ## What you need
 
 | | |

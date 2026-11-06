@@ -33,6 +33,7 @@ Glass Panes is built for the **Lululemon Studio mirror** ("Model One"). The boar
 | `MIR63A0-00-P1` RevP21 | 1.25.0 | Yes, with the project's ready-made images | Works: the player loads, and `/status` shows presence and memory numbers | The project (one unit) |
 | `MIR63A0-00-P1` RevP21 | 1.27.0 | Replacement Android reported working by another owner | Not tested by the project | Another owner |
 | `MIR63A0-00-P1` RevP18 | 1.14.2 | Reported to behave differently | Not tested by the project | Other owners |
+| Newer NXP-based board (reported as i.MX8M Mini, some later-production units) | | **Not supported by these images.** Reported by other owners, not verified by the project | Not tested | Other owners |
 | Any other board or software version | | | Unknown. Please tell us | |
 
 **Before you flash**, compare `fastboot getvar partition-size:userdata` and `partition-size:system` with the values on the [hardware page](mirror-app/hardware.md#what-the-bootloader-reports). If yours differ, stop and open an issue.

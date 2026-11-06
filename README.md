@@ -12,7 +12,7 @@ Design screens for your **Lululemon Studio smart mirror** inside Home Assistant,
 
 > **Public beta (v0.10.x).** It works and it runs daily on a real mirror, but there are rough edges. If you hit one, please tell us (see [Beta testing](#beta-testing)).
 
-> **Built for the Lululemon Studio mirror.** It was developed and tested on one unit: board `MIR63A0-00-P1`, revision RevP21. We're building a list of which boards and firmware versions work, in [Which mirrors work](docs/compatibility.md#which-mirrors-work). If you have a Studio mirror, please [tell us how yours goes](https://github.com/git-nimrod/glass-panes/issues/new/choose).
+> **Built for the Lululemon Studio mirror.** It was developed and tested on one unit: board `MIR63A0-00-P1`, revision RevP21. We're building a list of which boards and firmware versions work, in [Which mirrors work](docs/compatibility.md#which-mirrors-work). **Check the board sticker before you flash:** the ready-made Android images only fit `MIR63A0-00-P1` (Qualcomm MSM8916), and some newer mirrors reportedly use a different NXP board that they will not work on. If you have a Studio mirror, please [tell us how yours goes](https://github.com/git-nimrod/glass-panes/issues/new/choose).
 
 <p align="center">
   <img src="docs/images/builder-edit.png" alt="The Glass Panes builder in edit mode: a list of panes on the left, a portrait canvas with widgets in the middle, and your entities on the right" width="900">

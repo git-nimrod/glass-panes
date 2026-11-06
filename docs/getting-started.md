@@ -110,10 +110,44 @@ Want the backlight lower when nobody's there too? Add an automation on the same 
 
 ## 7. Put it on your Lululemon Studio mirror
 
-This is what Glass Panes is for. There are two guides, to do in order:
+This is what Glass Panes is for. It takes two steps, and the first one **permanently erases the mirror's own software**.
 
-1. [Part 1: install Android on the mirror](mirror-app/install-android-lululemon-studio.md). Check [which boards work](compatibility.md#which-mirrors-work) first. This permanently replaces the mirror's own software.
-2. [Part 2: install the Glass Panes app](mirror-app/install-app-lululemon-studio.md).
+### Check your board first (before you flash anything)
+
+The ready-made Android images only fit **one kind of mirror**: the Qualcomm **MSM8916** board, `MIR63A0-00-P1`. We tested **RevP21** (printed on a sticker on the main board, near the micro-USB and Ethernet end). Reports from other owners suggest that some newer mirrors use a different, NXP-based board (i.MX8M Mini). Those need different software, and **our images will not work on them**. We have not tested any of that.
+
+How to check, from least to most effort:
+
+1. **Read the sticker** on the main board. You want `MIR63A0-00-P1`, ideally `RevP21`. (The "FW AD V1.01" sticker is not the board id.) If yours says something else, stop and [open a report](https://github.com/git-nimrod/glass-panes/issues/new/choose).
+2. **Ask the bootloader.** With the mirror in fastboot (Part 1, step 1), run `fastboot getvar product`. It must say `MSM8916`. Also compare the partition sizes on the [hardware page](mirror-app/hardware.md#what-the-bootloader-reports). If anything differs, stop.
+
+### The whole job at a glance
+
+You need a Windows computer with Google's `platform-tools` (`adb` and `fastboot`) and `scrcpy`, plus a **data** micro-USB cable. Every step is explained in the guides. This is only the shape of it, so you can see what you are signing up for.
+
+**Part 1: install Android** ([full guide](mirror-app/install-android-lululemon-studio.md)). Hold **VOL-** while the mirror powers on to enter fastboot, then, from the folder with the two downloaded images:
+
+```bash
+fastboot devices
+fastboot flash system system.img
+fastboot -S 0 flash userdata userdata.sparse
+fastboot reboot
+```
+
+The first boot takes about 5 minutes. Then use `scrcpy` to join Wi-Fi and stand the picture upright. The guide also covers the Windows USB driver, verifying the image hashes, and the project ADB key you need before the first boot.
+
+**Part 2: install the app** ([full guide](mirror-app/install-app-lululemon-studio.md)). Download `mirror-kiosk-v<version>.apk` from a release tagged `app-v...`, then:
+
+```bash
+adb devices
+adb install -r mirror-kiosk-v<version>.apk
+adb shell pm grant com.nimrod.mirrorkiosk android.permission.CAMERA
+adb shell "am start -n com.nimrod.mirrorkiosk/.MainActivity --es url '<HA address>/glass_panes/player/index.html?display=<display id>&kiosk=1&tokenkey=glass_panes_token' --es token '<display login token>'"
+```
+
+Part 2 says where the display id and login token come from. Every command in both parts is explained in the [command glossary](mirror-app/adb-commands.md).
+
+Check [which boards work](compatibility.md#which-mirrors-work) before you start.
 
 Any other screen with a browser (a tablet, a wall panel) can open the display's login link instead. That path works, but it gets much less testing.
 
