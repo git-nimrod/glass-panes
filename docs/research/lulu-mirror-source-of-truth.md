@@ -167,6 +167,8 @@ A failed flash: stop, keep the output, stay in fastboot, re-inspect, fix that on
 
 ### Next step for RevP20
 
+Standalone, copy-pasteable version with PowerShell commands and the real script paths to clone: [revp20-next-steps.md](revp20-next-steps.md).
+
 1. Capture full evidence, read-only: `python3 mirror.py doctor`, `python3 mirror.py devices`, `fastboot getvar all`, `fastboot oem device-info`. Do **not** run `mirror.py inspect --board mir63a0-revp21` on an unconfirmed board — [CONTRIBUTING.md](https://github.com/Onemoremichael/lulu-mirror-software-only/blob/main/CONTRIBUTING.md) explicitly asks people not to run the existing profile's inspector on an unknown board just to make it look supported.
 2. Rule out the cheap host-side explanation first, no device risk: `adb kill-server && adb start-server && adb devices -l` — confirms no stale cached key independent of anything on the device.
 3. File the evidence as a dated update on the existing [issue #15](https://github.com/Onemoremichael/lulu-mirror-software-only/issues/15), not a new thread: full `getvar all`, `oem device-info`, firmware `os_version`, what was tried, and the encryption-handoff idea above labeled as a hypothesis.
