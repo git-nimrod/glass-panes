@@ -20,6 +20,7 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
 
 from . import bindings as bindings_lib
+from . import photos as photos_lib
 from .const import DOMAIN
 from .manager import Manager
 
@@ -227,6 +228,27 @@ async def ws_mirror_measure(hass: HomeAssistant, connection, msg: dict[str, Any]
     _send_mirror(connection, msg, *await _manager(hass).mirror_measure(msg["display_id"], msg["confirm"]))
 
 
+@websocket_api.require_admin
+@websocket_api.websocket_command({
+    Required("type"): f"{DOMAIN}/mirror/audio", Required("display_id"): str,
+    Required("action"): str, schema_lib.Optional("level"): int,
+})
+@websocket_api.async_response
+async def ws_mirror_audio(hass: HomeAssistant, connection, msg: dict[str, Any]) -> None:
+    """The mirror's speaker from the Settings page: read what it is doing, pause, resume, stop, or set the volume (level 0 to 100)."""
+    if msg["action"] not in ("status", "pause", "resume", "stop", "volume"):
+        _fail(connection, msg, websocket_api.ERR_INVALID_FORMAT, "action must be status, pause, resume, stop or volume")
+        return
+    params = None
+    if msg["action"] == "volume":
+        level = msg.get("level")
+        if level is None or not 0 <= level <= 100:
+            _fail(connection, msg, websocket_api.ERR_INVALID_FORMAT, "use a volume level from 0 to 100")
+            return
+        params = {"v": level}
+    _send_mirror(connection, msg, *await _manager(hass).mirror_audio(msg["display_id"], msg["action"], params))
+
+
 # ---------------------------------------------------------------- bindings and widgets
 
 @callback
@@ -284,12 +306,27 @@ async def ws_media_delete(hass: HomeAssistant, connection, msg: dict[str, Any]) 
     connection.send_result(msg["id"], {"all": _manager(hass).list_media()})
 
 
+@websocket_api.websocket_command({Required("type"): f"{DOMAIN}/slideshow/list", Required("folder"): str, schema_lib.Optional("w"): int, schema_lib.Optional("h"): int})
+@websocket_api.async_response
+async def ws_slideshow_list(hass: HomeAssistant, connection, msg: dict[str, Any]) -> None:
+    connection.send_result(msg["id"], await _manager(hass).list_slideshow(msg["folder"], msg.get("w"), msg.get("h")))
+
+
+@websocket_api.websocket_command({Required("type"): f"{DOMAIN}/picture/url", Required("entity"): str, schema_lib.Optional("w"): int, schema_lib.Optional("h"): int})
+@callback
+def ws_picture_url(hass: HomeAssistant, connection, msg: dict[str, Any]) -> None:
+    if not photos_lib.is_picture_entity(msg["entity"]):
+        connection.send_error(msg["id"], "bad_entity", "Only image and camera entities have a picture")
+        return
+    connection.send_result(msg["id"], {"url": _manager(hass).picture_url(msg["entity"], msg.get("w"), msg.get("h"))})
+
+
 COMMANDS = (
-    ws_media_list, ws_media_add, ws_media_delete,
+    ws_media_list, ws_media_add, ws_media_delete, ws_slideshow_list, ws_picture_url,
     ws_panes_list, ws_panes_get, ws_panes_save, ws_panes_create, ws_panes_update, ws_panes_delete,
     ws_displays_list, ws_displays_save, ws_displays_delete, ws_login_create, ws_login_revoke,
     ws_bindings_get, ws_bindings_set, ws_widgets_list,
-    ws_mirror_connect, ws_mirror_status, ws_mirror_presence, ws_mirror_tune, ws_mirror_brightness, ws_mirror_measure,
+    ws_mirror_connect, ws_mirror_status, ws_mirror_presence, ws_mirror_tune, ws_mirror_brightness, ws_mirror_measure, ws_mirror_audio,
 )
 
 

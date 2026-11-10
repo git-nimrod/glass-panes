@@ -4,7 +4,8 @@
     "clock": { "label": "Clock", "slots": {} },
     "date": { "label": "Date", "slots": {} },
     "text": { "label": "Text", "slots": {} },
-    "image": { "label": "Image", "slots": {} },
+    "image": { "label": "Image", "slots": { "entity": { "kind": "entity", "domains": ["image", "camera"], "required": false, "label": "Image or camera entity (optional)" } } },
+    "slideshow": { "label": "Photo slideshow", "slots": {} },
     "video": { "label": "Looping video", "slots": {} },
     "divider": { "label": "Divider line", "slots": {} },
     "message": {

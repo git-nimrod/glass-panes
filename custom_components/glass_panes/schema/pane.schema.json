@@ -125,7 +125,7 @@
         "name": { "type": "string", "maxLength": 80, "description": "Label shown in the builder." },
         "type": {
           "enum": [
-            "clock", "date", "text", "image", "video", "divider", "message", "entity_value", "weather",
+            "clock", "date", "text", "image", "slideshow", "video", "divider", "message", "entity_value", "weather",
             "calendar_agenda", "todo_list", "now_playing", "people", "lights_summary", "status_summary",
             "progress_ring", "sports", "news"
           ]
@@ -184,6 +184,7 @@
         { "if": { "properties": { "type": { "const": "status_summary" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_status_summary" } } } },
         { "if": { "properties": { "type": { "const": "progress_ring" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_progress_ring" } } } },
         { "if": { "properties": { "type": { "const": "sports" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_sports" } } } },
+        { "if": { "properties": { "type": { "const": "slideshow" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_slideshow" } } } },
         { "if": { "properties": { "type": { "const": "news" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_news" } } } }
       ]
     },
@@ -194,7 +195,10 @@
       "properties": {
         "format": { "enum": ["12h", "24h"], "default": "12h" },
         "hide_meridiem": { "type": "boolean", "default": true, "description": "Show 9:30 instead of 9:30 AM." },
-        "show_seconds": { "type": "boolean", "default": false }
+        "show_seconds": { "type": "boolean", "default": false, "description": "Digital: show the seconds too. Traditional and alarm clock: draw a red second hand." },
+        "style": { "enum": ["digital", "analog", "alarm"], "default": "digital", "description": "digital: the time as numbers (the original look). analog: a traditional round clock face with hands. alarm: a bedside alarm clock with two bells, feet and a small alarm hand; its case takes the widget's text colour when that is a #rrggbb, else red." },
+        "face": { "enum": ["light", "dark"], "default": "light", "description": "Traditional and alarm clock only: a light face with dark numerals, or a dark face with light ones (kinder on a mirror)." },
+        "timezone": { "type": "string", "maxLength": 64, "description": "A time zone name such as America/Chicago or Asia/Tokyo, to show the time somewhere other than the display's own zone. Empty (or a name that is not a time zone) means the display's own." }
       }
     },
     "opt_date": {
@@ -203,7 +207,8 @@
       "properties": {
         "format": { "enum": ["weekday_month_day", "weekday_month_day_year", "month_day", "weekday"], "default": "weekday_month_day" },
         "day_offset": { "type": "integer", "minimum": 0, "maximum": 7, "default": 0, "description": "0 = today, 1 = tomorrow." },
-        "prefix": { "type": "string", "maxLength": 24 }
+        "prefix": { "type": "string", "maxLength": 24 },
+        "timezone": { "type": "string", "maxLength": 64, "description": "A time zone name such as America/Chicago, to show the date somewhere other than the display's own zone. Empty means the display's own." }
       }
     },
     "opt_text": {
@@ -221,7 +226,19 @@
       "properties": {
         "asset": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9._-]+$", "maxLength": 120, "description": "File name of an uploaded image. null = empty slot." },
         "media": { "type": ["string", "null"], "pattern": "^m_[0-9a-f]{12}$", "description": "An uploaded picture from the media library (takes the place of `asset`)." },
-        "fit": { "enum": ["contain", "cover"], "default": "contain" }
+        "fit": { "enum": ["contain", "cover"], "default": "contain" },
+        "refresh_s": { "type": "integer", "minimum": 2, "maximum": 3600, "description": "When an image or camera entity feeds this picture: how often to ask for a new picture, in seconds. Default 10 for a camera and 300 for an image entity (an image entity also updates the moment its state changes)." }
+      }
+    },
+    "opt_slideshow": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "folder": { "type": ["string", "null"], "maxLength": 240, "description": "A folder inside a Home Assistant media folder, for example photos/family or local/photos/family. Photos are shrunk to the widget size before the mirror gets them. null = nothing to show." },
+        "interval_s": { "type": "integer", "minimum": 5, "maximum": 86400, "default": 60, "description": "Seconds each photo stays on screen." },
+        "shuffle": { "type": "boolean", "default": true, "description": "Mix the order (every photo once before any repeats). Off = file-name order." },
+        "fit": { "enum": ["contain", "cover"], "default": "contain", "description": "contain = the whole photo, with bars if the shapes differ; cover = fill the box and crop the edges." },
+        "fade": { "type": "boolean", "default": true, "description": "Crossfade between photos. Off = switch instantly (lighter on a small display)." }
       }
     },
     "opt_video": {
@@ -308,6 +325,7 @@
       "additionalProperties": false,
       "properties": {
         "show_art": { "type": "boolean", "default": true },
+        "cd_case": { "type": "boolean", "default": true, "description": "The cd look only: show the album cover as a CD case with the disc sliding out of its side, instead of the disc alone. Needs album art; without art, or with show_art off, only the disc is drawn." },
         "burn_in_saver": { "type": "boolean", "default": false, "description": "Drift the whole widget a few pixels, very slowly (one lap about every 40 minutes), so a screen that is left on for hours never holds the same pixels. Too slow to notice. Works with every look." },
         "style": { "type": "string", "enum": ["card", "vinyl", "cd"], "default": "card", "description": "card: album art and words (the original look). vinyl: a black record with the art as its centre label, spinning while playing, with a tonearm that swings on and off. cd: a shiny disc with the art in its centre ring, spinning while playing." },
         "idle_text": { "type": "string", "maxLength": 80, "default": "", "description": "A message to show when nothing is playing. Empty (the default) shows nothing, so with auto_height the widget takes no space." },

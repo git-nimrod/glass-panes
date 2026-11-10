@@ -99,6 +99,13 @@ async function loadPane(id) {
   return r.json();
 }
 
+let wanted = null;          // the pane the display is supposed to show (the select entity's value, or ?pane=)
+let beating = false;        // the heartbeat to the mirror app has started
+function beat() {
+  if (!cfg.kiosk) return;
+  fetch(cfg.appUrl + '/alive?pane=' + encodeURIComponent(current || '') + '&want=' + encodeURIComponent(wanted || ''), { mode: 'cors' }).catch(() => {});
+}
+
 async function showPane(id) {
   const pane = await loadPane(id);
   // pick up bindings changed since the last pane (not for ?bindings=<file> or mock mode, which stay as they were)
@@ -116,12 +123,14 @@ async function showPane(id) {
     // only inside the kiosk app, which listens on the device itself; this is not sent anywhere else
     fetch(cfg.appUrl + '/brightness/' + pane.brightness, { mode: 'no-cors' }).catch(() => {});
   }
+  if (beating) beat();            // a pane change reaches the mirror app now, not up to 30 s later
 }
 
 async function followEntity() {
   const apply = async () => {
     const s = await client.state(cfg.follow);
     const id = s && s.state ? String(s.state).toLowerCase() : '';
+    if (id) wanted = id;
     if (id && id !== current) {
       try { await showPane(id); } catch (e) { logError('follow', e); }
     }
@@ -181,6 +190,7 @@ async function main() {
       if (!q.has('tz') && display.timezone) time = makeTime(display.timezone);
     } else logError('display', new Error('there is no display "' + cfg.display + '"'));
   }
+  wanted = cfg.pane;
   try { await showPane(cfg.pane); } catch (e) { logError('pane', e); }
   setTimeout(hideBoot, Math.max(0, 2500 - (Date.now() - bootStarted)));         // at least a moment of the animation, then the pane
   if (cfg.follow) await followEntity();
@@ -193,7 +203,9 @@ main().then(() => {
   try { sessionStorage.removeItem(START_KEY); } catch (e) { /* ignore */ }
   // Inside the mirror app: tell it every 30 s that the page is alive, so it can reload a page that broke or froze (app 0.10.6+;
   // an older app answers "not found", which does no harm).
-  if (cfg.kiosk) setInterval(() => { fetch(cfg.appUrl + '/alive', { mode: 'cors' }).catch(() => {}); }, 30000);
+  // From app 0.10.8 the heartbeat also says which pane is on screen and which one was asked for, so the app knows when the mirror
+  // has really finished starting ("fully booted" = the selected pane is showing). An older app ignores the extra words.
+  if (cfg.kiosk) { beating = true; beat(); setInterval(beat, 30000); }
 }).catch((e) => {
   hideBoot();
   logError('start', e);

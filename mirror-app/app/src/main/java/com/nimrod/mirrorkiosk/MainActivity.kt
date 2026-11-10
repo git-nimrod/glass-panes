@@ -37,7 +37,7 @@ import org.mozilla.geckoview.WebRequestError
  *
  * Configure from a computer with (only the extras you give are changed; see docs/mirror-app/flashing.md):
  *   adb shell am start -n com.nimrod.mirrorkiosk/.MainActivity --es url "<page url>" --es token "<ha token>"
- *       --es key "<optional api key>" --es webhook "<presence webhook id>"
+ *       --es key "<optional api key>" --es webhook "<presence webhook id>" --es alive_webhook "<alive webhook id>"
  *       --es rotation "<auto|portrait|portrait_reverse|landscape|landscape_reverse>"
  */
 class MainActivity : Activity() {
@@ -47,6 +47,9 @@ class MainActivity : Activity() {
     private lateinit var splash: LinearLayout
     private lateinit var splashText: TextView
     private lateinit var splashPic: ImageView
+    private lateinit var barTrack: FrameLayout          // the loading bar under the boot animation
+    private lateinit var barFill: View
+    private lateinit var splashStep: TextView           // "3 of 5 · Waiting for Wi-Fi · 42 s"
     private var splashAnim: AnimationDrawable? = null          // only exists while the launch screen is showing
     private var errorPageShown = false          // the black "can't reach it" page is what just finished loading
     private var videoView: VideoView? = null
@@ -57,14 +60,51 @@ class MainActivity : Activity() {
     // Page watchdog. A page can "load" and still be broken: Home Assistant answers "404: Not Found" while it is still starting, or a
     // script fails. Once a player has ever sent a heartbeat (so older players are not affected), the page must say it is alive within
     // 60 s of loading and then at least every 3 minutes. If not, it is loaded again, waiting longer each time (10 s up to 5 min).
+    //
+    // Three more checks (app 0.10.8), each written to the diary (/log):
+    //  - a page load that neither finished nor failed (the browser just sits there) is stopped and tried again with a fresh browser session;
+    //  - a start that has not finished after "restart_after" minutes restarts the app itself (at most every 30 minutes);
+    //  - "reload_hours" (off by default) loads the page again now and then.
     private var watchdogReloads = 0
     private var nextWatchdogReloadMs = 0L
+    private var stallsInRow = 0
+    private var nextStallRetryMs = 0L
     private val watchdog = object : Runnable {
         override fun run() {
             Kiosk.main.postDelayed(this, 30_000)
             val p = Kiosk.prefs(this@MainActivity)
-            if (!p.getBoolean("heartbeat", false) || (p.getString("url", "") ?: "").isEmpty() || Kiosk.lastLoadMs == 0L) return
             val now = System.currentTimeMillis()
+            val hasPage = (p.getString("url", "") ?: "").isNotEmpty()
+
+            // 1. a load that never ended
+            val timeoutS = Kiosk.loadTimeoutS(this@MainActivity)
+            if (hasPage && Recovery.loadStalled(Kiosk.loadStartedMs, Kiosk.lastFinishedMs, now, timeoutS) && now >= nextStallRetryMs) {
+                nextStallRetryMs = now + Recovery.waitMs(stallsInRow)
+                stallsInRow++
+                Kiosk.log("load_stalled", "no end after " + timeoutS + " s, try " + stallsInRow + ", fresh browser session")
+                Kiosk.pageOk = false
+                restartNow.run()
+                return
+            }
+
+            // 2. a start that is taking far too long
+            if (hasPage && !Kiosk.boot.fullyBooted()) {
+                val stuckS = (now - Kiosk.boot.startedMs) / 1000
+                if (Recovery.shouldRestartApp(stuckS, Kiosk.restartAfterMin(this@MainActivity), p.getLong("last_app_restart_ms", 0L), now)) {
+                    restartApp("start not finished after " + (stuckS / 60) + " min, waiting for " + (Kiosk.boot.waitingFor()?.key ?: "nothing"))
+                    return
+                }
+            }
+
+            // 3. a timed reload
+            val hours = Kiosk.reloadHours(this@MainActivity)
+            if (hours > 0 && Kiosk.lastLoadMs > 0 && now - Kiosk.lastLoadMs > hours * 3_600_000L) {
+                Kiosk.log("timed_reload", "every " + hours + " h")
+                loadPage()
+                return
+            }
+
+            if (!p.getBoolean("heartbeat", false) || !hasPage || Kiosk.lastLoadMs == 0L) return
             if (Kiosk.lastAliveMs > Kiosk.lastLoadMs) watchdogReloads = 0
             val neverAlive = Kiosk.lastAliveMs < Kiosk.lastLoadMs && now - Kiosk.lastLoadMs > 60_000
             val wentQuiet = Kiosk.lastAliveMs >= Kiosk.lastLoadMs && now - Kiosk.lastAliveMs > 180_000
@@ -72,14 +112,57 @@ class MainActivity : Activity() {
                 val waits = longArrayOf(10_000, 30_000, 60_000, 120_000, 300_000)
                 nextWatchdogReloadMs = now + waits[minOf(watchdogReloads, waits.size - 1)]
                 watchdogReloads++
+                Kiosk.log("watchdog_reload", if (neverAlive) "the page never said it was alive" else "the page went quiet")
                 Kiosk.pageOk = false
                 loadPage()
             }
         }
     }
 
+    /** Restarts the app by itself: Android has no root here, so this is the strongest thing the app can do. It comes back in a few seconds and loads the saved page. */
+    private fun restartApp(why: String) {
+        Kiosk.log("app_restart", why)
+        Kiosk.prefs(this).edit().putLong("last_app_restart_ms", System.currentTimeMillis()).commit()
+        try {
+            val launch = packageManager.getLaunchIntentForPackage(packageName) ?: return
+            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            val pi = android.app.PendingIntent.getActivity(this, 7, launch,
+                android.app.PendingIntent.FLAG_CANCEL_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE)
+            val am = getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+            am.set(android.app.AlarmManager.ELAPSED_REALTIME, android.os.SystemClock.elapsedRealtime() + 3_000, pi)
+        } catch (e: Exception) {
+            Kiosk.log("app_restart_failed", e.javaClass.simpleName)
+            return
+        }
+        android.os.Process.killProcess(android.os.Process.myPid())
+    }
+
+    // Every 10 s: send the "still alive" message to Home Assistant if one is due (only when an alive webhook has been set, see AliveReport).
+    private val aliveTick = object : Runnable {
+        override fun run() {
+            try { AliveReport.maybeSend(this@MainActivity) } catch (e: Exception) { /* a message must never break the screen */ }
+            Kiosk.main.postDelayed(this, 10_000)
+        }
+    }
+
+    // Is the mirror online yet? Checked every 2 s until it is, so the loading bar and the diary know when Wi-Fi came up.
+    private val netWatch = object : Runnable {
+        override fun run() {
+            if (Kiosk.boot.reachedAtMs(BootTimeline.Step.NETWORK) != null) return
+            if (isOnline()) { if (Kiosk.boot.reach(BootTimeline.Step.NETWORK)) Kiosk.log("network_up") }
+            else Kiosk.main.postDelayed(this, 2_000)
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun isOnline(): Boolean = try {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        cm.activeNetworkInfo?.isConnected == true
+    } catch (e: Exception) { false }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Kiosk.init(this)
 
         // Stay awake, show over any lock screen, and turn the screen on when we start.
         @Suppress("DEPRECATION")
@@ -119,6 +202,8 @@ class MainActivity : Activity() {
         DisplayPostProc.ensureOff(this)
         Kiosk.main.postDelayed({ DisplayPostProc.ensureOff(this) }, 25_000)
         Kiosk.main.postDelayed(watchdog, 30_000)
+        Kiosk.main.post(netWatch)
+        Kiosk.main.postDelayed(aliveTick, 10_000)
 
         blackWallpaperOnce()
     }
@@ -148,6 +233,9 @@ class MainActivity : Activity() {
         Kiosk.main.removeCallbacks(retryLoad)
         Kiosk.main.removeCallbacks(watchdog)
         Kiosk.main.removeCallbacks(restartNow)
+        Kiosk.main.removeCallbacks(netWatch)
+        Kiosk.main.removeCallbacks(aliveTick)
+        Kiosk.main.removeCallbacks(barTick)
         if (Kiosk.activity === this) Kiosk.activity = null
         super.onDestroy()
     }
@@ -159,8 +247,10 @@ class MainActivity : Activity() {
 
         s.progressDelegate = object : GeckoSession.ProgressDelegate {
             override fun onPageStop(session: GeckoSession, success: Boolean) {
+                Kiosk.lastFinishedMs = System.currentTimeMillis()
                 if (!success) {                      // this load did not finish: try again shortly
                     Kiosk.pageOk = false
+                    Kiosk.log("page_stop", "the load did not finish well, trying again soon")
                     scheduleRetry()
                 } else if (errorPageShown) {         // only the black "can't reach it" page loaded: the retry is already queued
                     errorPageShown = false
@@ -168,6 +258,8 @@ class MainActivity : Activity() {
                 } else {                             // the real page loaded: nothing left to retry
                     Kiosk.pageOk = true
                     Kiosk.lastLoadMs = System.currentTimeMillis()
+                    stallsInRow = 0
+                    if (Kiosk.boot.reach(BootTimeline.Step.PAGE)) Kiosk.log("page_loaded", Kiosk.boot.secondsTo(BootTimeline.Step.PAGE).toString() + " s after the app started")
                     Kiosk.main.removeCallbacks(retryLoad)
                     hideSplash()
                 }
@@ -176,8 +268,8 @@ class MainActivity : Activity() {
 
         // If the engine's process dies, build a fresh session and load the page again.
         s.contentDelegate = object : GeckoSession.ContentDelegate {
-            override fun onCrash(session: GeckoSession) { restartSession() }
-            override fun onKill(session: GeckoSession) { restartSession() }
+            override fun onCrash(session: GeckoSession) { Kiosk.log("engine_crash"); restartSession() }
+            override fun onKill(session: GeckoSession) { Kiosk.log("engine_killed"); restartSession() }
         }
 
         // Network not up yet (the mirror's Wi-Fi takes a couple of minutes after boot): show a
@@ -193,7 +285,7 @@ class MainActivity : Activity() {
             ): GeckoResult<AllowOrDeny> {
                 val page = Kiosk.prefs(this@MainActivity).getString("url", "") ?: ""
                 val ok = request.uri == BLACK_PAGE || request.uri == "about:blank" || Origins.same(request.uri, page)
-                if (!ok) Kiosk.blockedLoads++
+                if (!ok) { Kiosk.blockedLoads++; Kiosk.log("blocked_load", Origins.of(request.uri) ?: "not a web address") }
                 return GeckoResult.fromValue(if (ok) AllowOrDeny.ALLOW else AllowOrDeny.DENY)
             }
 
@@ -204,6 +296,7 @@ class MainActivity : Activity() {
             ): GeckoResult<String>? {
                 Kiosk.pageOk = false
                 errorPageShown = true
+                Kiosk.log("load_error", "code=" + error.code + " category=" + error.category)
                 showSplash(getString(R.string.splash_waiting))
                 scheduleRetry()
                 return GeckoResult.fromValue(BLACK_PAGE)
@@ -252,6 +345,8 @@ class MainActivity : Activity() {
             return
         }
         val token = p.getString("token", "") ?: ""
+        Kiosk.loadStartedMs = System.currentTimeMillis()
+        Kiosk.log("load_start", Origins.of(url) ?: "address not understood")
         // The mirror page reads "#t=<token>" once, stores it, and strips it from the address.
         // BYPASS_CACHE: always fetch the page fresh from Home Assistant, so a new index.html shows up
         // on the next reload instead of Firefox serving its stored copy.
@@ -275,6 +370,7 @@ class MainActivity : Activity() {
         e?.getString("token")?.let { ed.putString("token", it); changed = true }
         e?.getString("key")?.let { ed.putString("key", it) }
         e?.getString("webhook")?.let { ed.putString("presence_webhook", it) }
+        e?.getString("alive_webhook")?.let { ed.putString("alive_webhook", it) }
         e?.getString("rotation")?.let {
             if (it in Kiosk.orientations) { ed.putString("orientation", it); Kiosk.orientation = it; applyOrientation() }
         }
@@ -300,6 +396,17 @@ class MainActivity : Activity() {
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
             gravity = Gravity.CENTER
         }
+        // The loading bar: a dim track with a fill that grows as the start-up steps are done (see BootTimeline)
+        barFill = View(this).apply { setBackgroundColor(Color.rgb(0x6b, 0xc3, 0x70)) }
+        barTrack = FrameLayout(this).apply {
+            setBackgroundColor(Color.argb(60, 255, 255, 255))
+            addView(barFill, FrameLayout.LayoutParams(1, FrameLayout.LayoutParams.MATCH_PARENT))
+        }
+        splashStep = TextView(this).apply {
+            setTextColor(Color.argb(150, 0x6b, 0xc3, 0x70))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            gravity = Gravity.CENTER
+        }
         splash = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -308,6 +415,13 @@ class MainActivity : Activity() {
             addView(splashText, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
                 topMargin = (24 * dm.density).toInt()
+            })
+            addView(barTrack, LinearLayout.LayoutParams(picW * 6 / 10, (6 * dm.density).toInt()).apply {
+                topMargin = (22 * dm.density).toInt()
+            })
+            addView(splashStep, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = (10 * dm.density).toInt()
             })
         }
     }
@@ -332,8 +446,35 @@ class MainActivity : Activity() {
         return anim
     }
 
+    // Once a second while the launch screen is up: grow the bar, name the step being waited for, turn amber when it is slow.
+    // After the start has finished (a later "can't reach Home Assistant") the bar is hidden: it only describes starting up.
+    private val barTick = object : Runnable {
+        override fun run() {
+            if (splash.visibility != View.VISIBLE) return
+            val booting = !Kiosk.boot.fullyBooted()
+            val vis = if (booting) View.VISIBLE else View.GONE
+            barTrack.visibility = vis
+            splashStep.visibility = vis
+            if (booting) {
+                val w = barTrack.width
+                if (w > 0) {
+                    val lp = barFill.layoutParams
+                    lp.width = maxOf(2, w * Kiosk.boot.percent() / 100)
+                    barFill.layoutParams = lp
+                }
+                val slow = Kiosk.boot.stuck()
+                barFill.setBackgroundColor(if (slow) Color.rgb(0xe0, 0xa0, 0x30) else Color.rgb(0x6b, 0xc3, 0x70))
+                splashStep.setTextColor(if (slow) Color.rgb(0xe0, 0xa0, 0x30) else Color.argb(150, 0x6b, 0xc3, 0x70))
+                splashStep.text = Kiosk.boot.line()
+            }
+            Kiosk.main.postDelayed(this, 1_000)
+        }
+    }
+
     fun showSplash(message: String) {
         splashText.text = message
+        Kiosk.main.removeCallbacks(barTick)
+        Kiosk.main.post(barTick)
         splash.animate().cancel()
         splash.alpha = 1f
         if (splash.visibility != View.VISIBLE) splash.visibility = View.VISIBLE
@@ -345,6 +486,7 @@ class MainActivity : Activity() {
 
     fun hideSplash() {
         if (splash.visibility != View.VISIBLE) return
+        Kiosk.main.removeCallbacks(barTick)
         splash.animate().alpha(0f).setDuration(400).withEndAction {
             splash.visibility = View.GONE
             splashAnim?.stop()

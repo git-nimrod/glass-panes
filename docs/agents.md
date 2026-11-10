@@ -47,6 +47,8 @@ These work as before, and are handy for automations and for editing whole panes 
 
 | Task | Service | Notes |
 |---|---|---|
+| Show photos from a media folder | `glass_panes.add_widget` with `type: slideshow` and `options.folder` | A folder inside a Home Assistant media folder. Photos are shrunk to the widget's size by Home Assistant, so full-size originals are fine. |
+| Show an image or camera entity as a picture | `glass_panes.add_widget` with `type: image` and `entities: {entity: image.my_picture}` (an `image.*` or `camera.*` entity) | Optional `options.refresh_s`. |
 | See the uploaded files | `glass_panes.list_media` | Pictures and videos in the library (id, name, kind, size). Use an id as `options.media` on an image or video widget. An agent cannot upload files through services; a person uploads them in the builder. |
 | Learn the rules | `glass_panes.get_schema` | Returns the pane JSON Schema, the widget catalogue (each widget's entity slots and domains), the canvas size (1080 x 1920), the 40 px grid, the 40 px safe zone, and plain-language notes. Call this first. |
 | See what exists | `glass_panes.list_panes`, `glass_panes.get_pane` | `get_pane` also returns the entities bound to the pane. |

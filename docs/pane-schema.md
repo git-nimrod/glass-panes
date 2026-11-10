@@ -126,10 +126,11 @@ Nothing runs per frame.
 ## Widget types
 | Type | Shows | Entity slots | Notable options |
 |---|---|---|---|
-| `clock` | Time | none | `format` 12h/24h, `hide_meridiem`, `show_seconds` |
-| `date` | Date | none | `format`, `day_offset` (1 = tomorrow), `prefix` |
+| `clock` | Time | none | `style` (`digital` the default, `analog` a traditional round face, or `alarm` a bedside alarm clock), `face` (`light` or `dark`, for the two round looks), `timezone` (a name such as `America/Chicago`; empty = the display's own), `format` 12h/24h, `hide_meridiem`, `show_seconds` (digital: the seconds; round looks: a red second hand) |
+| `date` | Date | none | `format`, `day_offset` (1 = tomorrow), `prefix`, `timezone` (as on the clock) |
 | `text` | Fixed text | none | `text`, `fit` (`shrink` keeps one line and shrinks to fit) |
-| `image` | An uploaded image | none | `media` (a picture from the media library; set by Upload in the builder), `fit`. `asset` (a plain file name) is the older way and still works |
+| `image` | An uploaded image, or the picture of an `image` or `camera` entity | `entity` (optional: an image or camera entity) | `media` (a picture from the media library; set by Upload in the builder), `fit`, `refresh_s` (how often an entity's picture is asked for again: default 10 s for a camera, 300 s for an image entity, which also updates the moment its state changes). `asset` (a plain file name) is the older way and still works. With an entity bound and no `media`, the entity's picture is shown, shrunk to the widget's size by Home Assistant first |
+| `slideshow` | Photos from a Home Assistant media folder, one after another | none | `folder` (a folder inside a media folder, such as `photos/family` or `local/photos/family`), `interval_s` (5 to 86400, default 60), `shuffle` (default on: every photo once before any repeats), `fit` contain/cover, `fade` (crossfade, default on). Photos are shrunk to the widget's size by Home Assistant before the display gets them |
 | `video` | Full-screen loop (played natively by the display app) | none | `media` (a video from the media library), or `sources` (older: file names, tried in order) |
 | `divider` | A rule line (add one wherever you want a break; none are on `house` by default) | none | `thickness` |
 | `message` | A rotating line, or an entity's text | `entity` (optional) | `lines`, `rotate_minutes`, `prefix`, `suffix` |
@@ -137,7 +138,7 @@ Nothing runs per frame.
 | `weather` | Temperature, condition, high/low | `weather` | `layout` line/stacked, `show`, `day_offset` (tomorrow shows its high, then "low N°") |
 | `calendar_agenda` | Upcoming events | `calendars` | `max_items`, `skip` (leave out the first N, e.g. what a "next up" line already shows), `day_offset`, `days`, `time_style`, `hide_when_empty` |
 | `todo_list` | Open to-do items | `list` | `max_items`, `bullets` |
-| `now_playing` | What is playing | `players` | `show_art`, `style` (`card` the default, `vinyl` or `cd`; see docs/player.md), `paused_timeout_minutes`, `idle_text` (empty by default: nothing playing means nothing is drawn, so an `auto_height` widget takes no space) |
+| `now_playing` | What is playing | `players` | `show_art`, `style` (`card` the default, `vinyl` or `cd`; see docs/player.md), `cd_case` (cd look only, default on: the cover as a CD case with the disc sliding out of it), `paused_timeout_minutes`, `idle_text` (empty by default: nothing playing means nothing is drawn, so an `auto_height` widget takes no space) |
 | `people` | Who is home | `people` | `avatar_size` |
 | `lights_summary` | "N of M on" with a dot per light | `lights` | `show_dots` |
 | `status_summary` | Calm "all good", or only what is wrong | `checks` | `ok_text`, `hide_when_ok`, `stale_days` |

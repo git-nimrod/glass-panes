@@ -28,7 +28,7 @@ from .panes import PaneChecker, load_shipped
 from .services import async_register_services, async_remove_services
 from .storage import BindingsStore, DisplayStore, DraftStore, MediaStore, PaneStore
 
-PLATFORMS = [Platform.SELECT, Platform.BUTTON]
+PLATFORMS = [Platform.SELECT, Platform.BUTTON, Platform.MEDIA_PLAYER]
 
 # The folders handed out over the web (without a login) are listed, with the reasons, in assets.py.
 

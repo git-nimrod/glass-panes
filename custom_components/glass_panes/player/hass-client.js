@@ -4,6 +4,8 @@
 // the frontend's own logged-in connection (the `hass` object it hands to panels), so it needs no access token. States arrive
 // already live: call setHass() with each new `hass` object and widgets watching a changed entity refresh.
 
+import { blobPicture } from './util.js';
+
 export class HassClient {
   constructor() {
     this.hass = null;
@@ -44,6 +46,25 @@ export class HassClient {
     }
     const url = this._media && this._media.map.get(id);
     return url ? (this.hass.hassUrl ? this.hass.hassUrl(url) : url) : null;
+  }
+
+  /** The photos in a media folder as addresses of copies shrunk to w by h. */
+  async slideshowItems(folder, w, h) {
+    try {
+      const reply = await this.hass.callWS({ type: 'glass_panes/slideshow/list', folder, w, h });
+      const abs = (u) => (this.hass.hassUrl ? this.hass.hassUrl(u) : u);
+      return { items: (reply.items || []).map(abs), problem: reply.problem || null };
+    } catch (e) {
+      return { items: [], problem: 'unavailable' };
+    }
+  }
+
+  /** The current picture of an image or camera entity (shrunk), as something an <img> can show. */
+  async picture(entity, w, h) {
+    return blobPicture(async () => {
+      const reply = await this.hass.callWS({ type: 'glass_panes/picture/url', entity, w, h });
+      return this.hass.hassUrl ? this.hass.hassUrl(reply.url) : reply.url;
+    });
   }
 
   /** Forget the list of uploaded files (after one is added or removed). */

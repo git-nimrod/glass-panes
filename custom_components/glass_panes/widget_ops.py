@@ -31,6 +31,7 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     "date": {"w": 560, "h": 40, "style": {"size": 30, "color": "dim"}},
     "text": {"w": 560, "h": 60, "style": {"size": 40}, "options": {"text": "Your text"}},
     "image": {"w": 400, "h": 400, "options": {}},
+    "slideshow": {"w": 1000, "h": 750, "options": {}},
     "video": {"w": 1080, "h": 1920, "options": {}},
     "divider": {"w": 400, "h": 40, "style": {"color": "faint"}, "options": {"thickness": 2}},
     "message": {"w": 760, "h": 44, "style": {"size": 32, "italic": True, "color": "accent"}, "options": {"lines": ["Have a good day", "Looking good"]}},

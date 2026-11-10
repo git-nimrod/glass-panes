@@ -211,6 +211,30 @@ def shape_status(raw: Any) -> dict[str, Any] | None:
     }
 
 
+AUDIO_STATES = ("idle", "buffering", "playing", "paused", "error")
+
+
+def shape_audio(raw: Any) -> dict[str, Any] | None:
+    """The audio player's answer from the mirror (GET /audio), keeping only the fields we know. None when it is not that."""
+    if not isinstance(raw, dict) or raw.get("state") not in AUDIO_STATES:
+        return None
+    volume = _whole_number(raw.get("volume"))
+
+    def seconds(value: Any) -> int | None:
+        n = _whole_number(value)
+        return n if n is not None and n >= 0 else None
+
+    return {
+        "state": raw["state"],
+        "volume": min(max(volume, 0), 100) if volume is not None else None,
+        "title": clean_text(raw.get("title"), 120) or None,
+        "artist": clean_text(raw.get("artist"), 120) or None,
+        "position_s": seconds(raw.get("position_s")),
+        "duration_s": seconds(raw.get("duration_s")),
+        "error": clean_text(raw.get("error"), 160) or None,
+    }
+
+
 def presence_is_on(status: dict[str, Any]) -> bool | None:
     """Whether the mirror says presence is on (the memory block and the settings block both say; either will do)."""
     for value in (status["memory"].get("presence_enabled"), status["presence"]["settings"].get("enabled")):

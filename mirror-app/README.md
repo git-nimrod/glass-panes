@@ -52,6 +52,9 @@ These fields are unchanged: `ok`, `app`, `page_ok`, `seconds_since_page_load`, `
 | `blocked_loads` (0.10.7+) | Page loads the app refused because they were not the Home Assistant address it was given (the navigation lock). Normally `0` |
 | `engine_restarts` (0.10.7+) | How often the browser engine crashed or was stopped and was rebuilt. A number that keeps rising means a pane is too heavy for the mirror |
 | `seconds_since_heartbeat` (0.10.6+) | Seconds since the player page last said "I'm alive", `-1` if it never has |
+| `boot` (0.10.8+) | How the start is going: `fully_booted`, `percent`, the step it `waiting_for`, `stuck`, and the seconds each step took. The launch screen's loading bar shows the same |
+| `recovery` (0.10.8+) | The settings for getting unstuck (`/recovery/tune`) |
+| `alive_report` (0.10.8+) | The result of the last "still alive" message to Home Assistant (`not set up` until an alive webhook is given) |
 | `presence.settings` | `enabled`, `scans_per_min`, `video_scans_per_min`, `hold_s`, `threshold`, `preview_w`, `preview_fps` (`0` = slowest), `report_interval_s`, `webhook_set` (true or false; the id itself is never shown) |
 | `memory` | **Real measurements taken on the device at the moment of the request** (nothing is estimated), below |
 

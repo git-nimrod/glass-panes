@@ -33,6 +33,16 @@ For the Home Assistant side (services, the web API and the websocket API of the 
 | `/presence/tune` | any of `scans`, `vscans`, `hold`, `thr`, `fps`, `report` | Presence settings, remembered (below) | `{"ok":true}` |
 | `/presence/size` | `w=160` to `1920` | Camera picture width (default 320; bigger uses more CPU). Restarts the camera | `{"ok":true,"preview_w":w,...}` |
 | `/rotation/<value>` | `auto`, `portrait`, `portrait_reverse`, `landscape`, `landscape_reverse` | Turns the app's own picture. Remembered. **Unproven**: it had no visible effect on a mirror whose Android rotation was already portrait, so use the `adb settings` commands instead | `{"ok":true,"orientation":"..."}` |
+| `/log` | optional `boot=` (`previous`, `current`, a number, or `all`, the default) and `since=` (skip the first n lines) | The mirror's diary: what it did and when, kept in a file so it **survives a power cycle**. Each line has the boot number, the seconds into that boot (`t`), a kind and a short detail. Tokens and keys are never written. Newest 500 lines | `{"ok":true,"count":n,"events":[...]}` |
+| `/audio` | none | The audio player (0.11.0+): `state` (`idle`, `buffering`, `playing`, `paused`, `error`), `volume` 0 to 100, `title`, `artist`, `position_s`, `duration_s` (-1 when not known), `error` | `{"state":"playing","volume":50,...}` |
+| `/audio/play` | `url=` an `http://` or `https://` address, optional `title=`, `artist=`, `volume=0-100`, `start=` (seconds) | Plays that stream through the mirror's own speaker, replacing anything playing. Only web addresses: never files on the mirror. Write `&` and `?` inside the address as `%26` and `%3F` | `{"ok":true}` |
+| `/audio/pause`, `/audio/resume`, `/audio/stop` | none | Pause, carry on, or stop and clear | `{"ok":true}` |
+| `/audio/seek` | `s=` seconds from the start | Jump inside the track (kept inside its length) | `{"ok":true}` |
+| `/audio/volume` | `v=0` to `100` | Speaker volume, remembered across restarts. It is the app's own level (a gentle curve), on top of the mirror's system volume | `{"ok":true,"volume":v}` |
+| `/mic/test` | optional `seconds=` 1 to 10 (default 3) | Listens for a few seconds and reports **how loud it was**: `rms_db`, `peak_db` (0 = loudest the format goes, -60 = silent), `zero_share`, and a `verdict` in plain words. It answers one question: does this mirror have a working microphone? Nothing is recorded, saved, sent or written to the diary. Needs the microphone permission once: `adb shell pm grant com.nimrod.mirrorkiosk android.permission.RECORD_AUDIO` | `{"ok":true,"rms_db":-31.2,"peak_db":-12.4,...,"verdict":"..."}` |
+| `/bluetooth/test` | optional `seconds=` 1 to 15 (default 5) | Finds out whether the mirror has a working Bluetooth radio. Turns Bluetooth on if it was off, listens for a few seconds and reports **counts only**: `advertisements`, `devices_heard`, `strongest_rssi`, `turned_on`, and a `verdict` in plain words. No addresses or names of nearby devices are kept, logged or sent, and Bluetooth is switched off again if the test turned it on. Needs the location permission once (Android 6 requires it for scan results): `adb shell pm grant com.nimrod.mirrorkiosk android.permission.ACCESS_COARSE_LOCATION`, and Android's Location setting switched on | `{"ok":true,"turned_on":true,"advertisements":42,...,"verdict":"..."}` |
+| `/recovery` | none | The settings for getting unstuck and for the "still alive" messages (below) | the settings JSON |
+| `/recovery/tune` | any of `load_timeout`, `restart_after`, `reload_hours`, `alive_report` | Change them, remembered. Out-of-range values are refused | `{"ok":true,"recovery":{...}}` |
 
 `/presence/tune` values (leave out any you do not want to change):
 
@@ -47,6 +57,19 @@ For the Home Assistant side (services, the web API and the websocket API of the 
 
 Example: `http://<mirror address>:8099/presence/tune?hold=60&scans=60`
 
+`/recovery/tune` values (leave out any you do not want to change):
+
+| Parameter | Meaning | Allowed |
+|---|---|---|
+| `load_timeout` | Seconds a page load may sit with no end (neither finished nor failed) before the browser is rebuilt and the load tried again, waiting 10 s, 30 s, 1 min, 2 min, then 5 min between tries | 30 to 600 (default 90) |
+| `restart_after` | Minutes a start may take before the app restarts itself. At most once every 30 minutes. `0` = never | 0 to 240 (default 15) |
+| `reload_hours` | Load the page again every this many hours. `0` = never | 0 to 168 (default 0) |
+| `alive_report` | Seconds between "still alive" messages to Home Assistant (needs an alive webhook, see section 2). `0` = off | 0 to 3600 (default 60) |
+
+The app cannot restart Android itself (there is no root on the mirror). A full power cycle needs a smart plug, controlled from Home Assistant.
+
+**Loading bar.** While the launch screen is up, a bar under the boot animation fills as the steps finish: app started, control server, Wi-Fi, page loaded and, with Glass Panes 0.10.12 or newer, the selected pane showing. A step taking much longer than usual turns the bar amber and the line under it says which step. The same steps are in `/status` under `boot`.
+
 ### The `/status` document
 
 ```json
@@ -60,6 +83,8 @@ Example: `http://<mirror address>:8099/presence/tune?hold=60&scans=60`
   "uptime_s": 159
 }
 ```
+
+`boot` (0.11.0+) says how the start went: `boot_id` (counts every start of the app), `fully_booted` (the selected pane is showing; with an older player, the page has loaded), `seconds_to_ready`, `percent`, the step it is `waiting_for` and for how long, `stuck` (true when that step is taking longer than usual) and the seconds at which each step happened. `recovery` shows the settings above and `alive_report` the result of the last "still alive" message.
 
 [../../mirror-app/README.md](../../mirror-app/README.md) explains every field (`/status` fields and `memory` fields). The ones to watch: `page_ok` (the player loaded), `presence.last_report` (`HTTP 200` is healthy; `no webhook set`, `HTTP 404` or `failed: ...` are not), and `memory.low_memory`.
 
@@ -113,6 +138,19 @@ The Home Assistant address comes from the player address the app was given (its 
 | `distance_m`, `faces`, `hardware_faces`, `seconds_since_face`, `rotation` | Kept so older automations keep working. Faces are no longer used, so these are always `-1`, `0` or `0` |
 
 **No pictures.** Each look squashes the camera image into a grid of 16 by 12 brightness numbers, compares it with the last grid, and throws both away.
+
+### The "still alive" message (0.11.0+)
+
+Separately from presence, the app can tell Home Assistant it is running, so Home Assistant can tell "the mirror is gone" from "nobody is there", and keep the important lines of the diary even if the mirror later dies. Give the app its own webhook id (`--es alive_webhook '<id>'`, see [adb-commands.md](adb-commands.md)); with none set, nothing is sent. It is a different webhook from the presence one on purpose, so an automation reading presence never receives it.
+
+```
+POST <Home Assistant address>/api/webhook/<alive webhook id>
+{"type":"alive","version":"0.11.0","boot_id":12,"fully_booted":true,"seconds_to_ready":41,"waiting_for":null,
+ "stuck":false,"pane":"house","page_ok":true,"uptime_s":3600,
+ "events":[{"boot":12,"t":41,"kind":"fully_booted","detail":"41 s after the app started"}]}
+```
+
+It goes out every `alive_report` seconds (default 60), and a few seconds after something important happens (start finished, load stalled, app restarted, pane changed). `events` carries only the important lines not yet sent. Numbers and short words only: no pictures, no addresses, no tokens.
 
 ### The Home Assistant side
 

@@ -13,8 +13,8 @@ android {
         targetSdk = 23       // keeps old-Android behavior: permissions granted at install, plain HTTP allowed
         // The app's version is its OWN, separate from the Home Assistant integration's (see CONTRIBUTING.md). Raise it only when the
         // app's code changes. versionCode must ALWAYS go up (Android refuses to install a lower one over a higher one).
-        versionCode = 1007
-        versionName = "0.10.7"
+        versionCode = 1100
+        versionName = "0.11.0"
         ndk { abiFilters += listOf("arm64-v8a") }   // the mirror's CPU; we only ship the 64-bit engine
     }
 

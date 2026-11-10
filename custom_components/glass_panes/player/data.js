@@ -8,7 +8,7 @@
 // once, the same way the original mirror page did. The planned per-display endpoint (build step 4) will replace it
 // so nobody has to paste a user token into a display. Only the calls the original page already used are used here.
 
-import { slugDomain } from './util.js';
+import { blobPicture, slugDomain } from './util.js';
 
 export class HAClient {
   constructor({ base = '', getToken, onAuthFail }) {
@@ -78,6 +78,33 @@ export class HAClient {
     }
     const url = this._media && this._media.map.get(id);
     return url ? this.base + url : null;
+  }
+
+  // The photos in a media folder, as addresses of copies the integration has already shrunk to w by h (a phone photo would be too big
+  // for a small mirror). `fresh` is accepted for symmetry with mediaUrl; the integration signs new addresses on every call.
+  async slideshowItems(folder, w, h) {
+    try {
+      const r = await this._fetch('/api/glass_panes/slideshow?folder=' + encodeURIComponent(folder) + '&w=' + w + '&h=' + h);
+      if (r.ok) { const j = await r.json(); return { items: (j.items || []).map((u) => this.base + u), problem: j.problem || null }; }
+    } catch (e) {
+      if (e.message === '401') throw e;
+    }
+    return { items: [], problem: 'unavailable' };
+  }
+
+  // The current picture of an image or camera entity, shrunk by the integration. Returns something an <img> can show, or null.
+  async picture(entity, w, h) {
+    this._pics = this._pics || new Map();
+    const key = entity + '|' + w + 'x' + h;
+    return blobPicture(async (fresh) => {
+      const known = this._pics.get(key);
+      if (!fresh && known && Date.now() - known.at < 6 * 3600000) return known.url;
+      const r = await this._fetch('/api/glass_panes/picture_url?entity=' + encodeURIComponent(entity) + '&w=' + w + '&h=' + h);
+      if (!r.ok) return null;
+      const url = this.base + (await r.json()).url;
+      this._pics.set(key, { url, at: Date.now() });
+      return url;
+    });
   }
 
   async bindings() {
@@ -238,6 +265,23 @@ const TEAMS = [['Lions', 'Vikings'], ['Spurs', 'Jazz'], ['Red Wings', 'Bruins'],
 export class MockClient {
   async mediaUrl() { return null; }          // nothing is uploaded in mock mode
 
+  // Six made-up pictures, so a fresh install (or ?mock=1) shows the slideshow working with no folder at all.
+  async slideshowItems(folder) {
+    const tones = [['#1f4e79', '#c0583a'], ['#2f6b4f', '#e8b04a'], ['#5b3a7a', '#e07a8a'], ['#27566b', '#8cc7b0'], ['#7a3b2e', '#f2d8a7'], ['#33415c', '#9db4d4']];
+    const items = tones.map((t, i) => 'data:image/svg+xml;utf8,' + encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="' + t[0] +
+      '"/><stop offset="1" stop-color="' + t[1] + '"/></linearGradient></defs><rect width="400" height="300" fill="url(#g)"/><text x="200" y="170" font-size="64" ' +
+      'text-anchor="middle" fill="#fff" fill-opacity=".85" font-family="sans-serif">Photo ' + (i + 1) + '</text></svg>'));
+    return { items: folder ? items : [], problem: null };
+  }
+
+  async picture(entity) {
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect width="400" height="300" fill="#26364a"/><circle cx="130" cy="110" r="38" fill="#e8b04a"/>' +
+      '<path d="M0 300 L120 170 L200 240 L290 140 L400 300 Z" fill="#4f7a63"/><text x="200" y="285" font-size="22" text-anchor="middle" fill="#fff" font-family="sans-serif">' +
+      String(entity || '').replace(/[<>&"]/g, '') + '</text></svg>');
+  }
+
   constructor(time) {
     this.time = time;
     this.live = true;
@@ -361,6 +405,8 @@ export function mockBindings(registry, pane) {
     // a message with its own lines shows those lines in the preview too (its entity slot is optional)
     if (w.type === 'message' && w.options && Array.isArray(w.options.lines) && w.options.lines.length) continue;
     for (const [name, spec] of Object.entries(slots)) {
+      // an image shows its uploaded picture; it only shows an entity's picture when someone bound one, so demo data invents none
+      if (w.type === 'image' && spec.required === false) continue;
       const dom = (spec.domains && spec.domains[0]) || 'sensor';
       if (spec.kind === 'entity') out[name] = dom + '.demo_' + w.id;
       else if (spec.kind === 'entities') {

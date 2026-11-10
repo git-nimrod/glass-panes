@@ -68,6 +68,7 @@ Any logged-in user can read. Every command that changes something needs an admin
 | `glass_panes/mirror/presence` (admin) | `display_id`, `enabled` | `{ok, presence}` |
 | `glass_panes/mirror/tune` (admin) | `display_id`, any of `scans`, `vscans`, `hold`, `thr`, `fps`, `report` | `{ok, applied}` |
 | `glass_panes/mirror/brightness` (admin) | `display_id`, `level` (0-100) | `{ok, brightness}` |
+| `glass_panes/mirror/audio` (admin) | `display_id`, `action` (`status`, `pause`, `resume`, `stop` or `volume`), `level` (0-100, with `volume`) | `{ok, audio}` where `audio` is the speaker's state (`state`, `volume`, `title`, `artist`, `position_s`, `duration_s`, `error`) for `status`, and `null` for the others. Needs Mirror Kiosk app 0.11.0. |
 | `glass_panes/mirror/measure` (admin) | `display_id`, `confirm` (true) | Same as the `measure_presence_cost` service. Takes about half a minute. |
 | `glass_panes/media/list` | | `media`: every uploaded picture and video (id, name, kind, size, created) with an expiring signed `url` a display can load without a login |
 | `glass_panes/media/add` (admin) | `file_id`, optional `name` | `media`, `all`. Takes a file the browser already sent to Home Assistant's `/api/file_upload` into the library. Checked by its contents (JPEG, PNG, GIF, WebP images up to 25 MB; MP4, MOV, WebM videos up to 100 MB); anything else is refused with the reason |

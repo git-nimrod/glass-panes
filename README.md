@@ -6,13 +6,15 @@
 
 [![CI](https://github.com/git-nimrod/glass-panes/actions/workflows/ci.yml/badge.svg)](https://github.com/git-nimrod/glass-panes/actions/workflows/ci.yml)
 ![Status: public beta](https://img.shields.io/badge/status-public%20beta-6bc370)
-![Version](https://img.shields.io/badge/version-0.10.x-a3df90)
+![Version](https://img.shields.io/badge/version-0.11.x-a3df90)
 
 Design screens for your **Lululemon Studio smart mirror** inside Home Assistant, then switch between them with your own automations. Each screen is a **pane**.
 
-> **Public beta (v0.10.x).** It works and it runs daily on a real mirror, but there are rough edges. If you hit one, please tell us (see [Beta testing](#beta-testing)).
+> **Public beta (v0.11.x).** It works and it runs daily on a real mirror, but there are rough edges. If you hit one, please tell us (see [Beta testing](#beta-testing)).
 
-> **Built for the Lululemon Studio mirror.** It was developed and tested on one unit: board `MIR63A0-00-P1`, revision RevP21. We're building a list of which boards and firmware versions work, in [Which mirrors work](docs/compatibility.md#which-mirrors-work). **Check the board sticker before you flash:** the ready-made Android images only fit `MIR63A0-00-P1` (Qualcomm MSM8916), and some newer mirrors reportedly use a different NXP board that they will not work on. If you have a Studio mirror, please [tell us how yours goes](https://github.com/git-nimrod/glass-panes/issues/new/choose).
+> **What's next:** a Bluetooth proxy, a voice assistant, and support for the other FCC ID mirror are planned. See the [roadmap](docs/roadmap.md).
+
+> **Built for the Lululemon Studio mirror.** It was developed and tested on one unit: board `MIR63A0-00-P1`, revision RevP21. We're building a list of which boards and firmware versions work, in [Which mirrors work](docs/compatibility.md#which-mirrors-work). **Check before you buy or flash:** there's a sticker near the power input with an FCC ID — `2AOSD-RLSYM1R0` matches the tested generation, while `VPYLBEE5HY1MW` is a different, newer generation (reportedly NXP-based) that these images do not support. See [Which board do I have?](docs/mirror-app/hardware.md#which-board-do-i-have). If you have a Studio mirror, please [tell us how yours goes](https://github.com/git-nimrod/glass-panes/issues/new/choose) — and if yours is the newer NXP-based generation, there's now a community Linux port ([lemonademirror](https://github.com/ikiiftekhar2/lemonademirror)) with display, audio, camera, WiFi and Bluetooth all working, and we're looking for volunteers to try a web kiosk browser on top of it for Glass Panes.
 
 <p align="center">
   <img src="docs/images/builder-edit.png" alt="The Glass Panes builder in edit mode: a list of panes on the left, a portrait canvas with widgets in the middle, and your entities on the right" width="900">
@@ -24,7 +26,8 @@ Design screens for your **Lululemon Studio smart mirror** inside Home Assistant,
 
 - **A drag-and-drop builder** in your Home Assistant sidebar (admins only). Pick your own entities, drop them on a 1080 x 1920 portrait canvas, resize, align, undo, save.
 - **Pictures and looping videos** you upload from your computer or phone.
-- **Looks you can change in a click:** six colour themes (including one made for two-way mirror glass), ten bundled fonts, and a vinyl or CD look for Now playing.
+- **Looks you can change in a click:** six colour themes (including one made for two-way mirror glass), ten bundled fonts, a vinyl or CD look for Now playing, and a digital, traditional or alarm clock with its own time zone.
+- **Photos and music:** a slideshow from a Home Assistant media folder, pictures from image and camera entities, and the mirror's own speaker as a media player that Music Assistant can play to.
 - **Widgets that switch on and off.** Show a photo when no team plays today, a warning only when a door is open, a different layout at night.
 - **One `select` entity per display** (plus a button per pane), so normal Home Assistant automations decide what each screen shows.
 - **A player page** that draws a pane full screen. The Mirror Kiosk app runs it on your mirror, and any browser can open it too.
@@ -70,7 +73,7 @@ Thank you for trying this. It helps a lot when you:
 - **Keep secrets out of issues.** Never paste tokens, webhook addresses or anything private.
 - **Watch for a Discord server** for beta testers. It's being set up, and the invite link will go here.
 
-How releases work: the integration is tagged `v0.10.N` and called "public beta". The mirror app has its own releases (`app-v...`) because it changes much less often. Updating through HACS is safe: your panes, uploads and logins are kept. Which app version a feature needs: [docs/compatibility.md](docs/compatibility.md).
+How releases work: the integration is tagged `v0.11.N` and called "public beta". The mirror app has its own releases (`app-v...`) because it changes much less often. Updating through HACS is safe: your panes, uploads and logins are kept. Which app version a feature needs: [docs/compatibility.md](docs/compatibility.md).
 
 ## Documentation
 
@@ -82,6 +85,7 @@ How releases work: the integration is tagged `v0.10.N` and called "public beta".
 - [Mirror hardware and what works](docs/mirror-app/hardware.md)
 - [Part 1: install Android on your Lululemon Studio mirror](docs/mirror-app/install-android-lululemon-studio.md)
 - [Part 2: install the Glass Panes app on your Lululemon Studio mirror](docs/mirror-app/install-app-lululemon-studio.md)
+- [Update the mirror app](docs/mirror-app/update-app.md)
 - [adb command glossary](docs/mirror-app/adb-commands.md)
 - [Mirror app API and presence webhook](docs/mirror-app/api.md)
 
@@ -93,7 +97,7 @@ How releases work: the integration is tagged `v0.10.N` and called "public beta".
 - [How Glass Panes works](docs/how-it-works.md)
 - [How Glass Panes is tested](docs/testing.md)
 
-**Helping out:** [Contributing](.github/CONTRIBUTING.md)
+**Helping out:** [Contributing](.github/CONTRIBUTING.md). What is planned next is in the [roadmap](docs/roadmap.md).
 
 ## How it works and how it's checked
 

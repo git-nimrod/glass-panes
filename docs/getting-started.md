@@ -35,14 +35,16 @@ This takes about ten minutes and ends with a pane on a screen. Glass Panes is bu
 
 - **Theme** (the menu above the preview while you edit) restyles the whole pane at once. The choices are `moss`, `cream`, `creamnight`, `midnight`, `paper` and `slate`, and **Original** removes the theme. A two-way mirror only shows dark colours, so **Cream Night** (cream text on a very dark warm background) is the cream look made for glass. The bright **Cream** and **Paper** themes suit a tablet or wall panel better.
 - **Fonts** live in the Text section of a widget. Ten are bundled, and a font only downloads when a pane uses it.
+- **Clock** has a **Look**: digital numbers, a traditional clock face, or an alarm clock (the two round looks also have a light or dark face and a red second hand with **Show seconds**). Its **Time zone** box shows another place's time, such as `America/Chicago`; the **Date** widget has one too.
 - **Now playing** has a **Look**: the default card, a spinning **vinyl** record with a tonearm, or a **CD**. They only move while a song is playing. The **Burn-in saver** switch drifts the block a few pixels over 40 minutes, so a screen left on for hours never holds the same pixels. It's off by default and works with every look.
 
 ## 4. Make a display and sign it in
 
-![The Displays tab: the display's pane picker, Set up login, and Display settings](images/builder-displays.png)
+![The Displays tab: the display's pane picker, Set up login, and a button for the mirror's settings](images/builder-displays.png)
 
 1. Go to **Displays > Add display** and name it (for example "Hall mirror").
 2. Press **Set up login**. You get a link and a token. **They are shown once**, and Glass Panes keeps the token nowhere.
+   - Your display's **id** is its name in lowercase with underscores: "Hall mirror" becomes `hall_mirror`. It is the small grey text under the display's name (`select.glass_panes_hall_mirror`), after `select.glass_panes_`. A mirror needs this id, and capital letters won't work. The easiest way to get it exactly right is the **Open this display's player** link under the display.
 3. Open that link in the screen's browser. It signs itself in and shows the display's pane.
 4. Choose what it shows in the builder, or use an automation (next step).
 
@@ -153,9 +155,9 @@ Any other screen with a browser (a tablet, a wall panel) can open the display's 
 
 ### Display settings (if the mirror runs the Mirror Kiosk app)
 
-1. Open **Glass Panes** in the sidebar, then the **Displays** tab.
-2. On the display's card, under **Display settings**, press **Connect a mirror...**. Type the mirror's address: the host, plus the port if it isn't 8099, for example `mirror.local:8099`. Add its key only if you set one on the mirror. Press **Save**. Nothing else is accepted (no `user:password@`, no path).
-3. The card now shows whether the page is loaded and what presence is doing. You also get a **Presence detection** switch, the presence settings in plain words with their allowed ranges (press **Apply settings** to save changes), brightness, and the memory the mirror reports.
+1. Open **Glass Panes** in the sidebar, then press the **Settings** gear at the top, next to Dark mode. (Settings used to sit inside the Displays tab; the display's card there now has a **Mirror settings...** button that opens the same page.) If you have several displays, choose the display at the top of the page.
+2. In the **Display settings** card, press **Connect a mirror...**. Type the mirror's address: the host, plus the port if it isn't 8099, for example `mirror.local:8099`. Add its key only if you set one on the mirror. Press **Save**. Nothing else is accepted (no `user:password@`, no path).
+3. Above it, the **Speaker** card shows what the mirror is playing and has a volume slider with Pause, Resume and Stop (needs Mirror Kiosk app 0.11.0 and Glass Panes 0.11.0). A **Planned** card lists the Bluetooth proxy and the voice assistant, which are not built yet. The **Display settings** card now shows whether the page is loaded and what presence is doing. You also get a **Presence detection** switch, the presence settings in plain words with their allowed ranges (press **Apply settings** to save changes), brightness, and the memory the mirror reports.
 4. **Measure what presence costs...** asks you first, then turns presence off for about 20 seconds, compares the mirror's memory before and after, and turns presence back on. The numbers are what the mirror reported, with the time they were read.
 
 Home Assistant talks to the mirror, not your browser, so the mirror has to be reachable from Home Assistant. The key is saved but never shown again. To change it, press **Change connection...** and type a new one.

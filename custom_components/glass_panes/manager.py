@@ -13,6 +13,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
 from homeassistant.auth.const import GROUP_ID_USER
 from homeassistant.auth.models import TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN
@@ -36,6 +37,7 @@ from .const import (
     SIGNAL_PANES_CHANGED,
 )
 from . import media as media_lib
+from . import photos as photos_lib
 from . import widget_ops
 from .storage import BindingsStore, DisplayStore, DraftStore, MediaStore, PaneStore
 
@@ -72,6 +74,7 @@ class Manager:
         self.media_store = media_store
         self.draft_store = draft_store
         self._checker = checker
+        self._photo_lock = asyncio.Lock()                    # one picture is shrunk at a time, so a big folder cannot starve Home Assistant
         self.pane_schema: dict[str, Any] = {}                 # the pane JSON Schema, kept so tools and agents can be handed it
         self._mirror_locks: dict[str, asyncio.Lock] = {}     # one per display: a measurement and a presence switch must not overlap
         self._lock = asyncio.Lock()        # one change at a time, so two requests cannot interleave their saves
@@ -394,6 +397,90 @@ class Manager:
         return [p["name"] for p in self.pane_store.panes.values()
                 if any((w.get("options") or {}).get("media") == media_id for w in p.get("widgets", []))]
 
+    # ------------------------------------------------------------------ photos (slideshow) and entity pictures
+
+    def photo_roots(self) -> dict[str, Path]:
+        """Home Assistant's media folders by name ("local" is /media on Home Assistant OS; network storage mounts appear under it too)."""
+        dirs = getattr(self.hass.config, "media_dirs", None) or {}
+        roots = {name: Path(path) for name, path in dirs.items()}
+        return roots or {"local": Path(self.hass.config.path("media"))}
+
+    def photo_location(self, folder: Any) -> tuple[Path, str]:
+        """(media folder, folder inside it) for what was typed. The first part may name a media folder ("local/photos");
+        otherwise the first media folder is used."""
+        roots = self.photo_roots()
+        text = str(folder or "").replace("\\", "/").strip().strip("/")
+        head, _, rest = text.partition("/")
+        if head in roots:
+            return roots[head], rest
+        return next(iter(roots.values())), text
+
+    def photo_cache_dir(self) -> Path:
+        return Path(self.hass.config.path(DOMAIN, "cache"))
+
+    def photo_url(self, folder: Any, name: str, w: int, h: int) -> str:
+        """An expiring signed address for one photo at one size (a display loads it without a login; it opens nothing else)."""
+        query = urlencode({"folder": str(folder or ""), "name": name, "w": w, "h": h})
+        return async_sign_path(self.hass, f"/api/{DOMAIN}/photo?{query}", timedelta(days=7), use_content_user=True)
+
+    async def list_slideshow(self, folder: Any, w: Any, h: Any) -> dict[str, Any]:
+        """The photos in a folder as signed addresses sized for a widget of w by h. {"items": [...]} or a "problem"."""
+        root, rel = self.photo_location(folder)
+        names = await self.hass.async_add_executor_job(photos_lib.list_photos, root, rel)
+        if names is None:
+            return {"items": [], "count": 0, "problem": "folder_not_found"}
+        w, h = photos_lib.bucket(w), photos_lib.bucket(h)
+        return {"items": [self.photo_url(folder, name, w, h) for name in names], "count": len(names)}
+
+    async def photo_file(self, folder: Any, name: Any, w: Any, h: Any) -> Path | None:
+        """The shrunk copy of one photo (made now when it is not cached yet). None when there is no such photo.
+        Raises ValueError when the file is not a readable picture."""
+        root, rel = self.photo_location(folder)
+        w, h = photos_lib.bucket(w), photos_lib.bucket(h)
+        cache = self.photo_cache_dir()
+
+        def work() -> Path | None:
+            path = photos_lib.resolve_photo(root, rel, name)
+            if path is None:
+                return None
+            fresh = not (cache / photos_lib.cache_name(path, w, h)).is_file()
+            result = photos_lib.resized_file(path, cache, w, h)
+            if fresh:
+                photos_lib.prune(cache)
+            return result
+
+        async with self._photo_lock:
+            return await self.hass.async_add_executor_job(work)
+
+    def picture_url(self, entity_id: str, w: Any, h: Any) -> str:
+        query = urlencode({"entity": entity_id, "w": photos_lib.bucket(w), "h": photos_lib.bucket(h)})
+        return async_sign_path(self.hass, f"/api/{DOMAIN}/picture?{query}", timedelta(days=7), use_content_user=True)
+
+    async def entity_picture(self, entity_id: str, w: Any, h: Any) -> bytes | None:
+        """The current picture of an image or camera entity, shrunk to w by h as a JPEG. None when the entity gives no picture now.
+        Raises ValueError when what it gave is not a readable picture."""
+        from homeassistant.exceptions import HomeAssistantError
+
+        if not photos_lib.is_picture_entity(entity_id):
+            return None
+        w, h = photos_lib.bucket(w), photos_lib.bucket(h)
+        if entity_id.split(".")[0] not in self.hass.config.components:       # the camera or image integration is not set up here
+            return None
+        try:
+            if entity_id.startswith("camera."):
+                from homeassistant.components import camera
+
+                found = await camera.async_get_image(self.hass, entity_id, 10, w, h)
+            else:
+                from homeassistant.components import image
+
+                found = await image.async_get_image(self.hass, entity_id)
+        except (HomeAssistantError, asyncio.TimeoutError, KeyError, ImportError):
+            return None
+        async with self._photo_lock:
+            return await self.hass.async_add_executor_job(photos_lib.shrink, found.content, w, h)
+
+
     def _ingest(self, file_id: str, media_id: str) -> dict[str, Any]:
         from homeassistant.components.file_upload import process_uploaded_file
 
@@ -621,6 +708,22 @@ class Manager:
             LOGGER.warning("Talking to the mirror of display %s failed unexpectedly (%s)", display_id, type(err).__name__)
             result = {"ok": False, "error": "Something unexpected went wrong talking to the mirror (see the Home Assistant log)."}
         return None, mirror_lib.scrub(result, key)
+
+    # ------------------------------------------------------------------ audio (the mirror's own speaker, as a media player)
+
+    AUDIO_PATHS = {"status": "/audio", "play": "/audio/play", "pause": "/audio/pause", "resume": "/audio/resume",
+                   "stop": "/audio/stop", "seek": "/audio/seek", "volume": "/audio/volume"}
+
+    async def mirror_audio(self, display_id: Any, action: str, params: dict[str, Any] | None = None) -> tuple[str | None, dict[str, Any] | None]:
+        """One audio call to a display's mirror (only the fixed paths above). Returns (problem, {"ok": True, "audio": {...}} or {"ok": False, "error"})."""
+        path = self.AUDIO_PATHS.get(action)
+        if path is None:
+            return f"unknown audio action '{action}'", None
+
+        async def work(endpoint, key):
+            data = await mirror.call(self.hass, endpoint, key, path, params)
+            return {"ok": True, "audio": mirror_lib.shape_audio(data)}      # None when it was only an acknowledgement
+        return await self._mirror_run(display_id, work)
 
     def _now(self) -> str:
         return dt_util.utcnow().isoformat(timespec="seconds")

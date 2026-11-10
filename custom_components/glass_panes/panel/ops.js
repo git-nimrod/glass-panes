@@ -109,6 +109,7 @@ export const DEFAULTS = {
   date: { w: 560, h: 40, style: { size: 30, color: 'dim' } },
   text: { w: 560, h: 60, style: { size: 40 }, options: { text: 'Your text' } },
   image: { w: 400, h: 400, options: {} },
+  slideshow: { w: 1000, h: 750, options: {} },
   video: { w: 1080, h: 1920, options: {} },
   divider: { w: 400, h: 40, style: { color: 'faint' }, options: { thickness: 2 } },
   message: { w: 760, h: 44, style: { size: 32, italic: true, color: 'accent' }, options: { lines: ['Have a good day', 'Looking good'] } },
@@ -199,14 +200,14 @@ export function candidatesFor(entityId, state, registry) {
   }
   // an entity-specific widget first, the any-entity "value" last; a sports sensor prefers the sports widget over a plain progress ring.
   // The ring goes first only for something that really is a percentage (battery, humidity, a % unit); otherwise the plain value wins.
-  const rank = (c) => (c.type === 'sports' ? -1 : c.type === 'progress_ring' ? (looksPercent(state) ? 0 : 3) : c.generic ? 2 : 0);
+  const rank = (c) => (c.type === 'image' ? -2 : c.type === 'sports' ? -1 : c.type === 'progress_ring' ? (looksPercent(state) ? 0 : 3) : c.generic ? 2 : 0);
   return out.sort((a, b) => rank(a) - rank(b));
 }
 
 /** Widgets with no entity at all: always available. */
 export function plainElements(registry) {
   return Object.entries(registry)
-    .filter(([type, spec]) => DEFAULTS[type] && (Object.keys(spec.slots || {}).length === 0 || type === 'message'))
+    .filter(([type, spec]) => DEFAULTS[type] && (Object.keys(spec.slots || {}).length === 0 || type === 'message' || type === 'image'))
     .map(([type, spec]) => ({ type, label: spec.label }));
 }
 

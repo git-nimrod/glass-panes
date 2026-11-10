@@ -21,7 +21,14 @@ Other boards and firmware versions are untested by the project. If you try one, 
 
 ## Which board do I have?
 
-Look for the sticker on the main board, near the micro-USB and Ethernet end. It reads like `MIR63A0-00-P1` followed by a revision (`RevP21`). The "FW AD V1.01" sticker is **not** the board id. The stock software version is in the mirror's original settings (for example `1.25.0`).
+**Before you open anything, check the back of the mirror first.** There's a regulatory sticker near the power input (where the power cable plugs in) with an FCC ID on it. This is the fastest way to tell generations apart without opening the case, and it's worth checking **before you buy a mirror**, not after:
+
+- **FCC ID `2AOSD-RLSYM1R0`** — matches the generation this project is built and tested on. Good sign.
+- **Sticker instead says "Contains: FCC ID `VPYLBEE5HY1MW`"** (note the wording: "Contains," not a device ID on its own) — that's a different generation. It's reported to use a different (NXP-based) main processor that these images do not support and will not work on. See [Which mirrors work](../compatibility.md#which-mirrors-work) — **we're looking for volunteers** with this hardware to help us figure out what's possible on it.
+- **For community projects for the newer board, see [Other boards and write-ups](../compatibility.md#other-boards-and-write-ups).**
+- **Anything else** — stop, and [tell us what yours says](https://github.com/git-nimrod/glass-panes/issues/new/choose) before buying or flashing.
+
+If you've already got the case open, there's a second sticker that confirms it: on the main board, near the micro-USB and Ethernet end, reading `MIR63A0-00-P1` followed by a revision (`RevP21`). The "FW AD V1.01" sticker is **not** the board id. The stock software version is in the mirror's original settings (for example `1.25.0`).
 
 ## What the bootloader reports
 

@@ -10,6 +10,7 @@
 
 import { PaneRenderer } from '/glass_panes/player/engine.js';
 import { HassClient } from '/glass_panes/player/hass-client.js';
+import { validZone } from '/glass_panes/player/widgets.js';
 import { MockClient, mockBindings } from '/glass_panes/player/data.js';
 import { makeTime } from '/glass_panes/player/util.js';
 import { CSS as PANEL_CSS } from '/glass_panes/panel/styles.js';
@@ -45,7 +46,7 @@ const ICONS = {
   top: 'M4 4h16M8 8v12M14 8v7', middle: 'M4 12h16M8 6v12M14 8v8', bottom: 'M4 20h16M8 4v12M14 9v7',
   'distribute-h': 'M4 4v16M20 4v16M10 8h4v8h-4z', 'distribute-v': 'M4 4h16M4 20h16M8 10v4h8v-4z',
   'same-width': 'M3 5v14M21 5v14M7 9h10M7 15h10', 'same-height': 'M5 3h14M5 21h14M9 7v10M15 7v10',
-  align: 'M4 6h16M4 12h10M4 18h16', contrast: 'M12 3a9 9 0 100 18 9 9 0 000-18zM12 3v18', eye: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 100 6 3 3 0 000-6z',
+  align: 'M4 6h16M4 12h10M4 18h16', contrast: 'M12 3a9 9 0 100 18 9 9 0 000-18zM12 3v18', gear: 'M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 01-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 010-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 014 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 010 4h-.1a1.7 1.7 0 00-1.5 1z', eye: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 100 6 3 3 0 000-6z',
 };
 function icon(name) {
   const ns = 'http://www.w3.org/2000/svg';
@@ -71,7 +72,7 @@ const hasEntityBinding = (b) => !!b && Object.entries(b).some(([k, v]) => !isWhe
 const whenSlots = (b) => Object.fromEntries(Object.entries(b || {}).filter(([k]) => isWhenSlot(k)));
 const DOMAIN_ORDER = ['calendar', 'weather', 'media_player', 'todo', 'person', 'light', 'sensor', 'event', 'input_number', 'number', 'binary_sensor', 'switch', 'climate', 'cover'];
 const ELEMENT_INFO = {
-  clock: 'The time', date: 'Today’s date', text: 'Any words you type', image: 'A picture from your device', video: 'A looping video from your device',
+  clock: 'The time', date: 'Today’s date', text: 'Any words you type', image: 'A picture from your device, or an image or camera entity', slideshow: 'Photos from a media folder, one after another', video: 'A looping video from your device',
   divider: 'A thin line between sections', message: 'Friendly lines that rotate',
 };
 // How the display sits in the mirror in Mirror view. Estimated from two photos of a real Lululemon Studio Mirror, so approximate, not measured:
@@ -90,7 +91,7 @@ const FONT_CHOICES = [['inter', 'Inter'], ['outfit', 'Outfit'], ['jost', 'Jost']
 const TOGGLES = {
   clock: [['show_seconds', 'Show seconds', false]],
   calendar_agenda: [['show_all_day', 'All-day events', true]],
-  now_playing: [['show_art', 'Album art', true], ['burn_in_saver', 'Burn-in saver (very slow drift)', false]],
+  now_playing: [['show_art', 'Album art', true], ['cd_case', 'CD case beside the disc (CD look)', true], ['burn_in_saver', 'Burn-in saver (very slow drift)', false]],
   people: [['show_avatar', 'Photos', true]],
   lights_summary: [['show_dots', 'Colour dots', true]],
   sports: [['show_logos', 'Team logos', true], ['show_next', 'Upcoming games', true], ['game_day_only', 'Only on game day', false], ['verbose_text', 'Spell out wins and losses', false]],
@@ -100,6 +101,8 @@ const TOGGLES = {
 
 // pick-one choices per widget type: [option, label, [[value, words], ...], default]
 const CHOICES = {
+  clock: [['style', 'Look', [['digital', 'Digital numbers'], ['analog', 'Traditional clock face'], ['alarm', 'Alarm clock']], 'digital'],
+    ['face', 'Clock face', [['light', 'Light face'], ['dark', 'Dark face']], 'light', (o) => o.style === 'analog' || o.style === 'alarm']],
   now_playing: [['style', 'Look', [['card', 'Card (album art and words)'], ['vinyl', 'Vinyl record with tonearm'], ['cd', 'CD']], 'card']],
 };
 
@@ -148,7 +151,7 @@ class GlassPanesPanel extends HTMLElement {
       <style>${PANEL_CSS}${RULES_CSS}</style>
       <link rel="stylesheet" href="/glass_panes/player/player.css">
       <div class="app">
-        <header class="top"><span id="menu"></span><div class="brand"><img class="logo-img" src="/glass_panes/player/logo-mark.png" alt="">Glass Panes</div><div class="showing" id="showing"></div><span class="spacer"></span><span id="status"></span><button class="btn sm" id="themebtn" title="Switch between the cream and dark look"></button></header>
+        <header class="top"><span id="menu"></span><div class="brand"><img class="logo-img" src="/glass_panes/player/logo-mark.png" alt=""><span class="brandname">Glass Panes</span></div><div class="showing" id="showing"></div><span class="spacer"></span><span id="status"></span><button class="btn sm" id="settingsbtn" title="Settings for your mirror: presence, brightness, speaker volume"></button><button class="btn sm" id="themebtn" title="Switch between the cream and dark look"></button></header>
         <div class="layout" id="layout">
           <aside class="rail">
             <div class="tabs"><button class="tab on" data-tab="panes">Panes</button><button class="tab" data-tab="displays">Displays</button></div>
@@ -165,12 +168,13 @@ class GlassPanesPanel extends HTMLElement {
             <div id="wrap"><div id="device"><div id="glass"><div id="preview"><div class="gp-stage" id="stage"></div><div id="overlay"></div></div><span class="caption">Dashed line: the display. Everything around it is plain mirror glass.</span></div><div class="stand"></div></div></div>
             <div id="notice"></div>
             <div class="dock" id="dock"></div>
-            <div id="toast"></div>
           </main>
           <aside class="inspector" id="inspector"></aside>
           <div class="scrim" id="scrim"></div>
           <div class="drawer" id="drawer"></div>
         </div>
+        <section class="settingspage" id="settingspage" aria-label="Settings"></section>
+        <div id="toast"></div>
       </div>`;
     const $ = (id) => this.shadowRoot.getElementById(id);
     this.$ = $;
@@ -181,10 +185,15 @@ class GlassPanesPanel extends HTMLElement {
       this.classList.toggle('dark', dark);
       const b = $('themebtn');
       b.textContent = '';
-      b.append(icon('contrast'), dark ? 'Light mode' : 'Dark mode');            // says what a click will switch to
+      b.append(icon('contrast'), h('span', { class: 'btntext', text: dark ? 'Light mode' : 'Dark mode' }));      // says what a click will switch to
+      b.title = dark ? 'Switch to the light look' : 'Switch to the dark look';
     };
     $('themebtn').addEventListener('click', () => { dark = !dark; applyTheme(); try { localStorage.setItem('glass_panes_dark', dark ? '1' : '0'); } catch (e) { /* ignore */ } });
     applyTheme();
+    const settingsBtn = $('settingsbtn');
+    settingsBtn.append(icon('gear'), h('span', { class: 'btntext', text: 'Settings' }));
+    settingsBtn.setAttribute('aria-pressed', 'false');
+    settingsBtn.addEventListener('click', () => { if (this.state.view === 'settings') this._closeSettings(); else this._openSettings(); });
     this.shadowRoot.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => { this.state.tab = t.dataset.tab; this._renderRail(true); }));
     $('dcancel').addEventListener('click', () => { $('details').style.display = 'none'; });
     $('details').addEventListener('submit', (e) => { e.preventDefault(); this._saveDetails(); });
@@ -280,6 +289,7 @@ class GlassPanesPanel extends HTMLElement {
     this.shadowRoot.querySelectorAll('.tab').forEach((t) => t.classList.toggle('on', t.dataset.tab === this.state.tab));
     body.textContent = '';
     if (this.state.tab === 'panes') this._renderPanesTab(body); else this._renderDisplaysTab(body);
+    if (this.state.view === 'settings') this._renderSettings();          // the mirror part of the Settings page shares these refreshes
   }
 
   // ---------------------------------------------------------------- what each display is showing: a strip in the header (every tab) and tags on the pane cards
@@ -390,7 +400,9 @@ class GlassPanesPanel extends HTMLElement {
               h('button', { class: 'btn sm danger', onClick: () => this._revokeLogin(d) }, 'Revoke'))
           : h('div', {}, h('button', { class: 'btn sm primary', onClick: () => this._makeLogin(d, false) }, 'Set up login…'),
               h('div', { class: 'hint', style: 'margin-top:6px', text: 'Lets this display read your data without you pasting a token.' })),
-        this._mirrorSection(d),
+        h('div', { style: 'margin-top:12px' },
+          h('button', { class: 'btn sm', 'data-settings': 'open', onClick: () => this._openSettings(d.id) }, icon('gear'), 'Mirror settings…'),
+          h('div', { class: 'hint', style: 'margin-top:6px', text: 'Presence, brightness, speaker volume and memory live on the Settings page now (the gear at the top).' })),
         h('div', { style: 'margin-top:10px' }, h('a', { href: PLAYER + '?display=' + encodeURIComponent(d.id), target: '_blank', rel: 'noopener', text: 'Open this display’s player' }))));
     });
     if (!this.state.newDisplay && this.state.displays.length) {
@@ -545,6 +557,115 @@ class GlassPanesPanel extends HTMLElement {
     return box;
   }
 
+  // ---------------------------------------------------------------- the Settings page (the gear next to Dark mode)
+  // A page of its own, one card per part of the mirror: the speaker, then everything Display settings used to show inside the
+  // Displays tab (presence, brightness, memory, the address), then what is planned but not built yet. It uses the same mirror
+  // commands as before; nothing here reaches the mirror except through Home Assistant.
+
+  _openSettings(displayId) {
+    this.state.view = 'settings';
+    if (displayId) this.state.settingsDisplay = displayId;
+    this.classList.add('insettings');
+    const b = this.$('settingsbtn');
+    if (b) b.setAttribute('aria-pressed', 'true');
+    this._renderSettings();
+  }
+
+  _closeSettings() {
+    this.state.view = 'main';
+    this.classList.remove('insettings');
+    const b = this.$('settingsbtn');
+    if (b) b.setAttribute('aria-pressed', 'false');
+  }
+
+  /** The speaker: ask the mirror's player what it is doing, or tell it (pause, resume, stop, volume). Its own errors, so a speaker that is
+   *  too old for audio never spoils the presence part of the page. */
+  async _audioCall(d, msg, { quiet = false } = {}) {
+    const st = this._mirrorSt(d.id);
+    try {
+      const r = await this.ws({ type: 'glass_panes/mirror/audio', display_id: d.id, ...msg });
+      st.audioError = r && r.ok === false ? (r.error || 'The speaker did not accept that.') : '';
+      if (r && r.audio) st.audio = r.audio;
+    } catch (e) {
+      st.audioError = (e && (e.message || e.error)) || String(e);
+      if (!quiet) this.toast(st.audioError, true);
+    }
+    this._renderSettings();
+  }
+
+  async _audioAct(d, msg) {
+    await this._audioCall(d, msg);
+    await this._audioCall(d, { action: 'status' }, { quiet: true });      // an action only says "ok", so read the player again
+  }
+
+  _speakerCard(d) {
+    const st = this._mirrorSt(d.id);
+    const card = h('div', { class: 'card', 'data-settings': 'speaker' }, h('h3', { text: 'Speaker' }));
+    if (!d.has_mirror) {
+      card.append(h('div', { class: 'hint', text: 'Connect the mirror first (the Display settings card below). Then its speaker shows here, and Home Assistant gets a media player for it that Music Assistant can use.' }));
+      return card;
+    }
+    if (!st.audioRequested) { st.audioRequested = true; this._audioCall(d, { action: 'status' }, { quiet: true }); }
+    const a = st.audio;
+    const word = a ? ({ idle: 'Idle', playing: 'Playing', paused: 'Paused', error: 'Problem' }[a.state] || a.state) : (st.audioError ? 'Unavailable' : 'Reading…');
+    card.append(h('div', { class: 'row', style: 'flex-wrap:wrap;gap:6px' },
+      h('span', { class: 'pill ' + (a && a.state === 'playing' ? 'on' : (st.audioError ? 'bad' : '')), 'data-settings': 'speaker-state', text: word }),
+      a && (a.title || a.artist) ? h('span', { class: 'hint grow', text: [a.title, a.artist].filter(Boolean).join(' · ') }) : null));
+    if (st.audioError) card.append(h('div', { class: 'warnbox poor', 'data-settings': 'speaker-error', text: st.audioError }));
+    const level = a && a.volume != null ? a.volume : 50;
+    const out = h('span', { class: 'hint', 'data-settings': 'volume-out', text: level + '%' });
+    const slider = h('input', { type: 'range', class: 'vol', min: 0, max: 100, step: 1, value: level, 'data-settings': 'volume',
+      disabled: !a, title: 'Speaker volume', onInput: () => { out.textContent = slider.value + '%'; },
+      onChange: () => this._audioAct(d, { action: 'volume', level: Number(slider.value) }) });
+    card.append(h('label', { class: 'lbl', text: 'Volume' }), h('div', { class: 'row' }, slider, out));
+    const playing = a && a.state === 'playing', paused = a && a.state === 'paused';
+    card.append(h('div', { class: 'row', style: 'margin-top:8px;gap:6px' },
+      playing ? h('button', { class: 'btn sm', 'data-settings': 'pause', onClick: () => this._audioAct(d, { action: 'pause' }) }, 'Pause') : null,
+      paused ? h('button', { class: 'btn sm', 'data-settings': 'resume', onClick: () => this._audioAct(d, { action: 'resume' }) }, 'Resume') : null,
+      playing || paused ? h('button', { class: 'btn sm', 'data-settings': 'stop', onClick: () => this._audioAct(d, { action: 'stop' }) }, 'Stop') : null,
+      h('button', { class: 'btn sm ghost', title: 'Read the speaker again', onClick: () => this._audioCall(d, { action: 'status' }) }, 'Refresh')));
+    card.append(h('div', { class: 'hint', style: 'margin-top:8px', text: 'To play music, send it to this display’s speaker from Home Assistant (a media player named after the display). Music Assistant can use it once Music Assistant’s Home Assistant players option is on.' }));
+    return card;
+  }
+
+  /** What is planned and not built: shown so it is not a surprise later, with nothing to switch on yet. */
+  _futureCard() {
+    const row = (name, text) => h('div', { class: 'futurerow' },
+      h('div', { class: 'grow' }, h('div', { class: 'name', text: name }), h('div', { class: 'hint', text })),
+      h('span', { class: 'pill', text: 'Not built yet' }));
+    return h('div', { class: 'card', 'data-settings': 'future' }, h('h3', { text: 'Planned' }),
+      row('Bluetooth proxy', 'Let Home Assistant use the mirror’s Bluetooth radio to reach nearby Bluetooth devices. The radio passed its first test on one mirror; the proxy itself is planned for a later app version.'),
+      row('Voice assistant', 'Use the mirror’s microphone and speaker as a voice satellite for Home Assistant. The microphone passed its first test on one mirror; this is planned for a later app version and will be off until you turn it on.'));
+  }
+
+  _renderSettings() {
+    const page = this.$('settingspage');
+    if (!page || this.state.view !== 'settings') return;
+    const focused = this.shadowRoot.activeElement;
+    if (focused && page.contains(focused) && /^(INPUT|TEXTAREA)$/.test(focused.tagName) && focused.type !== 'range') return;      // do not rebuild under the user's typing
+    const scroll = page.scrollTop;
+    page.textContent = '';
+    const displays = this.state.displays;
+    const d = displays.find((x) => x.id === this.state.settingsDisplay) || displays.find((x) => x.has_mirror) || displays[0];
+    if (d) this.state.settingsDisplay = d.id;
+    const inner = h('div', { class: 'settingsinner' },
+      h('div', { class: 'row settingshead' }, h('h2', { text: 'Settings' }), h('span', { class: 'spacer' }),
+        h('button', { class: 'btn sm', 'data-settings': 'close', onClick: () => this._closeSettings() }, 'Back to panes')));
+    if (!d) {
+      inner.append(h('div', { class: 'card' }, h('div', { class: 'hint', text: 'Add a display first (the Displays tab). Settings belong to a display with a Mirror Kiosk app behind it.' })), this._futureCard());
+      page.append(inner);
+      return;
+    }
+    if (displays.length > 1) {
+      const pick = h('select', { class: 'field', 'data-settings': 'display', onChange: () => { this.state.settingsDisplay = pick.value; this._renderSettings(); } },
+        displays.map((x) => h('option', { value: x.id, selected: x.id === d.id, text: x.name })));
+      inner.append(h('div', { class: 'card' }, h('label', { class: 'lbl', style: 'margin-top:0', text: 'Display' }), pick));
+    }
+    inner.append(this._speakerCard(d), h('div', { class: 'card' }, this._mirrorSection(d)), this._futureCard());
+    page.append(inner);
+    page.scrollTop = scroll;
+  }
+
   _mirrorMeasureDialog(d) {
     const st = this._mirrorSt(d.id);
     const modal = h('div', { class: 'modal' }, h('div', { class: 'dialog' },
@@ -560,7 +681,7 @@ class GlassPanesPanel extends HTMLElement {
           await this._mirrorRefresh(d);
         } }, 'Yes, measure'),
         h('button', { class: 'btn', text: 'Cancel', onClick: () => modal.remove() }))));
-    this.$('layout').append(modal);
+    this.shadowRoot.querySelector('.app').append(modal);       // the top level, so it also shows over the Settings page
   }
 
   async _setDisplayPane(id, pane) {
@@ -613,7 +734,7 @@ class GlassPanesPanel extends HTMLElement {
       h('ol', { class: 'steps' }, h('li', { text: 'In Home Assistant, click your name at the bottom of the sidebar.' }), h('li', { text: 'Open the Security tab, then Long-lived access tokens, then Create token.' }),
         h('li', { text: 'Copy it and paste it on the display’s sign-in screen.' })),
       h('div', { class: 'row', style: 'margin-top:16px' }, h('button', { class: 'btn primary', onClick: () => modal.remove() }, 'Done'))));
-    this.$('layout').append(modal);
+    this.shadowRoot.querySelector('.app').append(modal);       // the top level, so it also shows over the Settings page
   }
 
   // Sharing: a pane is just layout (no entities), so it can go in a file. Uploaded pictures and videos stay behind: they live on this Home Assistant.
@@ -766,7 +887,9 @@ class GlassPanesPanel extends HTMLElement {
     const mock = mockBindings(this.state.registry, pane);
     const slots = {};
     // a condition's entity is always the real one (made-up data would just answer for any name), even where the widget shows demo data
-    (pane.widgets || []).forEach((w) => { slots[w.id] = this._useMock(w) ? { ...(mock[w.id] || {}), ...whenSlots(bound[w.id]) } : (bound[w.id] || {}); });
+    // a widget bound to an image or camera entity keeps that entity in demo mode too (the demo client draws a made-up picture for it)
+    const keep = (w) => (bound[w.id] && /^(camera|image)\./.test(String(bound[w.id].entity || '')) ? { entity: bound[w.id].entity } : {});
+    (pane.widgets || []).forEach((w) => { slots[w.id] = this._useMock(w) ? { ...(mock[w.id] || {}), ...keep(w), ...whenSlots(bound[w.id]) } : (bound[w.id] || {}); });
     this.renderer.time = this.time;
     this.renderer.force = new Map(Object.entries(this._forceMap()));          // preview only: the eye controls
     this.renderer.show(pane, slots);
@@ -794,6 +917,7 @@ class GlassPanesPanel extends HTMLElement {
 
     const actions = this.$('actions');
     actions.textContent = '';
+    actions.classList.remove('panebar');
     if (!editing && pane) {
       actions.append(
         h('button', { class: 'btn sm ghost', onClick: () => this._openDetails() }, 'Name & description'),
@@ -819,16 +943,16 @@ class GlassPanesPanel extends HTMLElement {
         onChange: (ev) => this._setPaneField('brightness', ev.target.value === '' ? null : parseInt(ev.target.value, 10)) },
       h('option', { value: '', text: 'As is' }), [10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((n) => h('option', { value: n, selected: pane.brightness === n, text: n + '%' })),
       pane.brightness != null && pane.brightness % 10 ? h('option', { value: pane.brightness, selected: true, text: pane.brightness + '%' }) : null);
-      actions.append(h('label', { class: 'lbl', style: 'margin:0 6px 0 0', text: 'Theme' }), themeSel, ...(themeBgBox ? [themeBgBox] : []),
-        h('label', { class: 'lbl', style: 'margin:0 6px 0 12px', text: 'Background' }), bg,
-        h('span', { class: 'hint', style: 'margin-left:6px', text: 'Black is see-through on a mirror.' }),
-        h('label', { class: 'lbl', style: 'margin:0 6px 0 12px', text: 'Brightness' }), bright,
+      const ctl = (...kids) => h('span', { class: 'ctl' }, ...kids);         // a label and its control never wrap apart
+      actions.classList.add('panebar');
+      actions.append(ctl(h('label', { class: 'lbl', text: 'Theme' }), themeSel, ...(themeBgBox ? [themeBgBox] : [])),
+        ctl(h('label', { class: 'lbl', text: 'Background' }), bg, h('span', { class: 'hint', text: 'Black is see-through on a mirror.' })),
+        ctl(h('label', { class: 'lbl', text: 'Brightness' }), bright),
         // fade: widgets switched by "show when" rules fade in and out instead of popping
-        h('label', { class: 'check', style: 'margin:0 0 0 12px', title: 'Widgets switched by "Show when" rules fade in and out' },
+        h('label', { class: 'check', title: 'Widgets switched by "Show when" rules fade in and out' },
           h('input', { type: 'checkbox', id: 'fadepick', checked: !!(pane.motion && pane.motion.widgets === 'fade'), onChange: (ev) => this._setPaneField('motion', ev.target.checked ? { widgets: 'fade' } : null) }), 'Fade'),
-        h('label', { class: 'check', style: 'margin:0 0 0 12px', title: 'The whole pane drifts a few pixels over 40 minutes, so a screen left on never holds the same pixels' },
-          h('input', { type: 'checkbox', id: 'driftpick', checked: pane.burn_in_saver === true, onChange: (ev) => this._setPaneField('burn_in_saver', ev.target.checked ? true : null) }), 'Burn-in drift'),
-        h('span', { class: 'hint', style: 'margin-left:10px', text: 'Drag to move, corners to resize, shift-click to pick several. The dashed line is the safe zone.' }));
+        h('label', { class: 'check', title: 'The whole pane drifts a few pixels over 40 minutes, so a screen left on never holds the same pixels' },
+          h('input', { type: 'checkbox', id: 'driftpick', checked: pane.burn_in_saver === true, onChange: (ev) => this._setPaneField('burn_in_saver', ev.target.checked ? true : null) }), 'Burn-in drift'));
     }
     this._renderDock();
     this._renderInspector();
@@ -886,21 +1010,23 @@ class GlassPanesPanel extends HTMLElement {
     dock.textContent = '';
     if (!this._shownPane()) return;
     if (!this.edit) {
-      dock.append(h('button', { class: 'btn primary', onClick: () => this._startEdit() }, icon('edit'), 'Edit pane'), h('span', { class: 'sep' }), this._demoSwitch(), this._mirrorSwitch(), this._standSwitch(), this._forceButton());
+      dock.append(h('div', { class: 'grp' }, h('button', { class: 'btn primary', onClick: () => this._startEdit() }, icon('edit'), 'Edit pane')),
+        h('div', { class: 'grp' }, this._demoSwitch(), this._mirrorSwitch(), this._standSwitch(), this._forceButton()));
       return;
     }
     const e = this.edit, many = e.selected.length > 1;
     const menu = h('div', { class: 'menu', id: 'alignmenu' }, ALIGN_BUTTONS.map(([mode, label]) =>
       h('button', { class: 'btn icon ghost', title: label, onClick: () => { this._align(mode); menu.classList.remove('open'); } }, icon(mode))));
-    dock.append(
+    dock.append(h('div', { class: 'grp tools' },
       h('button', { class: 'btn primary', onClick: () => this._openDrawer('add') }, icon('plus'), 'Add'),
-      h('span', { class: 'sep' }),
       h('button', { class: 'btn icon ghost', title: 'Undo', disabled: !e.undo.length, onClick: () => this._undo() }, icon('undo')),
       h('button', { class: 'btn icon ghost', title: 'Redo', disabled: !e.redo.length, onClick: () => this._redo() }, icon('redo')),
       h('div', { class: 'menuwrap' }, h('button', { class: 'btn icon ghost', title: many ? 'Align' : 'Select two or more items to align them', disabled: !many, onClick: () => menu.classList.toggle('open') }, icon('align')), menu),
-      h('span', { class: 'sep' }), this._demoSwitch(), this._mirrorSwitch(), this._standSwitch(), this._forceButton(), h('span', { class: 'sep' }),
-      h('button', { class: 'btn', onClick: () => this._discard() }, 'Discard'),
-      h('button', { class: 'btn primary', disabled: !e.dirty, onClick: () => this._save() }, icon('check'), 'Save'));
+      ),
+      h('div', { class: 'grp view' }, this._demoSwitch(), this._mirrorSwitch(), this._standSwitch(), this._forceButton()),
+      h('div', { class: 'grp save' },
+        h('button', { class: 'btn', onClick: () => this._discard() }, 'Discard'),
+        h('button', { class: 'btn primary', disabled: !e.dirty, onClick: () => this._save() }, icon('check'), 'Save')));
   }
 
   _fitPreview() {
@@ -1122,14 +1248,14 @@ class GlassPanesPanel extends HTMLElement {
       const entityIds = this._boundIds(w.id);
       const explain = r.ghost && entityIds.length > 0 && !this.edit.sample.has(w.id);
       const opts = w.options || {};
-      const noMedia = (w.type === 'image' && !opts.media && !opts.asset) || (w.type === 'video' && !opts.media && !(opts.sources || []).length);
+      const noMedia = (w.type === 'image' && !opts.media && !opts.asset && !this._boundIds(w.id).length) || (w.type === 'slideshow' && !opts.folder) || (w.type === 'video' && !opts.media && !(opts.sources || []).length);
       const status = this.renderer.statusOf(w.id);
       const ruleOff = !!status && status.state === 'off' && status.why === 'rule';         // switched off by its Show when rule
       box.classList.toggle('bound', explain || noMedia || ruleOff);
       if (explain || noMedia || ruleOff) {
         const why = box.querySelector('.why');
         const text = ruleOff ? 'Off right now: its Show when rule does not hold. Use the eye to preview it on.'
-          : noMedia ? (w.type === 'video' ? 'Choose a video in the panel on the right' : 'Choose a picture in the panel on the right')
+          : noMedia ? (w.type === 'video' ? 'Choose a video in the panel on the right' : w.type === 'slideshow' ? 'Type a photo folder in the panel on the right' : 'Choose a picture in the panel on the right')
             : ops.whyEmpty(w.type, entityIds, (this._hass && this._hass.states) || {});
         if (why.textContent !== text) why.textContent = text;
       }
@@ -1264,6 +1390,23 @@ class GlassPanesPanel extends HTMLElement {
    * "More options": every option of the widget's type that has no hand-made control above, built from the pane schema
    * (ops.optionFields). The schema is fetched once; until it arrives the section is simply not there.
    */
+  /** The Time zone box of a Clock or Date widget: type a place (the browser suggests the names), or leave it empty for the display's own zone. */
+  _timezoneField(box, w) {
+    let zones;
+    try { zones = Intl.supportedValuesOf('timeZone'); } catch (e) { zones = ['America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'Europe/London', 'Europe/Paris', 'Asia/Tokyo', 'Australia/Sydney', 'UTC']; }
+    const current = (w.options || {}).timezone || '';
+    const input = h('input', { class: 'field', type: 'text', list: 'gp-tzlist', 'data-option': 'timezone', value: current, autocomplete: 'off', spellcheck: 'false',
+      placeholder: 'The display’s own time zone',
+      onChange: () => {
+        const v = input.value.trim();
+        if (v && !validZone(v)) { this.toast('“' + v + '” is not a time zone name. Try one like America/Chicago.', true); input.value = current; return; }
+        this._patch(w.id, (x) => { x.options = { ...(x.options || {}) }; if (!v) delete x.options.timezone; else x.options.timezone = v; });
+      } });
+    box.append(h('label', { class: 'lbl', text: 'Time zone' }), input,
+      h('datalist', { id: 'gp-tzlist' }, zones.map((z) => h('option', { value: z }))),
+      h('div', { class: 'hint', text: 'Empty shows the display’s own time zone. Type a place such as America/Chicago or Asia/Tokyo; the list suggests names.' }));
+  }
+
   _moreOptions(box, w) {
     if (!this._schemaDefs) {
       if (!this._schemaLoading) {
@@ -1272,8 +1415,8 @@ class GlassPanesPanel extends HTMLElement {
       }
       return;
     }
-    const skip = ['text', 'lines', 'media', 'asset', 'sources']
-      .concat((TOGGLES[w.type] || []).map((t) => t[0]), (CHOICES[w.type] || []).map((c) => c[0]));
+    const skip = ['text', 'lines', 'media', 'asset', 'sources', 'folder']
+      .concat((TOGGLES[w.type] || []).map((t) => t[0]), (CHOICES[w.type] || []).map((c) => c[0]), w.type === 'clock' || w.type === 'date' ? ['timezone'] : []);
     const fields = ops.optionFields(this._schemaDefs['opt_' + w.type], skip);
     if (!fields.length) return;
     const opts = w.options || {};
@@ -1435,13 +1578,16 @@ class GlassPanesPanel extends HTMLElement {
     const setStyle = (k, v) => this._patch(w.id, (x) => { x.style = { ...(x.style || {}) }; if (v === '' || v == null) delete x.style[k]; else x.style[k] = v; if (!Object.keys(x.style).length) delete x.style; });
     const setOpt = (k, v) => this._patch(w.id, (x) => { x.options = { ...(x.options || {}) }; x.options[k] = v; });
 
-    box.append(h('button', { class: 'btn sm ghost', style: 'margin: -4px 0 6px -6px', onClick: () => this._selectWidgets([]) }, '← Add something'));
+    box.append(h('button', { class: 'btn sm ghost backlink', onClick: () => this._selectWidgets([]) }, '← Add something'));
+    const shownName = this._label(w), typeName = reg.label || w.type;
     box.append(
-      h('div', { class: 'row' }, h('div', { class: 'grow' }, h('h3', { text: this._label(w) }), h('div', { class: 'sub', text: reg.label })),
-        h('button', { class: 'btn sm ghost', title: 'Bring forward (over what it overlaps)', 'data-act': 'front', onClick: () => this._restack(w.id, 'up') }, icon('front')),
-        h('button', { class: 'btn sm ghost', title: 'Send back (under what it overlaps)', 'data-act': 'back', onClick: () => this._restack(w.id, 'down') }, icon('back')),
-        h('button', { class: 'btn sm ghost', title: 'Duplicate', onClick: () => this._duplicateWidgets([w.id]) }, icon('copy')),
-        h('button', { class: 'btn sm ghost danger', title: 'Remove', onClick: () => this._removeWidgets([w.id]) }, icon('trash'))),
+      h('h3', { text: shownName }),
+      ...(shownName.trim().toLowerCase() !== String(typeName).trim().toLowerCase() ? [h('div', { class: 'sub', text: typeName })] : []),      // the type only when the name differs
+      h('div', { class: 'wactions' },
+        h('button', { class: 'btn sm', title: 'Bring forward (over what it overlaps)', 'data-act': 'front', onClick: () => this._restack(w.id, 'up') }, icon('front'), 'Forward'),
+        h('button', { class: 'btn sm', title: 'Send back (under what it overlaps)', 'data-act': 'back', onClick: () => this._restack(w.id, 'down') }, icon('back'), 'Back'),
+        h('button', { class: 'btn sm', title: 'Duplicate', onClick: () => this._duplicateWidgets([w.id]) }, icon('copy'), 'Copy'),
+        h('button', { class: 'btn sm danger', title: 'Remove', onClick: () => this._removeWidgets([w.id]) }, icon('trash'), 'Remove')),
       h('label', { class: 'lbl', text: 'Name' }), h('input', { class: 'field', value: w.name || '', maxlength: 80, onChange: (ev) => this._patch(w.id, (x) => { x.name = ev.target.value; }) }));
 
     if (w.type === 'text') {
@@ -1453,6 +1599,13 @@ class GlassPanesPanel extends HTMLElement {
     }
 
     if (w.type === 'image' || w.type === 'video') box.append(this._mediaPicker(w));
+    if (w.type === 'slideshow') {
+      const folder = (w.options || {}).folder || '';
+      const input = h('input', { class: 'field', type: 'text', value: folder, placeholder: 'photos/family', maxlength: 240, spellcheck: false,
+        onChange: (ev) => { const v = ev.target.value.trim(); this._patch(w.id, (x) => { x.options = { ...(x.options || {}) }; if (v) x.options.folder = v; else delete x.options.folder; }); } });
+      box.append(h('label', { class: 'lbl', text: 'Photo folder' }), input,
+        h('div', { class: 'hint', text: 'A folder inside a Home Assistant media folder (Settings, System, Storage shows your network storage; it appears under /media). Photos are shrunk to this widget’s size before the mirror gets them, so full-size photos are fine.' }));
+    }
 
     // what feeds this widget
     Object.entries(reg.slots || {}).forEach(([slot, def]) => {
@@ -1464,18 +1617,6 @@ class GlassPanesPanel extends HTMLElement {
       box.append(h('button', { class: 'btn sm', onClick: () => this._openDrawer('bind', { id: w.id, slot, def }) }, icon('plus'), def.kind === 'entity' ? (list.length ? 'Change' : 'Choose entity') : 'Add entity'));
     });
 
-    box.append(h('label', { class: 'lbl', text: 'Position and size' }),
-      h('div', { class: 'grid2' }, number('X', rect.x, setBox('x')), number('Y', rect.y, setBox('y')), number('Width', rect.w, setBox('w')), number('Height', rect.h, setBox('h'))),
-      h('div', { class: 'hint', style: 'margin-top:6px', text: 'Snaps to a 40 px grid when you drag. Type a number for an exact spot.' }));
-
-    if (w.type === 'video') box.append(h('div', { class: 'hint', style: 'margin-top:12px', text: 'A looping video is played by the display app itself, so it cannot be switched on and off by rules. Put it on its own pane.' }));
-    else box.append(ruleSection(this._ruleCtx(w)));
-
-    if (this._boundIds(w.id).length) {
-      const sample = h('input', { type: 'checkbox', onChange: () => { if (sample.checked) this.edit.sample.add(w.id); else this.edit.sample.delete(w.id); this._draw(); } });
-      sample.checked = this.edit.sample.has(w.id);
-      box.append(h('label', { class: 'check', style: 'margin-top:12px', title: 'Only for this preview. Nothing is saved.' }, sample, 'Preview with sample data'));
-    }
     const toggles = TOGGLES[w.type];
     if (toggles) {
       box.append(h('label', { class: 'lbl', text: 'Show' }));
@@ -1488,17 +1629,18 @@ class GlassPanesPanel extends HTMLElement {
     }
 
     // pick-one options (for example Now playing's Look). Choosing the default removes the option so the pane file stays tidy.
-    (CHOICES[w.type] || []).forEach(([key, label, values, dflt]) => {
+    (CHOICES[w.type] || []).forEach(([key, label, values, dflt, when]) => {
+      if (when && !when(w.options || {})) return;          // a choice that only matters for some looks (the clock face) appears with them
       const current = (w.options || {})[key] || dflt;
       box.append(h('label', { class: 'lbl', text: label }),
         h('select', { class: 'field', 'data-option': key, onChange: (ev) => this._patch(w.id, (x) => { x.options = { ...(x.options || {}) }; if (ev.target.value === dflt) delete x.options[key]; else x.options[key] = ev.target.value; }) },
           values.map(([v, text]) => h('option', { value: v, selected: v === current, text }))));
     });
 
-    this._moreOptions(box, w);
+    if (w.type === 'clock' || w.type === 'date') this._timezoneField(box, w);
 
     if (!['divider', 'image', 'video'].includes(w.type)) {
-      box.append(h('label', { class: 'lbl', text: 'Text' }),
+      box.append(h('div', { class: 'section', text: 'Text style' }),
         h('label', { class: 'lbl', text: 'Font' }),
         h('select', { class: 'field', id: 'fontpick', onChange: (ev) => setStyle('font', ev.target.value || null) },
           h('option', { value: '', text: 'Default' }), FONT_CHOICES.map(([v, name]) => h('option', { value: v, selected: style.font === v, text: name }))),
@@ -1514,6 +1656,9 @@ class GlassPanesPanel extends HTMLElement {
           // any colour: the browser's own colour picker, stored as #rrggbb
           h('input', { type: 'color', class: 'swatch', title: 'Pick any colour', value: HEX6.test(style.color || '') ? style.color : '#ffffff', onChange: (ev) => setStyle('color', ev.target.value.toLowerCase()) })),
         this._readabilityNote(w),
+        h('label', { class: 'lbl', text: 'Alignment' }),
+        h('div', { class: 'seg' }, ['left', 'center', 'right'].map((a) => h('button', { class: (style.align || 'left') === a ? 'on' : '', onClick: () => setStyle('align', a === 'left' ? null : a), text: a }))),
+        h('details', { class: 'fold textmore', open: this._textOpen === true }, h('summary', { class: 'hint', text: 'More text options', onClick: (ev) => { this._textOpen = !ev.currentTarget.parentElement.open; } }),      // stays open while you edit
         h('div', { class: 'grid2', style: 'margin-top:8px' },
           h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !!style.italic, onChange: (ev) => setStyle('italic', ev.target.checked || null) }), 'Italic'),
           h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !!style.uppercase, onChange: (ev) => setStyle('uppercase', ev.target.checked || null) }), 'ALL CAPS')),
@@ -1523,9 +1668,7 @@ class GlassPanesPanel extends HTMLElement {
               onChange: (ev) => { const v = parseFloat(ev.target.value); setStyle('letter_spacing', isNaN(v) || v === 0 ? null : Math.max(-10, Math.min(40, v))); } })),
           h('div', {}, h('label', { class: 'lbl', text: 'Line height' }),
             h('input', { class: 'field', type: 'number', min: 0.8, max: 3, step: 0.05, value: style.line_height != null ? style.line_height : '', placeholder: 'Auto',
-              onChange: (ev) => { const v = parseFloat(ev.target.value); setStyle('line_height', isNaN(v) ? null : Math.max(0.8, Math.min(3, v))); } }))),
-        h('label', { class: 'lbl', text: 'Alignment' }),
-        h('div', { class: 'seg' }, ['left', 'center', 'right'].map((a) => h('button', { class: (style.align || 'left') === a ? 'on' : '', onClick: () => setStyle('align', a === 'left' ? null : a), text: a }))));
+              onChange: (ev) => { const v = parseFloat(ev.target.value); setStyle('line_height', isNaN(v) ? null : Math.max(0.8, Math.min(3, v))); } })))));
     }
     if (w.type !== 'video') {
       const pct = Math.round((style.opacity == null ? 1 : style.opacity) * 100);
@@ -1536,6 +1679,26 @@ class GlassPanesPanel extends HTMLElement {
             onInput: (ev) => { out.textContent = ev.target.value + '%'; },
             onChange: (ev) => { const v = parseInt(ev.target.value, 10); setStyle('opacity', v >= 100 ? null : v / 100); } }), out));
     }
+
+    box.append(h('label', { class: 'lbl', text: 'Position and size' }),
+      h('div', { class: 'grid2' }, number('X', rect.x, setBox('x')), number('Y', rect.y, setBox('y')), number('Width', rect.w, setBox('w')), number('Height', rect.h, setBox('h'))),
+      h('div', { class: 'hint', style: 'margin-top:6px', text: 'Snaps to a 40 px grid when you drag. Type a number for an exact spot.' }));
+
+
+    // "Show when" and the layout rules: folded away until needed, open by itself when this widget already uses one (or after you opened it)
+    const inUse = !!w.show_when || !!w.flow || !!w.auto_height || w.when_hidden != null;
+    const rules = h('details', { class: 'fold rulesbox', open: inUse || this._rulesOpen === true },
+      h('summary', { onClick: (ev) => { this._rulesOpen = !ev.currentTarget.parentElement.open; } }, h('span', { class: 'lbl', style: 'display:inline;margin:0', text: 'Show when and layout' })));
+    if (w.type === 'video') rules.append(h('div', { class: 'hint', style: 'margin-top:12px', text: 'A looping video is played by the display app itself, so it cannot be switched on and off by rules. Put it on its own pane.' }));
+    else rules.append(ruleSection(this._ruleCtx(w)));
+
+    if (this._boundIds(w.id).length) {
+      const sample = h('input', { type: 'checkbox', onChange: () => { if (sample.checked) this.edit.sample.add(w.id); else this.edit.sample.delete(w.id); this._draw(); } });
+      sample.checked = this.edit.sample.has(w.id);
+      rules.append(h('label', { class: 'check', style: 'margin-top:12px', title: 'Only for this preview. Nothing is saved.' }, sample, 'Preview with sample data'));
+    }
+    box.append(rules);
+    this._moreOptions(box, w);
   }
 
   // ---------------------------------------------------------------- "Show when" rules and the preview on/off controls (rules-ui.js draws them)
@@ -1745,6 +1908,7 @@ class GlassPanesPanel extends HTMLElement {
       head.append(h('div', { class: 'seg' },
         ['entities', 'elements'].map((t) => h('button', { class: D.tab === t ? 'on' : '', text: t === 'entities' ? 'Your entities' : 'Facets', onClick: () => { D.tab = t; this._renderDrawer(D); } }))));
     }
+    if (!bind && D.docked) head.append(h('div', { class: 'hint', text: 'Drag to move, corners to resize, shift-click to pick several. The dashed line is the safe zone.' }));
     if (D.tab === 'entities') head.append(search);
     dr.append(head, h('div', { class: 'list', style: D.docked ? 'padding: 0' : '' }));
     this._renderDrawerList(D);
@@ -1790,4 +1954,4 @@ class GlassPanesPanel extends HTMLElement {
   }
 }
 
-customElements.define('glass-panes-panel', GlassPanesPanel);
+if (!customElements.get('glass-panes-panel')) customElements.define('glass-panes-panel', GlassPanesPanel);      // a second load of this file (a panel reload after an update) must not throw

@@ -50,6 +50,8 @@ svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-widt
 
 .layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: 0; position: relative; }
 .layout.has-inspector { grid-template-columns: 300px minmax(0, 1fr) 290px; }
+.layout.editing.has-inspector { grid-template-columns: minmax(0, 1fr) 300px; }      /* editing: the pane list steps aside, the canvas gets the room */
+.layout.editing .rail { display: none; }
 .rail { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--ui-line); background: var(--ui-surface); }
 .tabs { display: flex; gap: 4px; padding: 12px 12px 0; }
 .tab { flex: 1; padding: 8px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--ui-muted); font-weight: 600; cursor: pointer; }
@@ -109,7 +111,12 @@ main { display: flex; flex-direction: column; min-width: 0; min-height: 0; posit
 .stagebar .title { font-size: 20px; font-weight: 650; letter-spacing: -.015em; }
 .stagebar .actions { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
 .details { margin: 4px 20px 0; display: none; }
-#wrap { flex: 1; min-height: 0; display: flex; justify-content: center; align-items: center; padding: 14px 20px 14px; overflow: hidden;
+.stagebar .actions.panebar { align-items: center; gap: 6px 18px; }
+.panebar .ctl { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.panebar .lbl { margin: 0; }
+.panebar .check { margin: 0; }
+.panebar .hint { white-space: normal; max-width: 150px; line-height: 1.25; }
+#wrap { flex: 1; min-height: 0; display: flex; justify-content: center; align-items: center; padding: 8px 20px 8px; overflow: hidden;
   background-color: #f3f1e3; background-image: radial-gradient(rgba(20, 60, 35, .22) 1px, transparent 1px); background-size: 22px 22px; }   /* always cream, in the dark look too */
 #device { position: relative; padding: 9px; border-radius: 26px; background: #16171a; box-shadow: 0 0 0 1px rgba(255,255,255,.08) inset, 0 24px 60px rgba(0,0,0,.35), 0 4px 12px rgba(0,0,0,.25); }
 #preview { position: relative; overflow: hidden; border-radius: 17px; background: #000; }
@@ -118,13 +125,16 @@ main { display: flex; flex-direction: column; min-width: 0; min-height: 0; posit
 
 /* ---------- dock (the floating toolbar) */
 #stage.gp-pane-drift { animation: none; }   /* the drift is for the display; in the builder it would pull the content away from the outlines */
-details.more { margin-top: 14px; border-top: 1px solid var(--ui-line); padding-top: 4px; }
-details.more > summary { cursor: pointer; list-style: revert; }
+details.more, details.fold { margin-top: 14px; border-top: 1px solid var(--ui-line); padding-top: 4px; }
+details.more > summary, details.fold > summary { cursor: pointer; list-style: revert; }
+details.textmore { margin-top: 10px; border-top: 0; padding-top: 0; }
 details.more .opt .hint { margin-top: 3px; }
 .vidfull { position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(135deg, rgba(120, 160, 255, .10) 0 40px, rgba(120, 160, 255, .04) 40px 80px); outline: 6px dashed rgba(120, 160, 255, .55); outline-offset: -6px; display: flex; align-items: flex-end; justify-content: center; }
 .vidfull span { margin-bottom: 120px; padding: 18px 30px; border-radius: 40px; background: rgba(0, 0, 0, .7); color: #cfe0ff; font: 600 34px/1.2 system-ui, sans-serif; }
-.dock { position: relative; align-self: center; margin: 0 auto 14px; display: flex; align-items: center; gap: 6px; padding: 7px; border-radius: 18px; background: color-mix(in srgb, var(--ui-surface) 90%, transparent); backdrop-filter: blur(14px); border: 1px solid var(--ui-line); box-shadow: var(--ui-shadow); z-index: 3; max-width: calc(100% - 24px); flex-wrap: wrap; justify-content: center; }
+.dock { position: relative; align-self: center; margin: 0 auto 12px; display: flex; align-items: center; gap: 6px; padding: 7px; border-radius: 18px; background: color-mix(in srgb, var(--ui-surface) 90%, transparent); backdrop-filter: blur(14px); border: 1px solid var(--ui-line); box-shadow: var(--ui-shadow); z-index: 3; max-width: calc(100% - 24px); flex-wrap: wrap; justify-content: center; }
 .dock .sep { width: 1px; height: 24px; background: var(--ui-line); margin: 0 4px; flex: none; }
+.dock .grp { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
+.dock .grp + .grp { padding-left: 8px; border-left: 1px solid var(--ui-line); }
 .dock .btn { border-radius: 12px; }
 .switch { display: inline-flex; align-items: center; gap: 8px; padding: 0 8px; cursor: pointer; font-weight: 550; user-select: none; white-space: nowrap; }
 .switch input { appearance: none; width: 34px; height: 20px; border-radius: 999px; background: var(--ui-line); position: relative; margin: 0; cursor: pointer; transition: background .15s; flex: none; }
@@ -145,7 +155,7 @@ details.more .opt .hint { margin-top: 3px; }
 .box:hover .tagname, .box.sel .tagname { opacity: 1; }
 .box .x { position: absolute; left: calc(-10px * var(--inv, 3)); top: calc(-10px * var(--inv, 3)); width: calc(20px * var(--inv, 3)); height: calc(20px * var(--inv, 3)); border-radius: 50%; border: 0; padding: 0; background: #3a3a3f; color: #fff; display: none; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,.5); }
 .box .x svg { width: 60%; height: 60%; stroke-width: 2.6; }
-.box.sel .x, .jiggle .box .x { display: flex; }
+.box.sel .x, .box:hover .x { display: flex; }
 .handle { position: absolute; width: calc(16px * var(--inv, 3)); height: calc(16px * var(--inv, 3)); background: #fff; border: calc(2px * var(--inv, 3)) solid var(--ui-edit); border-radius: 50%; display: none; z-index: 4; }
 .box.sel .handle { display: block; }
 .handle[data-h=nw] { left: calc(-9px * var(--inv, 3)); top: calc(-9px * var(--inv, 3)); cursor: nwse-resize; }
@@ -200,7 +210,7 @@ details.more .opt .hint { margin-top: 3px; }
 @media (hover: none) { .mdel { display: flex; } }
 
 /* ---------- dialogs */
-.modal { position: absolute; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 20; padding: 16px; }
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 20; padding: 16px; }
 .dialog { background: var(--ui-surface); border-radius: 18px; padding: 22px; width: min(540px, 100%); max-height: 92%; overflow: auto; box-shadow: var(--ui-shadow); }
 .dialog h2 { margin: 0 0 6px; font-size: 19px; letter-spacing: -.01em; }
 .dialog p { margin: 8px 0; line-height: 1.5; }
@@ -211,6 +221,13 @@ details.more .opt .hint { margin-top: 3px; }
 .inspector { display: none; flex-direction: column; min-height: 0; border-left: 1px solid var(--ui-line); background: var(--ui-surface); overflow: auto; padding: 14px; }
 .has-inspector .inspector { display: flex; }
 .inspector h3 { margin: 0 0 2px; font-size: 16px; letter-spacing: -.01em; }
+.inspector .backlink { align-self: flex-start; margin: -4px 0 8px -6px; color: var(--ui-accent-text); }
+.wactions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 10px 0 2px; }
+.wactions .btn { padding: 6px 4px; font-size: 12px; gap: 4px; min-width: 0; }
+.inspector .section { margin: 18px 0 0; padding-top: 12px; border-top: 1px solid var(--ui-line); font-weight: 650; font-size: 13px; }
+.wactions .btn svg.i { width: 15px; height: 15px; }
+details.rulesbox > summary { padding: 8px 0 2px; }
+details.rulesbox[open] > summary { margin-bottom: 2px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .swatch { width: 38px; height: 32px; padding: 2px; border: 1px solid var(--gp-line, #444); border-radius: 6px; background: none; cursor: pointer; flex: none; }
 .swatch:disabled { opacity: .35; cursor: not-allowed; }
@@ -243,7 +260,7 @@ details.more .opt .hint { margin-top: 3px; }
 .tile:hover { border-color: var(--ui-accent); transform: translateY(-1px); }
 .tile b { display: block; margin-bottom: 3px; }
 
-#toast { position: absolute; left: 50%; bottom: 96px; transform: translate(-50%, 12px); max-width: 80%; padding: 10px 16px; border-radius: 12px; background: #1f2023; color: #fff; font-weight: 550; box-shadow: var(--ui-shadow); opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 9; }
+#toast { position: fixed; left: 50%; bottom: 96px; transform: translate(-50%, 12px); max-width: 80%; padding: 10px 16px; border-radius: 12px; background: #1f2023; color: #fff; font-weight: 550; box-shadow: var(--ui-shadow); opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 9; }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 #toast.error { background: var(--ui-danger); }
 
@@ -252,17 +269,46 @@ details.more .opt .hint { margin-top: 3px; }
   :host { overflow: auto; }
   .app { height: auto; min-height: 100%; grid-template-rows: 56px auto; }
   .top { position: sticky; top: 0; }
-  .layout, .layout.has-inspector { grid-template-columns: 1fr; }
+  .layout, .layout.has-inspector, .layout.editing.has-inspector { grid-template-columns: minmax(0, 1fr); }      /* minmax: the column may shrink below its content, so nothing pushes the page sideways */
+  .layout.editing .rail { display: flex; }
   main { order: -1; }
   .rail { border-right: 0; border-top: 1px solid var(--ui-line); }
   #wrap { flex: none; height: calc(100vh - 250px); min-height: 380px; padding: 8px 12px; }
   .stagebar { padding: 12px 14px 4px; }
   .stagebar .actions { margin-left: 0; }
   .inspector { position: fixed; left: 0; right: 0; bottom: 0; max-height: 42vh; border-left: 0; border-top: 1px solid var(--ui-line); border-radius: 18px 18px 0 0; box-shadow: var(--ui-shadow); z-index: 5; }
-  .dock { margin: 0 auto 10px; }
+  .dock { margin: 0 auto 10px; flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; scrollbar-width: none; max-width: calc(100% - 16px); }
+  .dock::-webkit-scrollbar { display: none; }
+  .dock .grp { flex: none; }
+  .dock .grp.save { order: 1; }          /* narrow: Save and Discard come right after the tools; the view switches scroll after them */
+  .dock .grp.view { order: 2; }
   .has-inspector .dock { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(42vh + 10px); margin: 0; }
+  .top { gap: 8px; padding: 0 10px; }
+  .wactions { grid-template-columns: repeat(4, minmax(0, 1fr)); }      /* the panel is full width here: one row of four */
+  .panebar .hint { display: none; }
+}
+@media (max-width: 560px) {
+  .brandname, #themebtn .btntext, #settingsbtn .btntext { display: none; }      /* a phone: the logo and the moon icon are enough */
+  .chip .cname { display: none; }
+  .chip select { max-width: 120px; }
+  .dock .grp.tools .menuwrap { display: none; }          /* Align needs several widgets picked with shift-click, which a touch screen cannot do */
   #toast { position: fixed; }
   .drawer { position: fixed; width: 100%; }
   .scrim { position: fixed; }
 }
+
+/* the Settings page (the gear next to Dark mode): its own page in place of the builder, one card per part of the mirror */
+.settingspage { display: none; overflow: auto; min-height: 0; padding: 22px 16px 64px; }
+:host(.insettings) .layout { display: none; }
+:host(.insettings) .settingspage { display: block; }
+.settingsinner { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.settingshead h2 { margin: 0; font-size: 22px; font-weight: 650; }
+.settingspage .card h3 { margin: 0 0 6px; font-size: 15px; font-weight: 650; }
+.settingspage .mirrorbox { margin-top: 0; padding-top: 0; border-top: 0; }
+.settingspage .vol { width: 100%; }
+.settingspage .switch { white-space: normal; align-items: flex-start; }
+.settingspage .switch input { margin-top: 1px; }
+.settingspage .futurerow { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--ui-line); }
+.settingspage .futurerow:first-of-type { border-top: 0; }
+#settingsbtn[aria-pressed="true"] { background: color-mix(in srgb, var(--ui-accent) 16%, transparent); border-color: var(--ui-accent); }
 `;

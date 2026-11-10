@@ -23,6 +23,12 @@ object Kiosk {
     @Volatile var blockedLoads = 0         // page loads refused by the navigation lock (anything but the Home Assistant page)
     @Volatile var engineRestarts = 0       // times the browser engine crashed or was killed and was rebuilt
     @Volatile var lastAliveMs = 0L         // the last heartbeat from the player page (GET /alive from the mirror itself)
+    @Volatile var loadStartedMs = 0L       // when the latest page load was started (0 = none yet)
+    @Volatile var lastFinishedMs = 0L      // when a page load last finished, well or badly. A load started after this has not ended yet
+    @Volatile var shownPane = ""           // the pane the player last said it is showing
+    @Volatile var bootId = 0               // counts every start of the app, kept across restarts and power cycles
+    val boot = BootTimeline()              // the steps of this start, for the loading bar and /status
+    @Volatile var eventLog: EventLog? = null
     @Volatile var videoState = "stopped"      // stopped | starting | playing | error <what>/<extra>
     @Volatile var brightnessPct = -1          // -1 = system default, otherwise 0..100
 
@@ -31,6 +37,33 @@ object Kiosk {
     val orientations = listOf("auto", "portrait", "portrait_reverse", "landscape", "landscape_reverse")
     @Volatile var orientation = "auto"
     val startedMs = System.currentTimeMillis()
+
+    /** Once per run: number this start, open the saved diary and write the first line. Safe to call again. */
+    @Synchronized fun init(ctx: Context) {
+        if (eventLog != null) return
+        val app = ctx.applicationContext
+        val p = prefs(app)
+        bootId = p.getInt("boot_id", 0) + 1
+        p.edit().putInt("boot_id", bootId).apply()
+        eventLog = EventLog(File(app.filesDir, "events.log"))
+        log("app_start", "version=" + versionName(app) + " device_up=" + (android.os.SystemClock.elapsedRealtime() / 1000) + "s")
+    }
+
+    /** Adds one line to the diary (/log). Never put a token in it; the diary also blanks the obvious ones. */
+    fun log(kind: String, detail: String = "") {
+        val now = System.currentTimeMillis()
+        eventLog?.add(bootId, (now - startedMs) / 1000, now, kind, detail)
+    }
+
+    // Recovery and reporting settings, all changed with /recovery/tune (ranges and rules are in Recovery.kt)
+    fun loadTimeoutS(ctx: Context): Int = prefs(ctx).getInt("load_timeout_s", Recovery.DEFAULT_LOAD_TIMEOUT_S)
+    fun restartAfterMin(ctx: Context): Int = prefs(ctx).getInt("restart_after_min", Recovery.DEFAULT_RESTART_AFTER_MIN)
+    fun reloadHours(ctx: Context): Int = prefs(ctx).getInt("reload_hours", Recovery.DEFAULT_RELOAD_HOURS)
+    fun aliveReportS(ctx: Context): Int = prefs(ctx).getInt("alive_report_s", Recovery.DEFAULT_ALIVE_REPORT_S)
+
+    fun recoveryJson(ctx: Context): String =
+        "{\"load_timeout_s\":" + loadTimeoutS(ctx) + ",\"restart_after_min\":" + restartAfterMin(ctx) +
+            ",\"reload_hours\":" + reloadHours(ctx) + ",\"alive_report_s\":" + aliveReportS(ctx) + "}"
 
     fun prefs(ctx: Context): SharedPreferences =
         ctx.getSharedPreferences("kiosk", Context.MODE_PRIVATE)

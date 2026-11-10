@@ -18,6 +18,22 @@ export function el(tag, cls, text) {
   return e;
 }
 
+// A picture that changes (an image or camera entity) is fetched as a file and shown from memory, because its address is signed and
+// cannot carry a "version" to make the browser load it again. `getUrl(fresh)` gives the signed address (fresh = ask for a new one,
+// for when the old one has expired). Returns an address the page can show (a blob: address; the caller revokes it), or null.
+export async function blobPicture(getUrl) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let url = null;
+    try { url = await getUrl(attempt > 0); } catch (e) { return null; }
+    if (!url) return null;
+    try {
+      const r = await fetch(url, { cache: 'no-store' });
+      if (r.ok) return URL.createObjectURL(await r.blob());
+    } catch (e) { /* try once more with a new address */ }
+  }
+  return null;
+}
+
 export function clear(node) {
   while (node.firstChild) node.removeChild(node.firstChild);
   return node;

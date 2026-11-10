@@ -31,6 +31,19 @@ import kotlin.concurrent.thread
  *                                 seconds between "still here" messages to Home Assistant (10-3600). Any can be
  *                                 left out; the camera picks up fps on its next start (/presence/off, /presence/on).
  *   GET /presence/size?w=640   -> camera picture width (default 320; bigger uses more CPU)
+ *   GET /log                   -> the mirror's diary of what it did (kept in a file, so it survives a power cycle). ?boot=previous
+ *                                 (or current, or a number, default all kept) and ?since=<n> to skip the first n
+ *   GET /audio                 -> the audio player: state, volume, title, artist, position (see AudioPlayer.kt)
+ *   GET /audio/play?url=<http(s) address>&title=&artist=&volume=0-100&start=<seconds>  -> play a stream through the mirror's speaker
+ *   GET /audio/pause | /audio/resume | /audio/stop
+ *   GET /audio/seek?s=<seconds> | /audio/volume?v=0-100   (the volume is remembered across restarts)
+ *   GET /bluetooth/test?seconds=5 -> turns Bluetooth on if needed, listens for 1-15 seconds and reports COUNTS of nearby advertisements
+ *                                 (no addresses or names are kept), then switches Bluetooth off again if the test turned it on.
+ *                                 Needs: adb shell pm grant com.nimrod.mirrorkiosk android.permission.ACCESS_COARSE_LOCATION
+ *   GET /mic/test?seconds=3    -> listens for 1-10 seconds and reports how loud it was (numbers only: nothing is recorded or sent).
+ *                                 Needs: adb shell pm grant com.nimrod.mirrorkiosk android.permission.RECORD_AUDIO
+ *   GET /recovery              -> the settings for getting unstuck and for the "still alive" messages
+ *   GET /recovery/tune?load_timeout=90&restart_after=15&reload_hours=0&alive_report=60 -> change them (ranges in Recovery.kt)
  *
  * If you set an API key (adb ... --es key "something"), every call from another device needs ?key=something.
  * Calls from the mirror itself (the page running inside this app) never need it.
@@ -45,12 +58,15 @@ class ControlService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Kiosk.init(this)
+        AudioPlayer.init(this)
         if (!running) start()
         return START_STICKY            // Android restarts us if we get killed
     }
 
     override fun onDestroy() {
         running = false
+        AudioPlayer.stop()
         Presence.stop()
         wake?.let { if (it.isHeld) it.release() }
         super.onDestroy()
@@ -71,6 +87,7 @@ class ControlService : Service() {
         while (running) {
             try {
                 ServerSocket(Kiosk.PORT).use { server ->
+                    if (Kiosk.boot.reach(BootTimeline.Step.SERVER)) Kiosk.log("server_up", "port " + Kiosk.PORT)
                     while (running) {
                         val client = server.accept()
                         // at most a few requests at once, so a flood of connections cannot exhaust the app's memory or threads
@@ -152,8 +169,55 @@ class ControlService : Service() {
                             Kiosk.lastAliveMs = System.currentTimeMillis()
                             val p = Kiosk.prefs(this)
                             if (!p.getBoolean("heartbeat", false)) p.edit().putBoolean("heartbeat", true).apply()
+                            // From player 0.10.8 on, the heartbeat says which pane is showing (pane) and which was asked for (want)
+                            val args = params(query)
+                            if (args.containsKey("pane")) {
+                                Kiosk.boot.paneTracked = true
+                                val pane = args["pane"] ?: ""
+                                val want = args["want"] ?: ""
+                                if (pane != Kiosk.shownPane) {
+                                    Kiosk.shownPane = pane
+                                    Kiosk.log("pane", "showing=" + pane + " selected=" + want)
+                                }
+                                if (pane.isNotEmpty() && pane == want && Kiosk.boot.reach(BootTimeline.Step.PANE)) {
+                                    Kiosk.log("fully_booted", Kiosk.boot.secondsToReady().toString() + " s after the app started")
+                                }
+                            }
                             reply(s, 200, """{"ok":true}""")
                         } else reply(s, 403, """{"ok":false,"error":"only the page on the mirror"}""")
+                    }
+                    path == "/log" -> {
+                        val args = params(query)
+                        val which = args["boot"] ?: "all"
+                        val boot: Int? = when (which) {
+                            "all" -> null
+                            "current" -> Kiosk.bootId
+                            "previous" -> Kiosk.bootId - 1
+                            else -> which.toIntOrNull()
+                        }
+                        val since = args["since"]?.toIntOrNull() ?: 0
+                        reply(s, 200, Kiosk.eventLog?.json(boot, since) ?: """{"ok":true,"count":0,"events":[]}""")
+                    }
+                    path == "/recovery" -> reply(s, 200, Kiosk.recoveryJson(this))
+                    path == "/recovery/tune" -> {
+                        val args = params(query)
+                        val timeout = args["load_timeout"]?.toIntOrNull()
+                        val restart = args["restart_after"]?.toIntOrNull()
+                        val reload = args["reload_hours"]?.toIntOrNull()
+                        val alive = args["alive_report"]?.toIntOrNull()
+                        val bad = Recovery.check(timeout, restart, reload, alive)
+                        if (bad != null) {
+                            reply(s, 400, """{"ok":false,"error":"$bad"}""")
+                        } else {
+                            val ed = Kiosk.prefs(this).edit()
+                            if (timeout != null) ed.putInt("load_timeout_s", timeout)
+                            if (restart != null) ed.putInt("restart_after_min", restart)
+                            if (reload != null) ed.putInt("reload_hours", reload)
+                            if (alive != null) ed.putInt("alive_report_s", alive)
+                            ed.apply()
+                            Kiosk.log("settings", "recovery " + Kiosk.recoveryJson(this))
+                            reply(s, 200, """{"ok":true,"recovery":${Kiosk.recoveryJson(this)}}""")
+                        }
                     }
                     path == "/reload" -> {
                         Kiosk.main.post { Kiosk.activity?.reloadPage() }
@@ -177,6 +241,46 @@ class ControlService : Service() {
                     path == "/video/stop" -> {
                         Kiosk.main.post { Kiosk.activity?.stopVideo() }
                         reply(s, 200, """{"ok":true}""")
+                    }
+                    path == "/bluetooth/test" -> {
+                        val seconds = params(query)["seconds"]?.let { it.toIntOrNull() } ?: BtLogic.DEFAULT_SECONDS
+                        val bad = BtLogic.checkSeconds(seconds)
+                        if (bad != null) reply(s, 400, """{"ok":false,"error":"$bad"}""")
+                        else reply(s, 200, BtProbe.run(this, seconds))
+                    }
+                    path == "/mic/test" -> {
+                        val seconds = params(query)["seconds"]?.let { it.toIntOrNull() } ?: MicLevel.DEFAULT_SECONDS
+                        val bad = MicLevel.checkSeconds(seconds)
+                        if (bad != null) reply(s, 400, """{"ok":false,"error":"$bad"}""")
+                        else reply(s, 200, MicProbe.run(this, seconds))
+                    }
+                    path == "/audio" -> reply(s, 200, AudioPlayer.json())
+                    path == "/audio/play" -> {
+                        val args = params(query)
+                        val url = args["url"]
+                        val volume = args["volume"]?.toIntOrNull()
+                        val problem = AudioLogic.checkUrl(url) ?: (if (args.containsKey("volume")) AudioLogic.checkVolume(volume) else null)
+                        if (problem != null) {
+                            reply(s, 400, """{"ok":false,"error":"${AudioLogic.jsonEscape(problem)}"}""")
+                        } else {
+                            val startMs = ((args["start"]?.toDoubleOrNull() ?: 0.0) * 1000).toInt().coerceAtLeast(0)
+                            AudioPlayer.play(this, url!!, AudioLogic.cleanText(args["title"]), AudioLogic.cleanText(args["artist"]), volume, startMs)
+                            reply(s, 200, """{"ok":true}""")
+                        }
+                    }
+                    path == "/audio/pause" -> { AudioPlayer.pause(); reply(s, 200, """{"ok":true}""") }
+                    path == "/audio/resume" -> { AudioPlayer.resume(); reply(s, 200, """{"ok":true}""") }
+                    path == "/audio/stop" -> { AudioPlayer.stop(); reply(s, 200, """{"ok":true}""") }
+                    path == "/audio/seek" -> {
+                        val sec = params(query)["s"]?.toDoubleOrNull()
+                        if (sec == null || sec < 0) reply(s, 400, """{"ok":false,"error":"use ?s= seconds from the start"}""")
+                        else { AudioPlayer.seek(sec); reply(s, 200, """{"ok":true}""") }
+                    }
+                    path == "/audio/volume" -> {
+                        val v = params(query)["v"]?.toIntOrNull()
+                        val problem = AudioLogic.checkVolume(v)
+                        if (problem != null) reply(s, 400, """{"ok":false,"error":"$problem"}""")
+                        else { AudioPlayer.setVolume(this, v!!); reply(s, 200, """{"ok":true,"volume":$v}""") }
                     }
                     path == "/presence" -> reply(s, 200, Presence.json())
                     path == "/presence/on" -> {
@@ -273,10 +377,22 @@ class ControlService : Service() {
             "\"video\":\"" + Kiosk.videoState + "\"," +
             "\"display_pp\":\"" + DisplayPostProc.state + "\"," +
             "\"display_pp_detail\":\"" + DisplayPostProc.detail.replace("\"", "'") + "\"," +
+            "\"boot\":" + Kiosk.boot.json(Kiosk.bootId) + "," +
+            "\"recovery\":" + Kiosk.recoveryJson(this) + "," +
+            "\"alive_report\":\"" + AliveReport.last.replace("\"", "'") + "\"," +
+            "\"audio\":" + AudioPlayer.json() + "," +
             "\"presence\":" + Presence.json() + "," +
             "\"memory\":" + Kiosk.memoryJson(this) + "," +
             "\"uptime_s\":" + up + "}"
     }
+
+    /** The ?a=1&b=2 part of an address as a map, with the values decoded. Used by the newer calls. */
+    private fun params(query: String): Map<String, String> =
+        query.split("&").filter { it.isNotEmpty() }.associate { part ->
+            val kv = part.split("=", limit = 2)
+            val v = kv.getOrElse(1) { "" }
+            kv[0] to (try { URLDecoder.decode(v, "UTF-8") } catch (e: Exception) { v })
+        }
 
     private fun reply(s: Socket, code: Int, body: String) {
         val text = when (code) { 200 -> "OK"; 400 -> "Bad Request"; 403 -> "Forbidden"; else -> "Not Found" }

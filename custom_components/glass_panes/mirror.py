@@ -46,9 +46,18 @@ async def call(hass: HomeAssistant, endpoint: str, key: str | None, path: str, p
             declared = response.headers.get("Content-Length", "")
             if declared.isdigit() and int(declared) > MAX_BYTES:
                 raise MirrorError("The mirror's answer was far bigger than expected, so it was ignored.")
-            body = await response.content.read(MAX_BYTES + 1)        # chunked answers carry no Content-Length, so cap the read itself
-            if len(body) > MAX_BYTES:
-                raise MirrorError("The mirror's answer was far bigger than expected, so it was ignored.")
+            # The mirror's tiny web server can send one answer in several pieces, and one read() returns only the piece that has arrived
+            # (a status of about 1.6 KB came back cut off, which looked like "not the Mirror Kiosk app"). So read until the end, in pieces,
+            # and cap the total: chunked answers carry no Content-Length, so the cap has to be on what is actually read.
+            stream = response.content          # taken once: it is one stream (Home Assistant's test fake makes a new one on every access)
+            body = b""
+            while True:
+                piece = await stream.read(8192)
+                if not piece:
+                    break
+                body += piece
+                if len(body) > MAX_BYTES:
+                    raise MirrorError("The mirror's answer was far bigger than expected, so it was ignored.")
     except MirrorError:
         raise
     except TimeoutError:

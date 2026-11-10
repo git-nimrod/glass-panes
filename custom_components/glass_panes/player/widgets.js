@@ -8,7 +8,7 @@
 //   ctx.onDestroy(fn)                  cleanup when the pane is replaced
 // Nothing here knows any entity ID. Everything comes from ctx.slots.
 
-import { COND, clear, el, FULL_MONTHS, isBad, MONTHS, num, okState, seeded, strictNumber, unitOf } from './util.js';
+import { COND, clear, el, FULL_MONTHS, isBad, makeTime, MONTHS, num, okState, seeded, strictNumber, unitOf } from './util.js';
 import { describe } from './format.js';
 
 const pad = (n) => (n < 10 ? '0' : '') + n;
@@ -20,11 +20,36 @@ function setText(node, text) {
 
 // ---------------------------------------------------------------- plain widgets
 
+// ---- time zones: a clock or a date can show another place than the display's own zone (option `timezone`, an IANA name such as America/Chicago)
+const zoneCache = new Map();
+
+/** True for a name Intl knows as a time zone. (An empty or odd value is simply "not set": the display's own zone is used.) */
+export function validZone(tz) {
+  if (typeof tz !== 'string' || !tz.trim()) return false;
+  try { new Intl.DateTimeFormat('en-US', { timeZone: tz.trim() }); return true; } catch (e) { return false; }
+}
+
+// the time helper a widget uses: its own zone when it names a good one, otherwise the display's
+function zoneTime(ctx, tz) {
+  if (!validZone(tz)) return ctx.time;
+  const name = tz.trim();
+  if (!zoneCache.has(name)) zoneCache.set(name, makeTime(name));
+  return zoneCache.get(name);
+}
+
+/** Hand angles in degrees clockwise from 12 o'clock, for a time given as { h, mi, s }. The hour hand creeps with the minutes. */
+export function clockAngles(p) {
+  return { hour: ((p.h % 12) + p.mi / 60 + p.s / 3600) * 30, minute: (p.mi + p.s / 60) * 6, second: p.s * 6 };
+}
+
+// ---------------------------------------------------------------- clock
+
 function clock(ctx) {
-  const o = ctx.opts;
+  const o = ctx.opts, time = zoneTime(ctx, o.timezone);
+  if (o.style === 'analog' || o.style === 'alarm') { analogClock(ctx, time, o.style === 'alarm'); return; }
   ctx.root.style.whiteSpace = 'nowrap';   // a clock never wraps
   const tick = () => {
-    const p = ctx.time.parts(new Date());
+    const p = time.parts(new Date());
     const h = o.format === '24h' ? pad(p.h) : String(p.h % 12 || 12);
     let t = h + ':' + pad(p.mi);
     if (o.show_seconds) t += ':' + pad(p.s);
@@ -34,10 +59,86 @@ function clock(ctx) {
   ctx.every(o.show_seconds ? 1000 : 5000, tick);
 }
 
-function date(ctx) {
-  const o = ctx.opts;
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function svg(tag, attrs, parent) {
+  const n = document.createElementNS(SVG_NS, tag);
+  for (const k of Object.keys(attrs)) n.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(n);
+  return n;
+}
+
+// A round clock face drawn centred on (cx, cy) with radius R: the face, 60 ticks (the hours bolder), the numerals, and the hands.
+// Returns the hands so the clock can turn them. Plain SVG; only `transform` changes after this, once a second at most.
+function drawFace(parent, cx, cy, R, dark, allNumerals, seconds) {
+  const ink = dark ? '#ececec' : '#1c1c1c', faceFill = dark ? '#151515' : '#f7f7f3', k = R / 88;
+  svg('circle', { cx, cy, r: R, fill: faceFill }, parent);
+  const at = (r, deg) => [cx + r * Math.sin(deg * Math.PI / 180), cy - r * Math.cos(deg * Math.PI / 180)];
+  for (let i = 0; i < 60; i++) {
+    const major = i % 5 === 0, a = at(R - (major ? 13 : 7) * k, i * 6), b = at(R - 3 * k, i * 6);
+    svg('line', { x1: a[0].toFixed(2), y1: a[1].toFixed(2), x2: b[0].toFixed(2), y2: b[1].toFixed(2), stroke: ink, 'stroke-width': (major ? 3 : 1.1) * k, 'stroke-linecap': 'round' }, parent);
+  }
+  for (let n = 1; n <= 12; n++) {
+    if (!allNumerals && n % 3 !== 0) continue;
+    const pt = at(R * 0.73, n * 30);
+    const t = svg('text', { x: pt[0].toFixed(2), y: pt[1].toFixed(2), 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': (allNumerals ? 21 : 24) * k, 'font-weight': 500, fill: ink,
+      'font-family': 'Helvetica Neue, Helvetica, Arial, system-ui, sans-serif' }, parent);
+    t.textContent = String(n);
+  }
+  const bar = (len, tail, width) => svg('rect', { x: cx - width / 2, y: cy - len, width, height: len + tail, rx: width / 2, fill: ink }, parent);
+  const hour = bar(50 * k, 12 * k, 7 * k), minute = bar(74 * k, 12 * k, 5 * k);
+  let second = null;
+  if (seconds) {
+    second = svg('g', {}, parent);
+    svg('line', { x1: cx, y1: cy + 18 * k, x2: cx, y2: cy - 78 * k, stroke: '#d9382c', 'stroke-width': 2 * k, 'stroke-linecap': 'round' }, second);
+    svg('circle', { cx, cy, r: 5.5 * k, fill: faceFill, stroke: '#d9382c', 'stroke-width': 2.2 * k }, second);
+  } else {
+    svg('circle', { cx, cy, r: 4.5 * k, fill: ink }, parent);
+  }
+  return { hour, minute, second, cx, cy };
+}
+
+// The two round looks. "analog" is a traditional face (numerals 1 to 12, the minute marks, a red second hand when Show seconds is on).
+// "alarm" is a bedside alarm clock: two bells and a striker on top, feet, a coloured case (the widget's text colour when it is a #rrggbb, else red)
+// and a small gold alarm hand. Both follow the time zone option and the light/dark face option.
+function analogClock(ctx, time, alarm) {
+  const o = ctx.opts, dark = o.face === 'dark', seconds = o.show_seconds === true;
+  const place = { left: 'xMinYMid', right: 'xMaxYMid' }[ctx.style.align] || 'xMidYMid';
+  const root = svg('svg', { viewBox: alarm ? '0 0 200 234' : '0 0 200 200', preserveAspectRatio: place + ' meet', width: '100%', height: '100%', role: 'img', 'aria-label': 'Clock' });
+  root.setAttribute('class', 'gp-clock-svg');
+  root.style.display = 'block';
+  let hands;
+  if (!alarm) {
+    svg('circle', { cx: 100, cy: 100, r: 98, fill: '#2b2b2b' }, root);
+    hands = drawFace(root, 100, 100, 89, dark, true, seconds);
+  } else {
+    const body = /^#[0-9a-f]{6}$/i.test(ctx.style.color || '') ? ctx.style.color : '#d9453d', metal = dark ? '#9a9a9a' : '#7d7d7d';
+    for (const sign of [-1, 1]) {
+      svg('line', { x1: 100 + sign * 50, y1: 196, x2: 100 + sign * 62, y2: 224, stroke: body, 'stroke-width': 10, 'stroke-linecap': 'round' }, root);          // feet
+      svg('path', { d: 'M-34 0 A34 34 0 0 1 34 0 Z', transform: 'translate(' + (100 + sign * 52) + ' 48) rotate(' + (sign * 34) + ')', fill: body }, root);        // bells
+    }
+    svg('rect', { x: 72, y: 12, width: 56, height: 6, rx: 3, fill: metal }, root);                                                                              // striker
+    svg('line', { x1: 100, y1: 18, x2: 100, y2: 40, stroke: metal, 'stroke-width': 5, 'stroke-linecap': 'round' }, root);
+    svg('circle', { cx: 100, cy: 128, r: 86, fill: body }, root);                                                                                                // the case
+    hands = drawFace(root, 100, 128, 72, dark, false, seconds);
+    // the small alarm hand is decoration (about 8 o'clock); the real hands go back on top of it
+    const k = 72 / 88, a = 245 * Math.PI / 180;
+    svg('line', { x1: 100, y1: 128, x2: (100 + 38 * k * Math.sin(a)).toFixed(2), y2: (128 - 38 * k * Math.cos(a)).toFixed(2), stroke: '#e0a73a', 'stroke-width': 3 * k, 'stroke-linecap': 'round' }, root);
+    root.appendChild(hands.hour); root.appendChild(hands.minute); if (hands.second) root.appendChild(hands.second);
+  }
+  clear(ctx.root);
+  ctx.root.appendChild(root);
+  const turn = (node, deg) => { if (node) node.setAttribute('transform', 'rotate(' + deg.toFixed(2) + ' ' + hands.cx + ' ' + hands.cy + ')'); };
   const tick = () => {
-    const p = ctx.time.parts(new Date(Date.now() + (o.day_offset || 0) * 86400000));
+    const a = clockAngles(time.parts(new Date()));
+    turn(hands.hour, a.hour); turn(hands.minute, a.minute); turn(hands.second, a.second);
+  };
+  ctx.every(seconds ? 1000 : 5000, tick);
+}
+
+function date(ctx) {
+  const o = ctx.opts, time = zoneTime(ctx, o.timezone);
+  const tick = () => {
+    const p = time.parts(new Date(Date.now() + (o.day_offset || 0) * 86400000));
     let t;
     switch (o.format) {
       case 'weekday_month_day_year': t = p.wd + ', ' + FULL_MONTHS[p.mo - 1] + ' ' + p.d + ', ' + p.y; break;
@@ -68,6 +169,7 @@ function text(ctx) {
 // A picture comes from the media library (options.media, an id) or, in older panes, from a file name in the assets folder.
 function image(ctx) {
   const o = ctx.opts;
+  if (!o.media && !o.asset && ctx.slots && ctx.slots.entity) { entityPicture(ctx); return; }
   if (!o.media && !o.asset) return;
   const img = el('img');
   img.alt = '';
@@ -86,6 +188,103 @@ function image(ctx) {
   load(false);
   ctx.every(30000, () => { if (ctx.data.generation !== gen) { gen = ctx.data.generation; load(true); } });
   ctx.every(6 * 3600000, () => load(true));
+}
+
+// The picture of an image or camera entity (a Local File camera that an automation points at different files, a doorbell snapshot, a
+// weather radar image ...). The integration shrinks it to the widget's size first, so a large picture cannot overload the mirror.
+// A camera is asked again every `refresh_s` seconds (default 10); an image entity whenever its state changes (and every 5 minutes).
+function entityPicture(ctx) {
+  const o = ctx.opts, entity = ctx.slots.entity;
+  const w = Math.round(ctx.w || 1080), h = Math.round(ctx.h || 1080), isCamera = String(entity).startsWith('camera.');
+  const img = el('img');
+  img.alt = '';
+  img.style.cssText = 'display:block;width:100%;height:100%;object-fit:' + (o.fit || 'contain');      // block: an inline picture leaves a few pixels under it
+  let current = null;
+  const forget = (u) => { if (u && u.startsWith('blob:')) URL.revokeObjectURL(u); };
+  ctx.onDestroy(() => forget(current));
+  const render = async () => {
+    const src = await ctx.data.picture(entity, w, h);
+    if (!src || !ctx.root.isConnected) return;
+    const old = current;
+    current = src;
+    img.src = src;
+    if (!img.isConnected) ctx.root.appendChild(img);
+    forget(old);
+  };
+  const seconds = Number(o.refresh_s);
+  const every = seconds > 0 ? Math.max(2, seconds) : isCamera ? 10 : 300;
+  ctx.refresh(render, [entity], every * 1000);
+}
+
+// Which photos come next. Every photo once before any repeats (shuffled, or in file-name order), and a new round never starts with
+// the photo that just finished the last one. `last` is the index shown last (-1 for none).
+export function slideOrder(count, shuffle, last) {
+  const order = Array.from({ length: count }, (_, i) => i);
+  if (shuffle) for (let i = count - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+  if (count > 1 && order[0] === last) [order[0], order[1]] = [order[1], order[0]];
+  return order;
+}
+
+// A photo slideshow from a Home Assistant media folder. The integration lists the folder and hands out copies already shrunk to this
+// widget's size; the page keeps only two pictures in memory (the one showing and the one coming) however big the folder is.
+function slideshow(ctx) {
+  const o = ctx.opts;
+  if (!o.folder) return;
+  const fit = o.fit === 'cover' ? 'cover' : 'contain', fade = o.fade !== false;
+  const seconds = Math.min(Math.max(Number(o.interval_s) || 60, 5), 86400);
+  const w = Math.round(ctx.w || 1080), h = Math.round(ctx.h || 1920);
+  ctx.root.style.overflow = 'hidden';
+  const layers = [0, 1].map(() => {
+    const i = el('img');
+    i.alt = '';
+    i.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;object-fit:' + fit + (fade ? ';transition:opacity 1.2s ease' : '');
+    ctx.root.appendChild(i);
+    return i;
+  });
+  const note = el('div', 'gp-dim');
+  const say = (text) => { if (text) { note.textContent = text; if (!note.isConnected) ctx.root.appendChild(note); } else if (note.isConnected) note.remove(); };
+  let items = [], order = [], pos = 0, front = -1, last = -1, busy = false, errors = 0, retry = null, gen = ctx.data.generation;
+  ctx.onDestroy(() => clearTimeout(retry));
+
+  const relist = async () => {
+    const r = await ctx.data.slideshowItems(o.folder, w, h);
+    if (!ctx.root.isConnected) return;
+    const changed = r.items.length !== items.length;
+    items = r.items;
+    if (changed || !order.length) { order = slideOrder(items.length, o.shuffle !== false, last); pos = 0; }
+    say(r.problem === 'folder_not_found' ? 'Folder not found' : r.problem ? 'Photos unavailable' : !items.length ? 'No photos in this folder' : '');
+  };
+
+  const next = () => {
+    if (busy || !items.length || !ctx.root.isConnected) return;
+    if (pos >= order.length) { order = slideOrder(items.length, o.shuffle !== false, last); pos = 0; }
+    const idx = order[pos++], target = front < 0 ? 0 : 1 - front, layer = layers[target];
+    busy = true;
+    layer.onerror = () => {
+      busy = false;
+      if (++errors < 3) { next(); return; }
+      // three bad pictures in a row: the addresses may have expired (or Home Assistant restarted), so ask for new ones, slowly
+      errors = 0;
+      clearTimeout(retry);
+      retry = setTimeout(() => relist().then(next).catch(() => {}), 60000);
+    };
+    layer.onload = () => {
+      layer.onload = layer.onerror = null;
+      const old = front < 0 ? null : layers[front];
+      layer.style.opacity = '1';
+      if (old) {
+        old.style.opacity = '0';
+        setTimeout(() => { if (ctx.root.isConnected && old !== layers[front]) old.removeAttribute('src'); }, fade ? 1500 : 0);   // let go of the old picture
+      }
+      front = target; last = idx; busy = false; errors = 0;
+    };
+    layer.src = items[idx];
+  };
+
+  relist().then(next).catch(() => {});
+  ctx.every(seconds * 1000, next);
+  ctx.every(30 * 60000, () => relist());
+  ctx.every(30000, () => { if (ctx.data.generation !== gen) { gen = ctx.data.generation; relist().then(() => { if (front < 0) next(); }).catch(() => {}); } });
 }
 
 function divider(ctx) {
@@ -171,6 +370,9 @@ function message(ctx) {
 
 function entityValue(ctx) {
   const o = ctx.opts, entity = ctx.slots.entity, S = ctx.style.size || 32;
+  // a camera or image entity is a picture: its state ("idle", a timestamp) means nothing on a mirror, so show what it shows instead.
+  // Panes made before the Image widget took entities used this widget for cameras; they now show the picture without any change.
+  if (/^(camera|image)\./.test(String(entity || ''))) { entityPicture(ctx); return; }
   const render = async () => {
     if (!entity) { clear(ctx.root); return; }
     const s = await ctx.data.state(entity);
@@ -377,9 +579,21 @@ function nowPlaying(ctx) {
     stage.style.cssText = '--d:' + d + 'px;margin-right:' + Math.round(S * 1.1) + 'px';
     const spin = el('div', 'gp-spin gp-' + look);             // the part that rotates
     const label = el('div', 'gp-disc-label');                 // the album art (a plain coloured label when there is none)
-    if (o.show_art !== false && pictureOf(ctx, a)) { const i = el('img'); i.alt = ''; i.src = pictureOf(ctx, a); label.appendChild(i); }
+    const art = o.show_art !== false ? pictureOf(ctx, a) : '';
+    if (art) {
+      const i = el('img'); i.alt = ''; i.src = art; label.appendChild(i);
+      if (look === 'cd') spin.classList.add('gp-art');         // a printed CD: the art covers the whole disc, not only the ring round the hole
+    }
     spin.append(el('div', 'gp-disc-sheen'), label, el('div', 'gp-disc-hole'));
     stage.appendChild(spin);
+    if (look === 'cd' && art && o.cd_case !== false) {
+      // the CD case: the cover, standing still, with the disc sliding out of its right side and spinning
+      stage.classList.add('gp-with-case');
+      const box = el('div', 'gp-case');
+      const cover = el('img'); cover.alt = ''; cover.src = art;
+      box.append(cover, el('div', 'gp-case-spine'), el('div', 'gp-case-gloss'));
+      stage.appendChild(box);
+    }
     if (look === 'vinyl') {
       const arm = el('div', 'gp-arm');                        // pivots at its top end; the bar and head hang from it
       arm.append(el('div', 'gp-arm-bar'), el('div', 'gp-arm-head'));
@@ -605,7 +819,7 @@ function parseGame(s, time, dayOnly) {
   };
 }
 
-export { parseGame };   // exported so the game-picking rules can be tested on their own
+export { parseGame, todayWord };   // exported so the game-picking rules can be tested on their own
 
 // "3rd", "OT", "Halftime"... from the period number if the sensor gives one, else out of the clock text. Never the running clock.
 function periodText(g) {
@@ -614,6 +828,8 @@ function periodText(g) {
   const m = /(\d+(?:st|nd|rd|th)|OT|overtime|half(?:time)?|end of \w+|(?:top|bot(?:tom)?|mid) \d+\w*)/i.exec(g.clock || '');
   return m ? m[1] : '';
 }
+// A game later today reads "Today" before 5 pm and "Tonight" from 5 pm on (a noon game is not "tonight").
+const todayWord = (T, d) => (T.parts(d).h >= 17 ? 'Tonight' : 'Today');
 const liveText = (g) => { const p = periodText(g); return p ? 'Live · ' + p : 'Live'; };
 
 function sports(ctx) {
@@ -664,7 +880,7 @@ function sports(ctx) {
           box.appendChild(logo(r[0]));
           box.appendChild(el('span', r[3] ? '' : 'gp-dim', r[1]));
           box.appendChild(el('span', 'gp-score' + (r[3] ? '' : ' gp-dim'),
-            played ? String(r[2]) : k === 0 ? (T.sameDay(g.t, new Date()) ? 'Tonight' : T.parts(g.t).wd.slice(0, 3)) : T.ampm(g.t)));
+            played ? String(r[2]) : k === 0 ? (T.sameDay(g.t, new Date()) ? todayWord(T, g.t) : T.parts(g.t).wd.slice(0, 3)) : T.ampm(g.t)));
         });
         if (g.kind === 'live') box.appendChild(el('div', 'gp-boxlive', '● ' + liveText(g)));
         ctx.root.appendChild(box);
@@ -693,7 +909,7 @@ function sports(ctx) {
       // short by default: the scores already say who won (the loser's is dimmed), so just "Final" or the time; verbose_text brings the old wording back
       head.appendChild(document.createTextNode(o.verbose_text
         ? (g.kind === 'final' ? (g.win ? g.name + ' win' : g.name + ' lose') + ' · Final' : g.kind === 'live' ? liveText(g) : g.name + ' play at ' + T.shortTime(g.t))
-        : (g.kind === 'final' ? 'Final' : g.kind === 'live' ? liveText(g) : 'Tonight · ' + T.ampm(g.t))));
+        : (g.kind === 'final' ? 'Final' : g.kind === 'live' ? liveText(g) : todayWord(T, g.t) + ' · ' + T.ampm(g.t))));
       gi.appendChild(head);
       row.appendChild(gi);
       stack.appendChild(row);
@@ -765,7 +981,7 @@ function news(ctx) {
 }
 
 export const widgets = {
-  clock, date, text, image, video, divider, message,
+  clock, date, text, image, slideshow, video, divider, message,
   entity_value: entityValue, weather, calendar_agenda: calendarAgenda, todo_list: todoList, now_playing: nowPlaying,
   people, lights_summary: lightsSummary, status_summary: statusSummary, progress_ring: progressRing, sports, news,
 };

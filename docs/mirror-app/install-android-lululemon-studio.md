@@ -18,7 +18,9 @@ The whole job in one line: **put the mirror in fastboot, flash two files, change
 **Do this before you buy, open or flash anything.** These images are built for the Qualcomm **MSM8916** board (`MIR63A0-00-P1`, tested on RevP21). Other owners report that some newer mirrors use a different NXP-based board (i.MX8M Mini). That needs different Android software with different partitions and drivers, **and these images will not work on it**. We have not tested one, and flashing the wrong image can leave a mirror that will not start.
 
 - **Sticker on the main board** (near the micro-USB and Ethernet end): `MIR63A0-00-P1`, ideally `RevP21`. Anything else, stop here and [tell us what yours says](https://github.com/git-nimrod/glass-panes/issues/new/choose).
-- **In fastboot** (step 1 below), `fastboot getvar product` must print `MSM8916`, and the partition sizes must match [the hardware page](hardware.md#what-the-bootloader-reports). If not, **don't flash**.
+- **The FCC ID on the back sticker** (near where the power cable goes in): `2AOSD-RLSYM1R0` is the board these images are for. If the sticker says **"Contains: FCC ID `VPYLBEE5HY1MW`"** it is the newer NXP board, and these images will not work. Community projects exist for that board: see [Other boards and write-ups](../compatibility.md#other-boards-and-write-ups).
+- **In fastboot** (step 1 below), `fastboot getvar product` must print `MSM8916`, and the partition sizes must match [the hardware page](hardware.md#what-the-bootloader-reports). `getvar all` prints nothing on this bootloader, so ask for each value one at a time. If they don't match, **don't flash**.
+- **Optional, helps your report:** note which stock software version the mirror started on. On a mirror that is still set up for someone else's Wi-Fi, join the Wi-Fi hotspot it makes, then open that network's gateway address (the one ending in `.1`, which your computer shows for the connection) on port `8080` in a browser. That showed the version on one unit, and it may not work on yours.
 
 Rough guide, not a promise: older units seem more likely to be the tested Qualcomm board, and later-production units are the ones to be careful with. The sticker is the real answer.
 
@@ -47,6 +49,8 @@ You only need this step for the first flash from lululemon's software. Nothing h
 
 A **cold boot** means cutting wall power. A trick that works: plug the mirror into a **switched power strip**, hold VOL- with a toothpick, switch the strip on, and keep holding for about 5 seconds.
 
+**How to tell you are in fastboot.** The screen stays completely black, so you can't see it. Use the computer instead: hold VOL- while the power comes on and **keep holding for about 5 seconds**. You don't need to restart afterwards. On Windows, Device Manager then shows an unknown **"Android"** device (step 2). On a Mac (the tested path is Windows, so this is unverified), run `system_profiler SPUSBDataType` while you are still holding: an **"Android"** entry with vendor `0x18d1` and product `0xd00d` means fastboot, and `fastboot devices` should list it. If nothing shows up at all, the **cable** is the most likely cause (see step 2).
+
 **Never connect anything to the UART pins** (header P1 and the pads near the audio header). They are **1.8 V logic, and the adapter's VCC must never be connected**. You don't need UART for this guide.
 
 ## 2. Get Windows to see fastboot
@@ -54,8 +58,9 @@ A **cold boot** means cutting wall power. A trick that works: plug the mirror in
 1. Connect the micro-USB cable and boot the mirror into fastboot (step 1).
 2. In **Device Manager**, fastboot first appears as an unknown **"Android"** device with an error (`USB\VID_18D1&PID_D00D`).
 3. Install the driver. In Android Studio, open **SDK Manager > SDK Tools**, tick **Google USB Driver** and install it. Then in **Device Manager**, right-click the device and choose **Update driver > Browse my computer > Let me pick > Have Disk**. Type the **full literal path** to `...\Android\Sdk\extras\google\usb_driver` (the variable `%LOCALAPPDATA%` does **not** expand there). Choose **Android Bootloader Interface**.
-4. Another owner of the same board reported that **Zadig with the WinUSB driver** works too.
+4. Reports differ about **Zadig with the WinUSB driver**: one owner of the same board said it works, another said it didn't and the Google driver did. Use the Google driver first.
 5. Use a **normal (non-admin)** terminal and run `fastboot devices`. **Expected:** it lists the mirror.
+6. **If nothing is listed at all**, and Device Manager shows no new device (on a Mac, `system_profiler` shows nothing), the usual cause is the **cable**. It has to be a micro-USB **data** cable, and many are charge-only. One owner went through four before one worked. Try a different cable and a different USB port before anything else.
 
 ## 3. Download and check the images
 
@@ -115,7 +120,7 @@ fastboot reboot
 ## 6. First boot, then set up with scrcpy
 
 1. The first boot shows the Android boot animation, then the Launcher3 home screen about **5 minutes** after the reboot. Be patient.
-2. About 3 minutes into the boot, run `adb devices -l`. **Expected:** the mirror is listed as **`device`**. If it says `unauthorized`, wait a few minutes more. If it still does, your computer isn't using the project key (step 4). Make sure you ran `adb kill-server` after copying it.
+2. About 3 minutes into the boot, run `adb devices -l`. **Expected:** the mirror is listed as **`device`**. If it says `unauthorized`, wait a few minutes more. If it still does, your computer isn't using the project key (step 4). Make sure you ran `adb kill-server` after copying it. If `adb devices` shows **nothing**, give it a full 5 minutes after the reboot (the first boot is slow) before you start debugging; then check the cable and the USB port.
 3. Start **scrcpy**: `winget install Genymobile.scrcpy`, then run `scrcpy`. The mirror's own touch screen is not usable, so scrcpy is how you click things. The first time, the mirror may ask **"Allow USB debugging?"**. Tick **Always allow from this computer** and click **OK** with the mouse in the scrcpy window.
 4. In Settings (inside scrcpy), turn **Wi-Fi on** and join your network. "Turning Wi-Fi on..." can take about a minute.
 
@@ -149,7 +154,8 @@ fastboot reboot
 ## If something goes wrong
 
 - **Stuck before Android boots:** put the mirror back in fastboot (VOL- at cold power-on) and flash again. You can rewrite `system` and `userdata` as often as you like.
-- **Fastboot isn't found:** repeat step 2 (the driver).
+- **Fastboot isn't found:** repeat step 2 (the driver), and try another **cable** and USB port.
+- **Nothing shows up in `adb devices` after flashing:** wait 5 minutes, then check the cable and USB port, and that you copied the project key (step 4).
 - **`unauthorized` after flashing:** repeat step 4, then run `adb kill-server` and `adb devices -l`.
 - **No Wi-Fi:** open an issue and say which board revision and software version you have (see below).
 

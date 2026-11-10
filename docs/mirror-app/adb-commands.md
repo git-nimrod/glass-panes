@@ -31,6 +31,8 @@ $env:Path += ";$env:LOCALAPPDATA\Android\Sdk\platform-tools"
 | `adb uninstall com.nimrod.mirrorkiosk` | Removes the app **and erases its settings** (page address, login, webhook, brightness, presence on/off). Write them down first | ⛔ |
 | `adb shell pm list packages com.nimrod.mirrorkiosk` | Shows whether the app is installed | ✅ |
 | `adb shell pm grant com.nimrod.mirrorkiosk android.permission.CAMERA` | Lets the app use the camera (for presence detection). The app has no screen where it can ask. Run it again after any uninstall | ⚠️ |
+| `adb shell pm grant com.nimrod.mirrorkiosk android.permission.RECORD_AUDIO` | Lets the app listen through the microphone for the microphone test (`/mic/test`, 0.11.0+). The test reports loudness numbers only; nothing is recorded or sent. |
+| `adb shell pm grant com.nimrod.mirrorkiosk android.permission.ACCESS_COARSE_LOCATION` | Lets the app receive Bluetooth scan results for the Bluetooth test (`/bluetooth/test`, 0.11.0+). Android 6 requires this for scanning; the app does not read your location. |
 | `adb shell am force-stop com.nimrod.mirrorkiosk` | Stops the app (Android starts it again if it is the home screen) | ✅ |
 
 ### Starting the app and giving it settings
@@ -46,6 +48,7 @@ adb shell "am start -n com.nimrod.mirrorkiosk/.MainActivity --es url '<page addr
 | `--es url '...'` | The player address for this mirror: `<Home Assistant address>/glass_panes/player/index.html?display=<display id>&kiosk=1&tokenkey=glass_panes_token` |
 | `--es token '...'` | The display's login token (made with **Set up login** in the builder, shown once). Never share or screenshot it |
 | `--es webhook '...'` | The id of the Home Assistant webhook that receives presence reports (id only, not the address) |
+| `--es alive_webhook '...'` | The id of a second Home Assistant webhook that receives the "still alive" messages (0.11.0+; see [api.md](api.md)). Nothing is sent without it |
 | `--es key '...'` | Optional password for the control server (port 8099), required from other devices if set |
 | `--es rotation '...'` | `portrait`, `portrait_reverse`, `landscape`, `landscape_reverse` or `auto`. **Unproven**: see "Turning the picture" below |
 

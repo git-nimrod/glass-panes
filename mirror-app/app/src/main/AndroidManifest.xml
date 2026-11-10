@@ -7,6 +7,15 @@
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
     <!-- camera presence (Presence.kt): pictures stay on the mirror, only numbers go to Home Assistant -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- the microphone test (MicProbe.kt, GET /mic/test): loudness numbers only, nothing is recorded or sent. Like the camera, the permission is granted over adb -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- the Bluetooth test (BtProbe.kt, GET /bluetooth/test): turns Bluetooth on if needed, counts nearby advertisements, keeps no address or name.
+         BLUETOOTH and BLUETOOTH_ADMIN are granted at install; the location permission (needed on Android 6 to receive scan results) is granted over adb -->
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.front" android:required="false" />
 

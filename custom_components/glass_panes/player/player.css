@@ -108,6 +108,20 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; cursor
 .gp-cd .gp-disc-sheen { background: conic-gradient(rgba(255, 120, 160, .14), rgba(120, 200, 255, .14) 25%, rgba(150, 255, 180, .14) 50%, rgba(255, 220, 120, .14) 75%, rgba(255, 120, 160, .14)); }
 .gp-cd .gp-disc-label { width: 56%; height: 56%; background: linear-gradient(#e4e7eb, #b8bec6); border: 3px solid rgba(255, 255, 255, .85); box-sizing: border-box; }
 .gp-cd .gp-disc-hole { width: 15%; height: 15%; border: 3px solid #eceff2; box-sizing: border-box; }
+/* CD with album art (the .gp-art class): like a printed disc, the art covers the whole face. The shine sits on top of it, and the middle is
+   a clear plastic ring round the hole, so you see the art run up to it. Without art the silver disc above is used. */
+.gp-cd.gp-art { border: 0; }
+.gp-cd.gp-art .gp-disc-label { z-index: 1; width: 100%; height: 100%; border: 0; background: #1a1a1a; }
+.gp-cd.gp-art .gp-disc-sheen { z-index: 2; background: conic-gradient(rgba(255, 255, 255, .22), rgba(255, 255, 255, 0) 12%, rgba(255, 255, 255, 0) 38%, rgba(255, 255, 255, .20) 50%, rgba(255, 255, 255, 0) 62%, rgba(255, 255, 255, 0) 88%, rgba(255, 255, 255, .22)); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .28); }
+.gp-cd.gp-art .gp-disc-hole { z-index: 3; width: 27%; height: 27%; border: 0; background: radial-gradient(circle, #000 0, #000 27%, rgba(255, 255, 255, .55) 28%, rgba(255, 255, 255, .55) 33%, rgba(255, 255, 255, .20) 34%, rgba(255, 255, 255, .20) 100%); }
+/* CD case (option cd_case, on by default for the cd look when there is art): the cover is a square case that stays still, and the disc slides out
+   of its right side. The case is as tall as the widget, the disc 90% of that, tucked half behind the case, so about 45% of the disc shows. */
+.gp-np-disc.gp-with-case { width: calc(var(--d) * 1.4); }
+.gp-with-case .gp-spin { left: calc(var(--d) * .5); top: calc(var(--d) * .05); width: calc(var(--d) * .9); height: calc(var(--d) * .9); }
+.gp-case { position: absolute; left: 0; top: 0; width: var(--d); height: var(--d); z-index: 5; overflow: hidden; background: #1a1a1a; border: 1px solid rgba(255, 255, 255, .28); box-sizing: border-box; border-radius: 2px; }
+.gp-case img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.gp-case-spine { position: absolute; left: 0; top: 0; bottom: 0; width: 5%; background: linear-gradient(90deg, rgba(0, 0, 0, .55), rgba(0, 0, 0, .12) 70%, rgba(255, 255, 255, .22)); }
+.gp-case-gloss { position: absolute; inset: 0; background: linear-gradient(115deg, rgba(255, 255, 255, .20) 0%, rgba(255, 255, 255, 0) 32%, rgba(255, 255, 255, 0) 70%, rgba(255, 255, 255, .10) 100%); }
 /* tonearm: pivots at its top end (transform-origin), rests beside the record, swings onto the grooves while playing */
 .gp-arm-base { position: absolute; left: calc(var(--d) * 1.15 - var(--d) * .07); top: calc(var(--d) * .1 - var(--d) * .07); width: calc(var(--d) * .14); height: calc(var(--d) * .14); border-radius: 50%; background: #5b5b5b; border: 2px solid #8a8a8a; box-sizing: border-box; }
 .gp-arm { position: absolute; left: calc(var(--d) * 1.15 - var(--d) * .025); top: calc(var(--d) * .1); width: calc(var(--d) * .05); height: calc(var(--d) * .64); transform-origin: 50% 0; transform: rotate(0deg); transition: transform 1.4s ease-in-out; will-change: transform; }
