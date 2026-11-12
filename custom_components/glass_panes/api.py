@@ -165,7 +165,7 @@ class PhotoView(HomeAssistantView):
 
 
 class PictureUrlView(HomeAssistantView):
-    """GET ?entity=&w=&h= returns an expiring signed address for the current picture of an image or camera entity."""
+    """GET ?entity=&w=&h= returns an expiring signed address for the current picture of an image or camera entity, or the cover art of a media player."""
 
     url = f"/api/{DOMAIN}/picture_url"
     name = f"api:{DOMAIN}:picture_url"
@@ -176,7 +176,7 @@ class PictureUrlView(HomeAssistantView):
     async def get(self, request: web.Request) -> web.Response:
         q = request.query
         if not photos_lib.is_picture_entity(q.get("entity")):
-            return self.json_message("Only image and camera entities have a picture", HTTPStatus.BAD_REQUEST, "bad_entity")
+            return self.json_message("Only image, camera and media player entities have a picture", HTTPStatus.BAD_REQUEST, "bad_entity")
         return self.json({"url": self._manager.picture_url(q["entity"], q.get("w"), q.get("h"))}, headers=NO_STORE)
 
 

@@ -188,6 +188,20 @@ async def ws_mirror_connect(hass: HomeAssistant, connection, msg: dict[str, Any]
 
 
 @websocket_api.require_admin
+@websocket_api.websocket_command({
+    Required("type"): f"{DOMAIN}/mirror/pair", Required("display_id"): str, Required("endpoint"): str, Required("code"): str, Required("base_url"): str,
+})
+@websocket_api.async_response
+async def ws_mirror_pair(hass: HomeAssistant, connection, msg: dict[str, Any]) -> None:
+    """Pair a mirror from the code on its screen. The login token goes from Home Assistant to the mirror and nowhere else."""
+    problem = await _manager(hass).pair_mirror(msg["display_id"], msg["endpoint"], msg["code"], msg["base_url"])
+    if problem:
+        _send_mirror(connection, msg, problem, None)
+        return
+    connection.send_result(msg["id"], {"display": _manager(hass).get_display(msg["display_id"])})
+
+
+@websocket_api.require_admin
 @websocket_api.websocket_command({Required("type"): f"{DOMAIN}/mirror/status", Required("display_id"): str})
 @websocket_api.async_response
 async def ws_mirror_status(hass: HomeAssistant, connection, msg: dict[str, Any]) -> None:
@@ -316,17 +330,48 @@ async def ws_slideshow_list(hass: HomeAssistant, connection, msg: dict[str, Any]
 @callback
 def ws_picture_url(hass: HomeAssistant, connection, msg: dict[str, Any]) -> None:
     if not photos_lib.is_picture_entity(msg["entity"]):
-        connection.send_error(msg["id"], "bad_entity", "Only image and camera entities have a picture")
+        connection.send_error(msg["id"], "bad_entity", "Only image, camera and media player entities have a picture")
         return
     connection.send_result(msg["id"], {"url": _manager(hass).picture_url(msg["entity"], msg.get("w"), msg.get("h"))})
+
+
+# ---------------------------------------------------------------- reusable widget groups
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({Required("type"): f"{DOMAIN}/groups/list"})
+@websocket_api.async_response
+async def ws_groups_list(hass: HomeAssistant, connection, msg: dict[str, Any]) -> None:
+    connection.send_result(msg["id"], {"groups": await _manager(hass).list_groups()})
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({Required("type"): f"{DOMAIN}/groups/save", Required("name"): str, Required("widgets"): list, Required("bindings"): dict})
+@websocket_api.async_response
+async def ws_groups_save(hass: HomeAssistant, connection, msg: dict[str, Any]) -> None:
+    """Save a set of widgets, with their bindings, as a group to drop into any pane."""
+    problems, group = await _manager(hass).save_group(msg["name"], msg["widgets"], msg["bindings"])
+    if problems:
+        _fail(connection, msg, websocket_api.ERR_INVALID_FORMAT, problems)
+        return
+    connection.send_result(msg["id"], {"group": group, "groups": await _manager(hass).list_groups()})
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({Required("type"): f"{DOMAIN}/groups/delete", Required("group_id"): str})
+@websocket_api.async_response
+async def ws_groups_delete(hass: HomeAssistant, connection, msg: dict[str, Any]) -> None:
+    if not await _manager(hass).delete_group(msg["group_id"]):
+        _fail(connection, msg, websocket_api.ERR_NOT_FOUND, f"there is no group '{msg['group_id']}'")
+        return
+    connection.send_result(msg["id"], {"groups": await _manager(hass).list_groups()})
 
 
 COMMANDS = (
     ws_media_list, ws_media_add, ws_media_delete, ws_slideshow_list, ws_picture_url,
     ws_panes_list, ws_panes_get, ws_panes_save, ws_panes_create, ws_panes_update, ws_panes_delete,
     ws_displays_list, ws_displays_save, ws_displays_delete, ws_login_create, ws_login_revoke,
-    ws_bindings_get, ws_bindings_set, ws_widgets_list,
-    ws_mirror_connect, ws_mirror_status, ws_mirror_presence, ws_mirror_tune, ws_mirror_brightness, ws_mirror_measure, ws_mirror_audio,
+    ws_bindings_get, ws_bindings_set, ws_widgets_list, ws_groups_list, ws_groups_save, ws_groups_delete,
+    ws_mirror_connect, ws_mirror_pair, ws_mirror_status, ws_mirror_presence, ws_mirror_tune, ws_mirror_brightness, ws_mirror_measure, ws_mirror_audio,
 )
 
 

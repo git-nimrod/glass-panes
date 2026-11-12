@@ -88,6 +88,19 @@ def _is_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
+def _style_rule_errors(where: str, rule: dict[str, Any]) -> list[str]:
+    """One conditional-formatting rule: the test needs the right kind of value."""
+    test, value = rule.get("test"), rule.get("value")
+    if test in ("above", "below"):
+        return [] if _is_number(value) and "to" not in rule else [f"{where}: '{test}' needs a number as the value (and no 'to')"]
+    if test == "between":
+        return [] if _is_number(value) and _is_number(rule.get("to")) else [f"{where}: 'between' needs a number value and a number 'to'"]
+    texts = value if isinstance(value, list) else [value]
+    if "to" in rule or not texts or not all(isinstance(t, str) and t != "" for t in texts):
+        return [f"{where}: '{test}' needs the state to compare with, as text or a list of texts (and no 'to')"]
+    return []
+
+
 def rule_errors(widgets: dict[str, dict[str, Any]]) -> list[str]:
     """Check every widget's `show_when` rule (and the older `flow.show_if`) in plain language. Assumes the structure already passed
     the schema. Widget references must exist, each kind must carry the right fields, and rules must not wait on each other in a circle
@@ -130,6 +143,22 @@ def rule_errors(widgets: dict[str, dict[str, Any]]) -> list[str]:
                 elif kind == "time" and cond.get("from") == cond.get("to"):
                     errors.append(f"{where}: the time window starts and ends at {cond.get('from')}, so it is empty or all day; use two different times, or remove the condition")
         waits_on[wid] = refs
+        if widget.get("type") == "table":
+            for number, column in enumerate((widget.get("options") or {}).get("columns", []), start=1):
+                where = f"widget '{wid}', column {number}"
+                source = column.get("source")
+                if source == "attribute" and not column.get("attribute"):
+                    errors.append(f"{where}: an 'attribute' column needs the attribute's name")
+                if source == "text" and not column.get("text"):
+                    errors.append(f"{where}: a 'text' column needs the words to show")
+                if source != "attribute" and "attribute" in column:
+                    errors.append(f"{where}: 'attribute' is only used by an 'attribute' column")
+                if source != "text" and "text" in column:
+                    errors.append(f"{where}: 'text' is only used by a 'text' column")
+                for rule_number, column_rule in enumerate(column.get("style_rules", []) or [], start=1):
+                    errors.extend(_style_rule_errors(f"{where}, style rule {rule_number}", column_rule))
+        for number, style_rule in enumerate(widget.get("style_rules", []) or [], start=1):
+            errors.extend(_style_rule_errors(f"widget '{wid}', style rule {number}", style_rule))
 
     # circles: report each once, as a path that ends where it began
     state: dict[str, int] = {}

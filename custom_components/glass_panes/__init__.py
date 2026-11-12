@@ -20,7 +20,7 @@ from homeassistant.helpers import llm
 from homeassistant.loader import async_get_integration
 
 from . import api, ws_api
-from .assets import AssetsView
+from .assets import AssetsView, IconsView
 from .const import DOMAIN, LOGGER
 from .llm_api import GlassPanesAPI
 from .manager import Manager, remove_login_user
@@ -28,7 +28,7 @@ from .panes import PaneChecker, load_shipped
 from .services import async_register_services, async_remove_services
 from .storage import BindingsStore, DisplayStore, DraftStore, MediaStore, PaneStore
 
-PLATFORMS = [Platform.SELECT, Platform.BUTTON, Platform.MEDIA_PLAYER]
+PLATFORMS = [Platform.SELECT, Platform.BUTTON, Platform.MEDIA_PLAYER, Platform.NUMBER, Platform.SWITCH]
 
 # The folders handed out over the web (without a login) are listed, with the reasons, in assets.py.
 
@@ -45,6 +45,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # served by our own view (assets.py) so every file carries "Cache-Control: no-cache": a browser or the kiosk app then
         # re-checks it on each load and picks up an update straight away, instead of guessing how long to keep an old copy
         hass.http.register_view(AssetsView(hass, base))
+        hass.http.register_view(IconsView(hass, base / "player" / "icons"))
         # a view cannot be un-registered, so do it once per Home Assistant run even if the entry is reloaded
         data["static_registered"] = True
 

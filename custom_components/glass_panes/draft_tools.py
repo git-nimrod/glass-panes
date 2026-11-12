@@ -89,6 +89,8 @@ TOOLS: tuple[Tool, ...] = (
             Field("style", "object", "Style: font, size, weight, color, opacity, align, italic, uppercase, letter_spacing, line_height."),
             Field("auto_height", "boolean", "Let the height follow the content."),
             Field("entities", "object", "Entities for this widget: {slot: entity id or list}.", example='{"weather": "weather.home"}'),
+            Field("style_rules", "any", "Conditional formatting for a widget with an `entity` slot: a list of up to 8 rules, the first that holds wins. Each is {test: above|below|between|is|is_not, value, to (between only), attribute (optional), style: {color, size, weight, opacity, icon}}.",
+                  example='[{"test": "above", "value": 30, "style": {"color": "bad"}}]'),
         ),
     ),
     Tool(
@@ -105,7 +107,15 @@ TOOLS: tuple[Tool, ...] = (
             Field("show_when", "object", "A rule that switches the widget on and off: {match: all|any, conditions: [...]}. See get_schema for the condition kinds.",
                   example='{"conditions": [{"kind": "empty", "widget": "sports"}]}'),
             Field("clear_show_when", "boolean", "Remove the widget's show-when rule."),
+            Field("style_rules", "any", "Replace the widget's conditional formatting (see add_widget).", example='[{"test": "below", "value": 20, "style": {"color": "warn"}}]'),
+            Field("clear_style_rules", "boolean", "Remove the widget's conditional formatting."),
         ),
+    ),
+    Tool(
+        "add_group", "Add a saved group",
+        "Add a widget group the person saved in the builder (a set of widgets with their look and entities, such as a table with its title) to the draft. "
+        "Give the group's id. If it is not known, the error lists the saved groups. The widgets get new ids and land in the first free spot.",
+        (DRAFT, Field("group", "text", "The group's id.", True, "trips_table")),
     ),
     Tool(
         "place_widget", "Move or resize a widget",
@@ -192,7 +202,7 @@ async def call(manager: Manager, name: str, data: dict[str, Any]) -> dict[str, A
 
     draft_id = data.get("draft")
     if name == "add_widget":
-        args = _present(data, "name", "x", "y", "w", "h", "below", "gap", "options", "style", "auto_height", "entities")
+        args = _present(data, "name", "x", "y", "w", "h", "below", "gap", "options", "style", "auto_height", "entities", "style_rules")
         problems, result = await manager.edit_draft(draft_id, "add_widget", type=data.get("type"), **args)
     elif name == "update_widget":
         args = _present(data, "name", "options", "style", "auto_height", "when_hidden")
@@ -200,10 +210,16 @@ async def call(manager: Manager, name: str, data: dict[str, Any]) -> dict[str, A
             args["show_when"] = None
         elif data.get("show_when") is not None:
             args["show_when"] = data["show_when"]
+        if data.get("clear_style_rules"):
+            args["style_rules"] = None
+        elif data.get("style_rules") is not None:
+            args["style_rules"] = data["style_rules"]
         problems, result = await manager.edit_draft(draft_id, "update_widget", widget=data.get("widget"), **args)
     elif name == "place_widget":
         args = _present(data, "x", "y", "w", "h", "below", "gap")
         problems, result = await manager.edit_draft(draft_id, "place_widget", widget=data.get("widget"), snap_to_grid=bool(data.get("snap")), **args)
+    elif name == "add_group":
+        problems, result = await manager.edit_draft(draft_id, "add_group", group=data.get("group"))
     elif name == "remove_widget":
         problems, result = await manager.edit_draft(draft_id, "remove_widget", widget=data.get("widget"))
     elif name == "bind_widget":

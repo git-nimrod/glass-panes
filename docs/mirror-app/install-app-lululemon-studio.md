@@ -107,6 +107,21 @@ Skip it if you don't want presence detection. The rest of the app works without 
 
 ## 7. Start the app and point it at your display
 
+### The short way: pair with a code (app 0.12.0 and newer)
+
+If your app is 0.12.0 or newer, skip steps 6 and 7 below. You don't make a login or run a long command.
+
+1. Start the app on the mirror (restart the mirror, or run `adb shell am start -n com.nimrod.mirrorkiosk/.MainActivity`). A mirror that is not set up shows **a six-digit code and its own address** on the screen.
+2. In Home Assistant open **Glass Panes**, then **Displays**, and on your display press **Pair a mirror…**.
+3. Type the six digits and the mirror's address (shown under the code), check the Home Assistant address (it must be the one **the mirror** can reach, such as `http://homeassistant.local:8123`, not `localhost`), and press **Pair**.
+4. **Expected:** a message that the mirror is set up, and a moment later your pane on the mirror. Nothing was copied or pasted: Home Assistant made the display's login and sent it straight to the mirror.
+
+If the code is refused, check the digits on the screen. After five wrong tries the mirror waits a minute and shows a new code. To pair a mirror that is already set up (for example after moving to a new Home Assistant), run `adb shell "am start -n com.nimrod.mirrorkiosk/.MainActivity --es pair 1"`, which shows a code again.
+
+The code and the login travel over your home network as plain `http`, like everything else between the mirror and Home Assistant. Pair on your own network, not a shared one.
+
+The older way, with a login token and one `adb` command, still works and is described next.
+
 People most often get stuck at this step, usually on a small typo. Take it in three short parts.
 
 ### 7a. Get your player address from Glass Panes

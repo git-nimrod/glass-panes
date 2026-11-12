@@ -84,6 +84,27 @@
         "line_height": { "type": "number", "minimum": 0.8, "maximum": 3 }
       }
     },
+    "style_rule": {
+      "type": "object",
+      "required": ["test", "style"],
+      "additionalProperties": false,
+      "properties": {
+        "test": { "enum": ["above", "below", "is", "is_not", "between"] },
+        "value": { "description": "above/below/between: a number (the low end for between). is/is_not: a state as text, or a list of texts.", "oneOf": [ { "type": "number" }, { "type": "string", "maxLength": 80 }, { "type": "array", "minItems": 1, "maxItems": 10, "items": { "type": "string", "maxLength": 80 } } ] },
+        "to": { "type": "number", "description": "between: the high end. The range includes both ends." },
+        "attribute": { "type": "string", "maxLength": 64, "description": "Test this attribute of the entity instead of its state." },
+        "style": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "color": { "$ref": "#/$defs/color" },
+            "size": { "type": "integer", "minimum": 8, "maximum": 400 },
+            "weight": { "type": "integer", "minimum": 100, "maximum": 900, "multipleOf": 100 },
+            "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+            "icon": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "maxLength": 64, "description": "Swap the icon of an Icon widget (or the icon beside an entity value) while the rule holds." }
+          }
+        }
+      }
+    },
     "show_when": {
       "description": "A rule that switches a widget on and off. The widget is shown while the rule holds. Never holds an entity id: an entity condition names a slot (when_...) and the entity is bound to that slot in the bindings, like any other widget entity.",
       "type": "object",
@@ -125,7 +146,7 @@
         "name": { "type": "string", "maxLength": 80, "description": "Label shown in the builder." },
         "type": {
           "enum": [
-            "clock", "date", "text", "image", "slideshow", "video", "divider", "message", "entity_value", "weather",
+            "clock", "date", "text", "image", "slideshow", "video", "divider", "icon", "table", "message", "entity_value", "weather",
             "calendar_agenda", "todo_list", "now_playing", "people", "lights_summary", "status_summary",
             "progress_ring", "sports", "news"
           ]
@@ -158,6 +179,10 @@
           }
         },
         "show_when": { "$ref": "#/$defs/show_when" },
+        "style_rules": {
+          "type": "array", "maxItems": 8, "items": { "$ref": "#/$defs/style_rule" },
+          "description": "Conditional formatting for a widget with an `entity` slot (entity value, progress ring, message, image): the first rule that matches the entity's state (or one attribute) changes the widget's colour, size, weight or opacity."
+        },
         "when_hidden": {
           "enum": ["collapse", "keep"],
           "default": "collapse",
@@ -174,6 +199,8 @@
         { "if": { "properties": { "type": { "const": "video" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_video" } } } },
         { "if": { "properties": { "type": { "const": "divider" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_divider" } } } },
         { "if": { "properties": { "type": { "const": "message" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_message" } } } },
+        { "if": { "properties": { "type": { "const": "table" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_table" } } } },
+        { "if": { "properties": { "type": { "const": "icon" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_icon" } } } },
         { "if": { "properties": { "type": { "const": "entity_value" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_entity_value" } } } },
         { "if": { "properties": { "type": { "const": "weather" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_weather" } } } },
         { "if": { "properties": { "type": { "const": "calendar_agenda" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_calendar_agenda" } } } },
@@ -257,7 +284,14 @@
     "opt_divider": {
       "type": "object",
       "additionalProperties": false,
-      "properties": { "thickness": { "type": "integer", "minimum": 1, "maximum": 20, "default": 2 } }
+      "properties": {
+        "thickness": { "type": "integer", "minimum": 1, "maximum": 20, "default": 2 },
+        "style": { "type": "string", "enum": ["solid", "dashed", "dotted", "double", "fade"], "default": "solid", "description": "How the line is drawn. A box uses solid, dashed or dotted for its outline." },
+        "look": { "type": "string", "enum": ["line", "box"], "default": "line", "description": "line: a rule between sections. box: an outline with rounded corners that frames a group of widgets (it is always shown, even with nothing above it)." },
+        "radius": { "type": "integer", "minimum": 0, "maximum": 200, "default": 24, "description": "Corner radius of a box, in pixels." },
+        "fill": { "type": "string", "pattern": "^(fg|dim|faint|accent|warn|good|bad|#[0-9a-fA-F]{6})$", "description": "Optional soft fill inside a box: a theme colour (fg, dim, faint, accent, warn, good, bad) or #rrggbb." },
+        "fill_opacity": { "type": "integer", "minimum": 0, "maximum": 100, "default": 10, "description": "How strong the box fill is, in percent." }
+      }
     },
     "opt_message": {
       "type": "object",
@@ -269,17 +303,55 @@
         "suffix": { "type": "string", "maxLength": 60 }
       }
     },
+    "table_column": {
+      "type": "object",
+      "required": ["source"],
+      "additionalProperties": false,
+      "properties": {
+        "header": { "type": "string", "maxLength": 40 },
+        "source": { "enum": ["name", "state", "attribute", "text"], "description": "name: the entity's name. state: its state. attribute: one attribute (give `attribute`). text: fixed words (give `text`), the same in every row." },
+        "attribute": { "type": "string", "pattern": "^[a-z0-9_]{1,64}$", "description": "source attribute: the attribute's name (never an entity id)." },
+        "text": { "type": "string", "maxLength": 80 },
+        "format": { "enum": ["auto", "time", "date", "datetime", "relative", "duration", "number", "raw"], "default": "auto", "description": "How the value is shown. duration turns minutes (see duration_unit) into '1 h 15 min'; number formats a plain number." },
+        "decimals": { "type": "integer", "minimum": 0, "maximum": 6 },
+        "unit": { "type": "string", "maxLength": 20 },
+        "duration_unit": { "enum": ["seconds", "minutes", "hours"], "default": "minutes" },
+        "align": { "enum": ["left", "center", "right"], "default": "left" },
+        "style_rules": { "type": "array", "maxItems": 8, "items": { "$ref": "#/$defs/style_rule" }, "description": "Conditional formatting of this column's cells, looking at each cell's own value (an `attribute` inside a rule is ignored)." }
+      }
+    },
+    "opt_table": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "columns": { "type": "array", "minItems": 1, "maxItems": 8, "items": { "$ref": "#/$defs/table_column" } },
+        "show_header": { "type": "boolean", "default": true },
+        "max_rows": { "type": "integer", "minimum": 1, "maximum": 30, "default": 8 }
+      }
+    },
+    "opt_icon": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "icon": { "type": "string", "pattern": "^([a-z0-9]+(-[a-z0-9]+)*|auto)$", "maxLength": 64, "description": "A Material Design Icons name such as thermometer or door-open (no mdi: prefix), or auto for the bound entity's own icon. Empty with an entity bound also means auto." }
+      }
+    },
     "opt_entity_value": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "icon": { "type": "string", "pattern": "^([a-z0-9]+(-[a-z0-9]+)*|auto)$", "maxLength": 64, "description": "Show an icon before the value: a Material Design Icons name, or auto for the entity's own icon." },
+        "look": { "enum": ["plain", "tile", "chip"], "default": "plain", "description": "plain: the value as text. tile: a rounded card with the icon in a tinted circle, the name over the value. chip: a small pill with the icon and the value. A tile or chip uses the entity's own icon unless `icon` names another." },
+        "show_icon": { "type": "boolean", "default": true, "description": "Tile and chip: show the icon." },
+        "radius": { "type": "integer", "minimum": 0, "maximum": 200, "default": 28, "description": "Tile: the corner radius in pixels (a chip is always fully round)." },
         "label": { "type": "string", "maxLength": 80 },
         "show_label": { "type": "boolean", "default": true },
         "unit": { "type": ["string", "null"], "maxLength": 20, "description": "null = use the entity's own unit." },
         "decimals": { "type": "integer", "minimum": 0, "maximum": 6 },
         "thousands_separator": { "type": "boolean", "default": true },
         "attribute": { "type": "string", "pattern": "^[a-z0-9_]{1,64}$", "description": "Show this attribute of the entity instead of its state (an attribute name, never an entity id)." },
-        "format": { "type": "string", "enum": ["auto", "relative", "time", "date", "datetime", "raw"], "default": "auto", "description": "How a date or time is shown. auto: '12 min ago' for recent moments, a date otherwise; raw: exactly as Home Assistant has it." },
+        "format": { "type": "string", "enum": ["auto", "relative", "time", "date", "datetime", "duration", "raw"], "default": "auto", "description": "How a date, time or duration is shown. duration turns a number of minutes (see duration_unit) into '1 h 15 min'. auto: '12 min ago' for recent moments, a date otherwise; raw: exactly as Home Assistant has it." },
+        "duration_unit": { "enum": ["seconds", "minutes", "hours"], "default": "minutes", "description": "What a number means when format is duration." },
         "raw_state": { "type": "boolean", "default": false, "description": "Show the state as Home Assistant stores it ('on') instead of words ('Open')." }
       }
     },

@@ -82,7 +82,7 @@ get_bindings:
 save_display:
   fields:
     name:
-      required: true
+      required: false
       example: Hallway mirror
       selector:
         text:
@@ -298,6 +298,10 @@ add_widget:
       example: "{\"weather\": \"weather.home\"}"
       selector:
         object:
+    style_rules:
+      example: "[{\"test\": \"above\", \"value\": 30, \"style\": {\"color\": \"bad\"}}]"
+      selector:
+        object:
 
 update_widget:
   fields:
@@ -336,6 +340,26 @@ update_widget:
     clear_show_when:
       selector:
         boolean:
+    style_rules:
+      example: "[{\"test\": \"below\", \"value\": 20, \"style\": {\"color\": \"warn\"}}]"
+      selector:
+        object:
+    clear_style_rules:
+      selector:
+        boolean:
+
+add_group:
+  fields:
+    draft:
+      required: true
+      example: "d_1a2b3c4d"
+      selector:
+        text:
+    group:
+      required: true
+      example: "trips_table"
+      selector:
+        text:
 
 place_widget:
   fields:

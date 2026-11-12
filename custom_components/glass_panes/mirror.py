@@ -68,6 +68,8 @@ async def call(hass: HomeAssistant, endpoint: str, key: str | None, path: str, p
         raise MirrorError("Could not reach the mirror. Check its address and that the mirror app is running.") from None
     if 300 <= status < 400:
         raise MirrorError("The mirror answered with a redirect. Redirects are never followed, so nothing was done. Check the address.")
+    if status == 403 and path == "/pair":
+        raise MirrorError("The mirror did not accept that code. Check the six digits on its screen. After five wrong tries it waits a minute and shows a new code.")
     if status == 403:
         raise MirrorError("The mirror refused the key. Set the key again (it must match the one given to the app) or clear it.")
     if len(body) > MAX_BYTES:

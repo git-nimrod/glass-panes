@@ -16,8 +16,9 @@ An agent works in a **draft**. A draft is private. It isn't shown on any display
 | Learn the rules | `get_schema` | The widget types, their options and entity slots, the 1080 x 1920 canvas, the 40 px grid and the layout notes. Call this first. |
 | Start | `start_draft` | Blank (give a `name`), a copy of a pane (`copy_from`), or a working copy of a pane you want to change (`edit`). Returns the draft's id. At most 10 drafts at a time. |
 | Add | `add_widget` | A widget of a given `type`. It goes at `x` and `y`, or directly under another widget (`below`), or in the first free spot. Give `entities` to bind it in the same step. |
-| Change | `update_widget` | Name, options, style, `auto_height`, `when_hidden` and the `show_when` rule. Options and style are merged over what's there, and `null` removes a key. |
+| Change | `update_widget` | Name, options, style, `auto_height`, `when_hidden`, the `show_when` rule and `style_rules` (conditional formatting). Options and style are merged over what's there, and `null` removes a key. |
 | Move and resize | `place_widget` | `x`, `y`, `w`, `h`, or `below` another widget. Everything stays on the canvas. `snap` rounds to the 40 px grid. |
+| Reuse | `add_group` | Drops a widget group the person saved in the builder (for example a table with its title) into the draft: new ids, the first free spot, and the group's entities bound. If the id is wrong, the error lists the saved groups. |
 | Bind entities | `bind_widget` | Bind an entity (or a list) to one of a widget's slots, or clear it. Slot names and the right kind of entity come from `get_schema`. |
 | Tidy | `align_widgets` | left, center, right, top, middle, bottom, same-width, same-height, and (three or more) distribute-h and distribute-v. |
 | The pane itself | `set_pane` | Name, description, theme, background colour, brightness, `fade` (show-when widgets fade in and out; new drafts start with it on) and `burn_in_saver` (the whole pane drifts slowly). |
@@ -75,6 +76,18 @@ Several widgets can share an area, with a rule deciding which one shows. Put a r
 `"show_when": {"match": "all", "conditions": [...]}`. Condition kinds: `{"kind": "has_content", "widget": "<id>"}`, `{"kind": "empty", "widget": "<id>"}` (a fallback that takes the place of another widget), `{"kind": "entity", "slot": "when_door", "test": "is", "value": "on"}` (`is`, `is_not`, `above`, `below`, `unavailable`), `{"kind": "time", "from": "22:00", "to": "06:00"}` (display timezone; through midnight when `from` is later), `{"kind": "days", "days": ["sat", "sun"]}`. Add `"when_hidden": "keep"` to make an off or empty widget hold its space instead of letting the widgets below move up.
 
 In a draft, set a rule with `update_widget` (`show_when`) and bind its `when_` slot with `bind_widget`. An entity condition names a slot, never an entity: outside a draft, bind it with `set_pane_bindings`, for example `{"door_warning": {"when_door": "binary_sensor.xyz"}}`. Until it is bound the widget stays off. `save_pane` refuses a rule, with the reason, if it names a widget that is not in the pane, waits on itself or in a circle (A needs B and B needs A), has a bad time or value, or is attached to a looping video. `get_schema` returns the full description (`pane_schema` has `show_when` and `condition`) and a short example. Details and examples: [pane-schema.md](pane-schema.md#show-when-widgets-that-switch-on-and-off).
+
+## Newer widgets and options an agent can use
+
+`get_schema` lists all of these in its widget catalogue and notes; this is the short version.
+
+- **Tiles and chips.** An `entity_value` with `options.look: tile` is a rounded card (the icon in a tinted circle, the name over the value); `look: chip` is a small pill with the icon and the value. Both use the entity's own icon unless `icon` names another (`show_icon: false` hides it), and a `style_rules` colour tints the icon while the words keep the theme's colours.
+- **Icons.** (The mirror asks Home Assistant for only the icons a pane draws.) The `icon` widget, or `options.icon` on an `entity_value`, takes a Material Design Icons name without the `mdi:` prefix (`thermometer`, `door-open`), or `auto` for the bound entity's own icon.
+- **Tables.** A `table` binds several entities to its `rows` slot (one row each). `options.columns` says what each column shows: `source` is `name`, `state`, `attribute` (with `attribute`) or `text` (with `text`), plus `header`, `format` (`auto`, `time`, `date`, `datetime`, `relative`, `duration`, `number`, `raw`), `decimals`, `unit`, `duration_unit`, `align`.
+- **Conditional formatting.** `style_rules` on a widget with an `entity` slot, or on a table column: `[{"test": "above", "value": 30, "style": {"color": "bad"}}]`. Tests are `above`, `below`, `between` (with `to`), `is` and `is_not`. The style may change `color`, `size`, `weight`, `opacity` and `icon`. The first rule that holds wins.
+- **Dividers.** `options.style` is `solid`, `dashed`, `dotted`, `double` or `fade`. `options.look: box` draws a rounded outline (`radius`, `fill`, `fill_opacity`) around a group of widgets.
+- **Warnings.** A `status_summary`'s `checks` slot takes entity ids or rules `{entity, name, text, bad: [states]}`, `{ok: [states]}`, `{below: n}` or `{above: n}`.
+- **Time zones.** A display's `timezone` can be left empty to follow Home Assistant's own.
 
 ## What is not built yet
 

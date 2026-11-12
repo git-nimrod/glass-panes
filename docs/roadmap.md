@@ -1,6 +1,6 @@
 # Roadmap
 
-What we plan to build next, and what each piece depends on. Treat everything here as a plan. There are no dates, the order can change, and any item can be dropped if it turns out not to work on the hardware. It was last updated for v0.11.0 (November 2026).
+What we plan to build next, and what each piece depends on. Treat everything here as a plan. There are no dates, the order can change, and any item can be dropped if it turns out not to work on the hardware. It was last updated for v0.12.0 (November 2026).
 
 Each item says where it stands now:
 
@@ -8,9 +8,11 @@ Each item says where it stands now:
 - Hardware checked: we tested that the mirror can do the underlying thing, and nothing else is built yet.
 - In progress: someone is working on it.
 
-## What v0.11.0 already does
+## What v0.12.0 already does
 
-A photo slideshow, pictures from image and camera entities, the mirror's own speaker as a Home Assistant media player (Music Assistant works), a printed-CD look for Now playing, clock looks and time zones, and a Settings page. The full list is in the [v0.11.0 release notes](release-notes/v0.11.0.md).
+Icons, tiles and chips, a Table widget, colours and sizes that follow a value, a widget catalogue, an editable warnings list, reusable widget groups, a snap grid and zoom, a time zone per display, pairing a mirror with a six-digit code, a Brightness number and a Presence detection switch per mirror with a blueprint that uses them, and a mirror app that starts up cleanly after a power cut. The full list is in the [v0.12.0 release notes](release-notes/v0.12.0.md).
+
+Before that, v0.11.0 added a photo slideshow, pictures from image and camera entities, the mirror's own speaker as a Home Assistant media player (Music Assistant works), a printed-CD look for Now playing, clock looks and time zones, and a Settings page ([v0.11.0 release notes](release-notes/v0.11.0.md)).
 
 ## 1. Bluetooth proxy
 
@@ -23,7 +25,7 @@ How we plan to do it:
 - Scanning is limited so it doesn't starve the camera and the page.
 - It needs the Android location permission for scanning, which the 0.11.0 app already declares for its Bluetooth test. The app does not read your location.
 - It would be off until you turn it on, with a switch on the Settings page.
-- It would come in a new app version, 0.12 or later, with the Home Assistant side following.
+- It would come in a new app version, 0.13 or later, with the Home Assistant side following.
 
 Why first: it is the smaller of the two, and it has no privacy question.
 
@@ -70,14 +72,10 @@ We don't publish instructions for building or modifying system images. We link t
 
 These are ideas with no order:
 
-- A presence on/off switch per display in Home Assistant, so it can sit on a dashboard and be used in automations.
-- Screen on/off and brightness driven by motion and light sensors. This waits on a backlight test on the mirror.
-- A shorter setup for the mirror, instead of one long command: an in-app pairing screen or a QR code.
-- A plain message on the mirror when it is signed in but the pane has nothing to draw.
+- A screen on/off switch, and brightness driven by light sensors. This waits on a backlight test on the mirror. (Brightness and presence as Home Assistant entities arrived in v0.12.0.)
 - A direct player in the app (DLNA or Sendspin) so Music Assistant sees the mirror without Home Assistant in between.
 - A game scores card and a few experiments with video.
 - A page per board revision (what works, exact files and commands), and a guide to getting fastboot working on Linux.
-- A builder polish pass (the tablet layout and a few overlapping labels).
 - Cutting the mirror's memory use.
 
 ## Tell us what matters

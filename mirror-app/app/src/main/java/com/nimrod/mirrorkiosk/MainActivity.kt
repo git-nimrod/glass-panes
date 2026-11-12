@@ -339,9 +339,8 @@ class MainActivity : Activity() {
     private fun loadPage() {
         val p = Kiosk.prefs(this)
         val url = p.getString("url", "") ?: ""
-        if (url.isEmpty()) {                          // nothing to show yet: say so instead of staying blank
-            Kiosk.pageOk = false
-            showSplash(getString(R.string.splash_not_set_up))
+        if (url.isEmpty() || p.getBoolean("pairing", false)) {          // nothing to show yet (or pairing again): show the pairing code instead of staying blank
+            showPairingScreen()
             return
         }
         val token = p.getString("token", "") ?: ""
@@ -361,6 +360,15 @@ class MainActivity : Activity() {
         )
     }
 
+    /** The launch screen for a mirror that is not set up: the six-digit code to enter in Glass Panes, and this mirror's address. */
+    fun showPairingScreen() {
+        Kiosk.pageOk = false
+        val ip = PairLogic.localAddress()
+        val text = getString(R.string.splash_pairing, PairLogic.pretty(Kiosk.pair.code)) +
+            (if (ip.isNotEmpty()) "\n" + getString(R.string.splash_pairing_address, ip) else "")
+        showSplash(text)
+    }
+
     fun reloadPage() {
         // A full load (rather than a plain reload) also re-supplies the token if storage was wiped.
         loadPage()
@@ -373,6 +381,7 @@ class MainActivity : Activity() {
         e?.getString("url")?.let { ed.putString("url", it); changed = true }
         e?.getString("token")?.let { ed.putString("token", it); changed = true }
         e?.getString("key")?.let { ed.putString("key", it) }
+        e?.getString("pair")?.let { ed.putBoolean("pairing", it == "1"); changed = true }          // --es pair 1: show the pairing code again
         e?.getString("webhook")?.let { ed.putString("presence_webhook", it) }
         e?.getString("alive_webhook")?.let { ed.putString("alive_webhook", it) }
         e?.getString("rotation")?.let {

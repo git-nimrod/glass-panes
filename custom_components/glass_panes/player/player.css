@@ -73,7 +73,7 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; cursor
 .gp-np { display: flex; align-items: center; height: 100%; }
 .gp-np-art { position: relative; flex: none; }
 .gp-np-glow, .gp-np-img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; border-radius: .45em; }
-.gp-np-glow { filter: blur(28px); opacity: .6; transform: scale(1.15); }
+.gp-np-glow { opacity: .6; transform: scale(1.15); }          /* a 128 px copy scaled up is soft by itself: no blur filter, which would cost an offscreen surface */
 .gp-np-info { min-width: 0; flex: 1; line-height: 1.2; }
 .gp-np-src { margin-top: .5em; color: var(--gp-src); letter-spacing: .14em; text-transform: uppercase; display: flex; align-items: center; }
 .gp-eq { display: inline-flex; align-items: flex-end; height: .9em; margin-right: .8em; }

@@ -6,7 +6,8 @@
 
 import { widgets } from './widgets.js';
 import { applyTheme, paneBackground } from './themes.js';
-import { widgetShouldShow, conditionsOf, entitySlots, usesClock, clockOf, evaluateCondition, nextMinuteDelay } from './conditions.js';
+import { widgetShouldShow, conditionsOf, entitySlots, usesClock, clockOf, evaluateCondition, nextMinuteDelay, styledFor, STYLE_SLOT } from './conditions.js';
+import { isSeparator } from './util.js';
 
 export const COLORS = { fg: 'var(--gp-fg)', dim: 'var(--gp-dim)', faint: 'var(--gp-faint)', accent: 'var(--gp-accent)', warn: 'var(--gp-warn)', good: 'var(--gp-good)', bad: 'var(--gp-bad)' };
 export const FONTS = {
@@ -105,10 +106,10 @@ export class PaneRenderer {
   _applyStyle(node, type, st) {
     const s = node.style;
     s.fontFamily = FONTS[st.font] || '';
-    if (st.size) s.fontSize = st.size + 'px';
-    if (st.weight) s.fontWeight = st.weight;
+    s.fontSize = st.size ? st.size + 'px' : '';             // cleared when absent, so a style rule that stops matching puts the old look back
+    s.fontWeight = st.weight || '';
     s.color = st.color ? (COLORS[st.color] || st.color) : '';
-    if (st.opacity != null) s.opacity = st.opacity;
+    s.opacity = st.opacity != null ? st.opacity : '';
     if (st.align) s.textAlign = st.align;
     node.dataset.align = st.align || 'left';   // lets the CSS line up lists, rows and flex layouts the same way
     if (st.italic) s.fontStyle = 'italic';
@@ -136,7 +137,7 @@ export class PaneRenderer {
     this.stage.appendChild(root);
 
     const self = this;
-    const inst = { root, spec: w, timers: [], fns: [], destroy: [], alive: true };
+    const inst = { root, spec: w, timers: [], fns: [], destroy: [], alive: true, styleFns: [] };
     const debounced = (fn) => {
       let t = null;
       return () => { clearTimeout(t); t = setTimeout(fn, 250); };
@@ -145,6 +146,7 @@ export class PaneRenderer {
       root, data: this.pick ? this.pick(w, slots) : this.client, time: this.time, slots, opts: w.options || {}, style: w.style || {}, w: w.w, h: w.h,
       paneId: pane.id, widgetId: w.id, assetBase: this.assetBase, kiosk: this.kiosk, appUrl: this.appUrl,
       onDestroy: (fn) => inst.destroy.push(fn),
+      onStyle: (fn) => inst.styleFns.push(fn),          // called with the style the widget wears now (its own plus a matching style rule)
       refresh(fn, ids, ms) {
         const run = () => { if (inst.alive) Promise.resolve().then(fn).catch((e) => self.onError(w.type + '/' + w.id, e)); };
         run();
@@ -177,6 +179,7 @@ export class PaneRenderer {
     let clock = false;
     (pane.widgets || []).forEach((w) => {
       entitySlots(w).forEach((slot) => { const id = this._entityOf(w.id, slot); if (id) ids.add(id); });
+      if (w.style_rules && w.style_rules.length) { const id = this._entityOf(w.id, STYLE_SLOT); if (id) ids.add(id); }      // conditional formatting reads the entity too
       if (usesClock(w)) clock = true;
     });
     const gen = this.generation;
@@ -185,6 +188,7 @@ export class PaneRenderer {
         Promise.resolve(this.client.state(id)).then((s) => {
           if (gen !== this.generation) return;
           this.entityStates.set(id, s || null);
+          this._restyleAll();
           this.scheduleLayout();
         }).catch(() => { /* keep the last known state */ });
       };
@@ -203,6 +207,20 @@ export class PaneRenderer {
       };
       this.ruleTimer = setTimeout(tick, nextMinuteDelay(Date.now()));
     }
+  }
+
+  /** Conditional formatting: each widget with `style_rules` wears its own style plus the first matching rule's changes. */
+  _restyleAll() {
+    this.mounted.forEach((inst) => {
+      const w = inst.spec;
+      if (!w.style_rules || !w.style_rules.length) return;
+      const id = this._entityOf(w.id, STYLE_SLOT);
+      const { style, rule } = styledFor(w, id ? this.entityStates.get(id) : undefined);
+      this._applyStyle(inst.root, w.type, style);
+      inst.styleFns.forEach((fn) => { try { fn(style); } catch (e) { this.onError(w.type + '/' + w.id, e); } });
+      const mark = rule ? String(w.style_rules.indexOf(rule) + 1) : '';
+      if ((inst.root.dataset.gpRule || '') !== mark) { if (mark) inst.root.dataset.gpRule = mark; else delete inst.root.dataset.gpRule; }      // lets tests see which rule won
+    });
   }
 
   /** What every time or day condition says right now, as a string: it changes only when one of them flips. */
@@ -269,7 +287,7 @@ export class PaneRenderer {
     const hasContentAfter = (id, seen) => {
       if (seen.has(id)) return false;
       seen.add(id);
-      return (dependents.get(id) || []).some((d) => (d.spec.type !== 'divider' && !contentless(d)) || hasContentAfter(d.spec.id, seen));
+      return (dependents.get(id) || []).some((d) => (!isSeparator(d.spec) && !contentless(d)) || hasContentAfter(d.spec.id, seen));
     };
 
     const place = (inst, trail) => {
@@ -289,7 +307,7 @@ export class PaneRenderer {
         if (pred) top = pred.top + pred.h + (f.gap || 0);
         else if (firstTop !== null) top = firstTop;
         // a divider only shows between two things that have content: not after nothing, not after another divider, not before nothing
-        if (s.type === 'divider' && (!pred || pred.spec.type === 'divider' || !hasContentAfter(s.id, new Set()))) hidden = true;
+        if (isSeparator(s) && (!pred || pred.spec.type === 'divider' || !hasContentAfter(s.id, new Set()))) hidden = true;
       }
       const nothing = hidden || (s.auto_height && inst.h === 0);
       const keep = s.when_hidden === 'keep';

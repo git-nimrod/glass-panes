@@ -51,10 +51,16 @@ That has two benefits:
 - `auto_height`: the widget's height follows its content instead of staying `h`. With nothing to show it takes no space.
 - `flow`: `{ "after": <widget id or several>, "gap": <px>, "show_if": <widget id> }` places the widget below whatever it follows, wherever that ends up. A section that grows pushes the next one down instead of landing on it.
   - Empty things above are skipped over.
-  - A `divider` only shows when something other than a divider is above it.
+  - In the builder, dragging a widget that is placed below another keeps the link: up and down change `gap`, sideways changes `x`. The Unlink button (or choosing "Nothing") removes it.
+  - A `divider` line only shows when something other than a divider is above it. A divider with `look: box` frames a group, so it is always shown (give it its own show-when rule to hide it).
   - `show_if` shows a widget (such as a section title) only while another widget has content.
   - `y` and `h` still hold the starting position for the builder.
 - `show_when`: a rule that switches the widget on and off (see "Show when" below).
+- `style_rules`: conditional formatting for a widget with an `entity` slot (entity value, progress ring, message, image). Up to 8 rules, checked in order; the first that holds changes the look, and the widget's own `style` applies when none does.
+  - A rule is `{ "test", "value", "to", "attribute", "style" }`. `test` is `above`, `below`, `between` (both ends count, `to` is the high end), `is` or `is_not` (`value` is a state as text, or a list of texts).
+  - `attribute` tests one attribute of the entity instead of its state. A state that is not a number never matches a number test, and nothing matches before the entity has loaded.
+  - `style` may change only `color`, `size`, `weight`, `opacity` and `icon` (the icon of an `icon` widget, or the one beside an `entity_value`). The entity itself is bound as usual in the bindings file, so a rule never holds an entity id.
+- A column's `style_rules` (on a `table`) work the same way, but look at each cell's own value, so one column can turn amber when a drive is long. Their `attribute` is ignored there.
 - `when_hidden`: `collapse` (default) or `keep`. It sets what an off or empty widget does to the layout (below).
 - Nothing is ever clipped or cut off with an ellipsis. Text wraps. If a fixed-size widget's content outgrows its box, the player's overflow check (below) reports it instead of hiding the extra.
 - `options`: depends on `type` (below). Unknown options are rejected, so typos fail loudly.
@@ -132,9 +138,11 @@ Nothing runs per frame.
 | `image` | An uploaded image, or the picture of an `image` or `camera` entity | `entity` (optional: an image or camera entity) | `media` (a picture from the media library; set by Upload in the builder), `fit`, `refresh_s` (how often an entity's picture is asked for again: default 10 s for a camera, 300 s for an image entity, which also updates the moment its state changes). `asset` (a plain file name) is the older way and still works. With an entity bound and no `media`, the entity's picture is shown, shrunk to the widget's size by Home Assistant first |
 | `slideshow` | Photos from a Home Assistant media folder, one after another | none | `folder` (a folder inside a media folder, such as `photos/family` or `local/photos/family`), `interval_s` (5 to 86400, default 60), `shuffle` (default on: every photo once before any repeats), `fit` contain/cover, `fade` (crossfade, default on). Photos are shrunk to the widget's size by Home Assistant before the display gets them |
 | `video` | Full-screen loop (played natively by the display app) | none | `media` (a video from the media library), or `sources` (older: file names, tried in order) |
-| `divider` | A rule line (add one wherever you want a break; none are on `house` by default) | none | `thickness` |
+| `divider` | A rule line (add one wherever you want a break; none are on `house` by default), or a rounded box that frames a group | none | `thickness`, `style` (`solid`, `dashed`, `dotted`, `double`, `fade`), `look` (`line` or `box`), `radius`, `fill`, `fill_opacity` |
+| `icon` | A symbol from the bundled Material Design Icons library (7,400+ icons) | `entity` (optional: with no `icon` option it shows the entity's own icon, and style rules can swap it) | `icon` (a name such as `thermometer` or `door-open`, or `auto`) |
+| `table` | Rows and columns: each bound entity is a row; each column shows its name, state, one attribute or fixed words | `rows` (several entities) | `columns` (up to 8: `header`, `source` = `name`/`state`/`attribute`/`text`, `attribute`, `text`, `format` = `auto`/`time`/`date`/`datetime`/`relative`/`duration`/`number`/`raw`, `decimals`, `unit`, `duration_unit`, `align`, `style_rules`), `show_header`, `max_rows` |
 | `message` | A rotating line, or an entity's text | `entity` (optional) | `lines`, `rotate_minutes`, `prefix`, `suffix` |
-| `entity_value` | Any entity's value, or one of its attributes | `entity` | `label`, `unit`, `decimals`, `attribute` (show an attribute such as a thermostat's `temperature` instead of the state), `format` (`auto`, `relative`, `time`, `date`, `datetime`, `raw`: how dates and times read), `raw_state` (keep `on` instead of Home Assistant's word, like "Open") |
+| `entity_value` | Any entity's value, or one of its attributes | `entity` | `label`, `look` (`plain`, `tile` or `chip`: a rounded card with the icon in a tinted circle, or a small pill), `show_icon`, `radius`, `icon` (an icon before the value: a name, or `auto` for the entity's own), `unit`, `decimals`, `attribute` (show an attribute such as a thermostat's `temperature` instead of the state), `format` (`auto`, `relative`, `time`, `date`, `datetime`, `raw`: how dates and times read), `raw_state` (keep `on` instead of Home Assistant's word, like "Open") |
 | `weather` | Temperature, condition, high/low | `weather` | `layout` line/stacked, `show`, `day_offset` (tomorrow shows its high, then "low N°") |
 | `calendar_agenda` | Upcoming events | `calendars` | `max_items`, `skip` (leave out the first N, e.g. what a "next up" line already shows), `day_offset`, `days`, `time_style`, `hide_when_empty` |
 | `todo_list` | Open to-do items | `list` | `max_items`, `bullets` |
@@ -172,3 +180,6 @@ There are two ways in or out over HTTP and services, plus the builder's own webs
 - **Web:** `GET /api/glass_panes/bindings` returns the document to any logged-in user (so a display can run as a plain non-admin user). `PUT /api/glass_panes/bindings` replaces it and needs an administrator. A bad document is refused with a list of what is wrong and nothing is saved.
 - **Services:** `glass_panes.get_bindings` returns the document. `glass_panes.set_bindings` with `bindings: { <pane id>: { <widget id>: { <slot>: ... } } }` replaces it. Only administrators can use it, the same rule Home Assistant's own admin services follow.
 - Setting bindings replaces everything, so send the whole document.
+
+## Icons
+Icons are Material Design Icons (Pictogrammers, Apache 2.0; the licence text ships in `player/icons/LICENSE-mdi.txt`). A display never downloads the library: it asks Home Assistant for the icons its pane draws (`/glass_panes/icons?names=home,thermometer`) and gets back just those paths, a few hundred bytes each, so the mirror holds nothing it does not draw. Icon names are written without the `mdi:` prefix. Icons from other sets (such as `hue:`) are not included and show nothing.

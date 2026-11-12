@@ -116,9 +116,9 @@ main { display: flex; flex-direction: column; min-width: 0; min-height: 0; posit
 .panebar .lbl { margin: 0; }
 .panebar .check { margin: 0; }
 .panebar .hint { white-space: normal; max-width: 150px; line-height: 1.25; }
-#wrap { flex: 1; min-height: 0; display: flex; justify-content: center; align-items: center; padding: 8px 20px 8px; overflow: hidden;
+#wrap { flex: 1; min-height: 0; display: flex; padding: 8px 20px 8px; overflow: auto;       /* #device centres itself with auto margins, so a zoomed-in view scrolls instead of clipping */
   background-color: #f3f1e3; background-image: radial-gradient(rgba(20, 60, 35, .22) 1px, transparent 1px); background-size: 22px 22px; }   /* always cream, in the dark look too */
-#device { position: relative; padding: 9px; border-radius: 26px; background: #16171a; box-shadow: 0 0 0 1px rgba(255,255,255,.08) inset, 0 24px 60px rgba(0,0,0,.35), 0 4px 12px rgba(0,0,0,.25); }
+#device { position: relative; margin: auto; flex: none; padding: 9px; border-radius: 26px; background: #16171a; box-shadow: 0 0 0 1px rgba(255,255,255,.08) inset, 0 24px 60px rgba(0,0,0,.35), 0 4px 12px rgba(0,0,0,.25); }
 #preview { position: relative; overflow: hidden; border-radius: 17px; background: #000; }
 #overlay { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; transform-origin: top left; display: none; touch-action: none; }
 .editing #overlay { display: block; background-image: radial-gradient(rgba(255,255,255,.28) calc(1.4px * var(--inv, 3)), transparent calc(1.4px * var(--inv, 3))); background-size: 40px 40px; background-position: 0 0; }
@@ -153,6 +153,7 @@ details.more .opt .hint { margin-top: 3px; }
 .box.dragging { cursor: grabbing; background: color-mix(in srgb, var(--ui-edit) 22%, transparent); z-index: 3; }
 .box .tagname { position: absolute; left: 0; top: calc(-26px * var(--inv, 3)); max-width: 100%; padding: calc(2px * var(--inv, 3)) calc(8px * var(--inv, 3)); border-radius: calc(7px * var(--inv, 3)); background: var(--ui-edit); color: #1c2208; font: 600 calc(12px * var(--inv, 3))/1.5 system-ui, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0; pointer-events: none; }
 .box:hover .tagname, .box.sel .tagname { opacity: 1; }
+.multi .box.sel:not(:hover) .tagname { opacity: 0; }      /* several picked: their name tags would pile up, so only the one under the pointer shows */
 .box .x { position: absolute; left: calc(-10px * var(--inv, 3)); top: calc(-10px * var(--inv, 3)); width: calc(20px * var(--inv, 3)); height: calc(20px * var(--inv, 3)); border-radius: 50%; border: 0; padding: 0; background: #3a3a3f; color: #fff; display: none; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,.5); }
 .box .x svg { width: 60%; height: 60%; stroke-width: 2.6; }
 .box.sel .x, .box:hover .x { display: flex; }
@@ -286,6 +287,12 @@ details.rulesbox[open] > summary { margin-bottom: 2px; }
   .top { gap: 8px; padding: 0 10px; }
   .wactions { grid-template-columns: repeat(4, minmax(0, 1fr)); }      /* the panel is full width here: one row of four */
   .panebar .hint { display: none; }
+}
+@media (min-width: 561px) and (max-width: 860px) {
+  /* a tablet has room to show the whole toolbar, so it wraps to a second row instead of scrolling out of sight */
+  .dock { flex-wrap: wrap; justify-content: center; overflow-x: visible; }
+  .dock .grp { flex-wrap: wrap; justify-content: center; }
+  .dock .grp + .grp { border-left: 0; padding-left: 0; }
 }
 @media (max-width: 560px) {
   .brandname, #themebtn .btntext, #settingsbtn .btntext { display: none; }      /* a phone: the logo and the moon icon are enough */

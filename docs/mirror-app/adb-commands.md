@@ -49,6 +49,7 @@ adb shell "am start -n com.nimrod.mirrorkiosk/.MainActivity --es url '<page addr
 | `--es token '...'` | The display's login token (made with **Set up login** in the builder, shown once). Never share or screenshot it |
 | `--es webhook '...'` | The id of the Home Assistant webhook that receives presence reports (id only, not the address) |
 | `--es alive_webhook '...'` | The id of a second Home Assistant webhook that receives the "still alive" messages (0.11.0+; see [api.md](api.md)). Nothing is sent without it |
+| `--es pair 1` | App 0.12.0+: show the pairing code again (to pair a mirror that is already set up with a new code). `--es pair 0` cancels it. See [install-app-lululemon-studio.md](install-app-lululemon-studio.md) |
 | `--es key '...'` | Optional password for the control server (port 8099), required from other devices if set |
 | `--es rotation '...'` | `portrait`, `portrait_reverse`, `landscape`, `landscape_reverse` or `auto`. **Unproven**: see "Turning the picture" below |
 

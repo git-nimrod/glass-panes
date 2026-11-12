@@ -219,3 +219,98 @@ export function describeCondition(c, nameOf = (id) => id, entityOf = () => null)
     default: return 'an unknown rule';
   }
 }
+
+// ---------------------------------------------------------------- conditional formatting (style_rules)
+// A widget may carry `style_rules`: a list of { test, value, to?, attribute?, style: {color, size, weight, opacity} }. The first rule that
+// matches the widget's entity (the `entity` slot) changes the widget's look. The same comparisons as the entity conditions above, plus
+// `between`, so the Show when editor and this one are built from one model. `attribute` tests one attribute instead of the state.
+
+export const STYLE_TESTS = ['above', 'below', 'is', 'is_not', 'between'];
+export const MAX_STYLE_RULES = 8;
+export const STYLE_SLOT = 'entity';
+const PLAIN_NUMBER = /^[-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?$/;
+
+/** The value a rule looks at: the state, or one attribute of it. undefined when the attribute is missing. */
+export function styleValueOf(st, attribute) {
+  if (!st) return undefined;
+  if (!attribute) return st.state;
+  const v = st.attributes ? st.attributes[attribute] : undefined;
+  return v === null || v === undefined || typeof v === 'object' ? undefined : v;
+}
+
+/** Does one style rule hold for this entity state (null = no such entity, undefined = not fetched yet: both never match)? */
+export function styleRuleMatches(rule, st) {
+  const v = styleValueOf(st, rule.attribute);
+  if (v === undefined) return false;
+  if (rule.test === 'between') {
+    const t = String(v).trim(), n = PLAIN_NUMBER.test(t) ? Number(t) : NaN, a = Number(rule.value), b = Number(rule.to);
+    if (!isFinite(n) || !isFinite(a) || !isFinite(b)) return false;
+    return n >= Math.min(a, b) && n <= Math.max(a, b);
+  }
+  return matchesState(rule, { state: String(v) });
+}
+
+/** The first rule that matches, or null. */
+export function pickStyleRule(rules, st) {
+  return (Array.isArray(rules) ? rules : []).find((r) => styleRuleMatches(r, st)) || null;
+}
+
+/** The style a widget wears now: its own, with the first matching rule's changes on top. */
+export function styledFor(widget, st) {
+  const rule = pickStyleRule(widget && widget.style_rules, st);
+  return { style: { ...((widget && widget.style) || {}), ...(rule ? rule.style : {}) }, rule };
+}
+
+// ---------------------------------------------------------------- warnings (the status_summary widget's checks)
+// A check is { entity, name?, text?, bad?, ok?, below?, above? }. It uses the same tests as an entity condition (is / is not / above /
+// below / unavailable), written the way the widget has always stored them:
+//   bad: [states]   warn when the state is one of these              = test "is"
+//   ok: [states]    warn when the state is NOT one of these          = test "is_not"
+//   below / above   warn when the number is under / over the limit   = test "below" / "above"
+//   (none)          warn when the entity is unavailable or unknown   = test "unavailable"
+// The warnings editor shows and changes checks through checkTest() and withTest(), so the stored form never changes.
+
+/** { test, value } for a check, in the vocabulary of the entity conditions. */
+export function checkTest(k) {
+  if (k.below != null) return { test: 'below', value: k.below };
+  if (k.above != null) return { test: 'above', value: k.above };
+  if (k.ok) return { test: 'is_not', value: k.ok };
+  if (k.bad) return { test: 'is', value: k.bad };
+  return { test: 'unavailable' };
+}
+
+/** The check with a different test (and value). Everything else on it (entity, name, text) is kept; the old test's fields are removed. */
+export function withTest(k, test, value) {
+  const out = { ...k };
+  delete out.bad; delete out.ok; delete out.below; delete out.above;
+  if (test === 'below' || test === 'above') out[test] = Number.isFinite(Number(value)) ? Number(value) : 0;
+  else if (test === 'is' || test === 'is_not') {
+    const list = (Array.isArray(value) ? value : String(value == null ? '' : value).split(',')).map((v) => String(v).trim()).filter(Boolean).slice(0, 20);
+    out[test === 'is' ? 'bad' : 'ok'] = list.length ? list : ['on'];
+  }
+  return out;
+}
+
+/** Why a check is raising a warning for this entity state ('offline', 'low', 'high', or the state itself), or null when all is well. */
+export function checkProblem(k, st) {
+  const v = st ? st.state : 'unavailable', offline = !st || v === 'unavailable' || v === 'unknown';
+  const n = PLAIN_NUMBER.test(String(v).trim()) && !/^[-+]?0\d/.test(String(v).trim()) ? Number(v) : NaN;
+  if (k.below != null) return isNaN(n) ? 'offline' : n < k.below ? 'low' : null;
+  if (k.above != null) return isNaN(n) ? 'offline' : n > k.above ? 'high' : null;
+  if (k.ok) return k.ok.indexOf(v) < 0 ? (offline ? 'offline' : v) : null;
+  if (k.bad ? k.bad.indexOf(v) >= 0 : (offline || v === '' || v == null)) return offline ? 'offline' : v;
+  return null;
+}
+
+/** A plain sentence for the editor: "Warn when it is above 30." */
+export function describeCheck(k) {
+  const t = checkTest(k);
+  const list = (v) => [].concat(v).join(' or ');
+  switch (t.test) {
+    case 'below': return 'Warn when it is below ' + t.value + '.';
+    case 'above': return 'Warn when it is above ' + t.value + '.';
+    case 'is': return 'Warn when it is ' + list(t.value) + '.';
+    case 'is_not': return 'Warn when it is anything but ' + list(t.value) + '.';
+    default: return 'Warn when it is unavailable or unknown.';
+  }
+}

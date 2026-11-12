@@ -296,3 +296,41 @@ def scrub(value: Any, secret: str | None) -> Any:
     if isinstance(value, (list, tuple)):
         return [scrub(v, secret) for v in value]
     return value
+
+
+# ---------------------------------------------------------------- pairing (a new mirror shows a code; the builder enters it)
+
+def code_problem(value: Any) -> str | None:
+    """The pairing code is the six digits the mirror shows on its screen (spaces and a dash between the halves are fine)."""
+    if not isinstance(value, str) or not re.fullmatch(r"\d{3}[ -]?\d{3}", value.strip()):
+        return "the pairing code is the six digits shown on the mirror's screen"
+    return None
+
+
+def clean_code(value: str) -> str:
+    return re.sub(r"\D", "", value)
+
+
+_LOCAL_HOSTS = ("localhost", "127.", "0.0.0.0", "[::1]", "::1")
+
+
+def player_url(base: Any, display_id: str) -> tuple[str | None, str | None]:
+    """The page address a mirror is given: `<base>/glass_panes/player/index.html?display=<id>&kiosk=1&tokenkey=glass_panes_token`.
+    `base` is how the MIRROR reaches Home Assistant (`http://homeassistant.local:8123`): http or https, a host and an optional port, nothing else.
+    An address that means "this computer" is refused, because on the mirror it would mean the mirror. Returns (address, problem)."""
+    if not isinstance(base, str) or not base.strip():
+        return None, "give the address the mirror uses to reach Home Assistant, such as http://homeassistant.local:8123"
+    text = base.strip().rstrip("/")
+    if len(text) > 200 or any(ord(c) < 33 or ord(c) > 126 for c in text) or "\\" in text:
+        return None, "the Home Assistant address must be plain text such as http://homeassistant.local:8123 (no spaces)"
+    lowered = text.lower()
+    if not (lowered.startswith("http://") or lowered.startswith("https://")):
+        return None, "the Home Assistant address must start with http:// or https://"
+    host = text.split("://", 1)[1]
+    if not host or any(c in host for c in "/?#@"):
+        return None, "give just the host and port, such as http://homeassistant.local:8123 (no path, query or login)"
+    if host.lower().startswith(_LOCAL_HOSTS):
+        return None, "that address means the computer you are on; the mirror needs your Home Assistant's address on the home network"
+    if not re.fullmatch(r"[A-Za-z0-9.\-\[\]:]+", host):
+        return None, "the Home Assistant address has characters a host name cannot have"
+    return f"{text}/glass_panes/player/index.html?display={display_id}&kiosk=1&tokenkey=glass_panes_token", None

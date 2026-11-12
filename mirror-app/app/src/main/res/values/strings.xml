@@ -4,5 +4,7 @@
     <!-- launch screen messages (shown under the Glass Panes boot animation) -->
     <string name="splash_starting">Starting up…</string>
     <string name="splash_waiting">Waiting for Wi-Fi or Home Assistant…\nThis can take a few minutes after power-on.</string>
+    <string name="splash_pairing">Not set up yet.\nIn Home Assistant open Glass Panes, Displays,\nPair a mirror, and enter this code:\n\n%1$s</string>
+    <string name="splash_pairing_address">Mirror address: %1$s</string>
     <string name="splash_not_set_up">Not set up yet.\nSet the page address from a computer\n(see docs/mirror-app/flashing.md).</string>
 </resources>

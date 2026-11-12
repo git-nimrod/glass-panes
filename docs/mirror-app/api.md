@@ -24,6 +24,7 @@ For the Home Assistant side (services, the web API and the websocket API of the 
 |---|---|---|---|
 | `/` or `/status` | none | Everything about the app in one document (below) | the status JSON |
 | `/reload` | none | Loads the player page again | `{"ok":true}` |
+| `/pair` | `code`, and `url`, `token`, `key` (or `check=1` instead of those) | 0.12.0+. Sets the mirror up from the six-digit code on its screen. Works only while the mirror has no page address yet, or after `--es pair 1`; needs no key (the code is the credential: five wrong tries lock it for a minute and change the code, and a right code is used once). With `check=1` it only says whether the code is right. Home Assistant calls this for you from **Pair a mirror**. | `{"ok":true}`, or 403 `wrong code`, 400 if the page address, token or key is not in the expected form |
 | `/brightness/<n>` | `n` = `0` to `100`, or `default` | Backlight percent, or hand control back to Android. Remembered | `{"ok":true,"brightness":n}` (`-1` for default) |
 | `/video/start` | `url=<video address>` (URL-encoded, `http` or `https` only from app 0.10.5) | Plays a looping video in Android's own player above the page | `{"ok":true}` |
 | `/video/stop` | none | Stops the video | `{"ok":true}` |

@@ -16,6 +16,7 @@ from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.core import HomeAssistant
 
+from . import icons as icons_lib
 from .const import DOMAIN
 
 STATIC_FOLDERS = ("player", "panes", "schema", "panel")
@@ -47,3 +48,20 @@ class AssetsView(HomeAssistantView):
         if target is None:
             raise web.HTTPNotFound()
         return web.FileResponse(target, headers={"Cache-Control": "no-cache"})
+
+
+class IconsView(HomeAssistantView):
+    """GET /glass_panes/icons?names=home,thermometer: the path data of just those icons (see icons.py). Public icon geometry, so no login."""
+
+    url = f"/{DOMAIN}/icons"
+    name = f"{DOMAIN}:icons"
+    requires_auth = False
+
+    def __init__(self, hass: HomeAssistant, folder: Path) -> None:
+        self._hass = hass
+        self._library = icons_lib.IconLibrary(folder)
+
+    async def get(self, request: web.Request) -> web.StreamResponse:
+        names = icons_lib.parse_names(request.query.get("names", ""))
+        found = await self._hass.async_add_executor_job(self._library.paths, names) if names else {}
+        return web.json_response(found, headers={"Cache-Control": "no-cache"})

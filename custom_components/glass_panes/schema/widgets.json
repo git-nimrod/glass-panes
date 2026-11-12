@@ -1,19 +1,74 @@
 {
   "schema_version": 1,
   "widgets": {
-    "clock": { "label": "Clock", "slots": {} },
-    "date": { "label": "Date", "slots": {} },
-    "text": { "label": "Text", "slots": {} },
-    "image": { "label": "Image", "slots": { "entity": { "kind": "entity", "domains": ["image", "camera"], "required": false, "label": "Image or camera entity (optional)" } } },
-    "slideshow": { "label": "Photo slideshow", "slots": {} },
-    "video": { "label": "Looping video", "slots": {} },
-    "divider": { "label": "Divider line", "slots": {} },
-    "message": {
-      "label": "Message",
+    "clock": {
+      "label": "Clock",
+      "description": "The time of day, as digits, a round analog face or a bedside alarm clock.",
+      "slots": {}
+    },
+    "date": {
+      "label": "Date",
+      "description": "Today's date, or another day's, in the format you choose.",
+      "slots": {}
+    },
+    "text": {
+      "label": "Text",
+      "description": "Any words you type.",
+      "slots": {}
+    },
+    "image": {
+      "label": "Image",
+      "description": "A picture you upload, or the live picture of an image or camera entity.",
       "slots": {
         "entity": {
           "kind": "entity",
-          "domains": ["input_text", "text", "sensor"],
+          "domains": [
+            "image",
+            "camera"
+          ],
+          "required": false,
+          "label": "Image or camera entity (optional)"
+        }
+      }
+    },
+    "slideshow": {
+      "label": "Photo slideshow",
+      "description": "Photos from a Home Assistant media folder, shown one after another.",
+      "slots": {}
+    },
+    "video": {
+      "label": "Looping video",
+      "description": "A full-screen looping video, played by the display app itself.",
+      "slots": {}
+    },
+    "divider": {
+      "label": "Divider line",
+      "description": "A line between sections, in several styles, or a rounded box that frames a group of widgets.",
+      "slots": {}
+    },
+    "icon": {
+      "label": "Icon",
+      "description": "A symbol from the icon library. Bind an entity to show its own icon and change it by value.",
+      "slots": {
+        "entity": {
+          "kind": "entity",
+          "domains": [],
+          "required": false,
+          "label": "Entity (optional: its own icon and rules by value)"
+        }
+      }
+    },
+    "message": {
+      "label": "Message",
+      "description": "A friendly line that rotates through your list, or the text of an entity.",
+      "slots": {
+        "entity": {
+          "kind": "entity",
+          "domains": [
+            "input_text",
+            "text",
+            "sensor"
+          ],
           "required": false,
           "label": "Message source (optional, overrides the rotating lines)"
         }
@@ -21,58 +76,134 @@
     },
     "entity_value": {
       "label": "Entity value",
+      "description": "The value of any entity (or one of its attributes) with its unit, as plain text, a tile or a chip, with an optional icon.",
+      "needs": "an entity (any sensor, switch, climate ...)",
       "slots": {
-        "entity": { "kind": "entity", "domains": [], "required": true, "label": "Entity to show" }
+        "entity": {
+          "kind": "entity",
+          "domains": [],
+          "required": true,
+          "label": "Entity to show"
+        }
       }
     },
     "weather": {
       "label": "Weather",
+      "description": "The current weather and forecast on one line or stacked.",
+      "needs": "a weather entity",
       "slots": {
-        "weather": { "kind": "entity", "domains": ["weather"], "required": true, "label": "Weather entity" }
+        "weather": {
+          "kind": "entity",
+          "domains": [
+            "weather"
+          ],
+          "required": true,
+          "label": "Weather entity"
+        }
       }
     },
     "calendar_agenda": {
       "label": "Calendar agenda",
+      "description": "Your next events from one or more calendars.",
+      "needs": "one or more calendar entities",
       "slots": {
-        "calendars": { "kind": "entities", "domains": ["calendar"], "required": true, "label": "Calendars" }
+        "calendars": {
+          "kind": "entities",
+          "domains": [
+            "calendar"
+          ],
+          "required": true,
+          "label": "Calendars"
+        }
       }
     },
     "todo_list": {
       "label": "To-do list",
+      "description": "The open items of a to-do list.",
+      "needs": "a to-do list entity",
       "slots": {
-        "list": { "kind": "entity", "domains": ["todo"], "required": true, "label": "To-do list" }
+        "list": {
+          "kind": "entity",
+          "domains": [
+            "todo"
+          ],
+          "required": true,
+          "label": "To-do list"
+        }
       }
     },
     "now_playing": {
       "label": "Now playing",
+      "description": "What is playing: cover, title and artist, as a card, a vinyl record or a CD.",
+      "needs": "one or more media player entities",
       "slots": {
-        "players": { "kind": "entities", "domains": ["media_player"], "required": true, "label": "Media players" }
+        "players": {
+          "kind": "entities",
+          "domains": [
+            "media_player"
+          ],
+          "required": true,
+          "label": "Media players"
+        }
       }
     },
     "people": {
       "label": "People",
+      "description": "Who is home, with their pictures.",
+      "needs": "person or device tracker entities",
       "slots": {
-        "people": { "kind": "entities", "domains": ["person", "device_tracker"], "required": true, "label": "People" }
+        "people": {
+          "kind": "entities",
+          "domains": [
+            "person",
+            "device_tracker"
+          ],
+          "required": true,
+          "label": "People"
+        }
       }
     },
     "lights_summary": {
       "label": "Lights summary",
+      "description": "How many lights are on, with dots for each one.",
+      "needs": "a light or a light group",
       "slots": {
-        "lights": { "kind": "entities", "domains": ["light", "group"], "required": true, "label": "Lights or a light group" }
+        "lights": {
+          "kind": "entities",
+          "domains": [
+            "light",
+            "group"
+          ],
+          "required": true,
+          "label": "Lights or a light group"
+        }
       }
     },
     "status_summary": {
       "label": "Status summary",
+      "description": "A warning line for things that need attention, such as an open door.",
+      "needs": "checks (set up in the rule editor)",
       "slots": {
-        "checks": { "kind": "checks", "domains": [], "required": true, "label": "Things worth warning about" }
+        "checks": {
+          "kind": "checks",
+          "domains": [],
+          "required": true,
+          "label": "Things worth warning about"
+        }
       }
     },
     "progress_ring": {
       "label": "Progress ring",
+      "description": "A number as a ring that fills up, such as a battery or humidity level.",
+      "needs": "a sensor, number or input_number with a number",
       "slots": {
         "entity": {
           "kind": "entity",
-          "domains": ["sensor", "number", "input_number"],
+          "domains": [
+            "sensor",
+            "number",
+            "input_number"
+          ],
           "required": true,
           "label": "Entity with a number"
         }
@@ -80,10 +211,14 @@
     },
     "sports": {
       "label": "Sports",
+      "description": "Today's games for your teams: scores, times and a headline.",
+      "needs": "Team Tracker sensors",
       "slots": {
         "teams": {
           "kind": "entities",
-          "domains": ["sensor"],
+          "domains": [
+            "sensor"
+          ],
           "required": true,
           "label": "Team Tracker sensors"
         }
@@ -91,8 +226,30 @@
     },
     "news": {
       "label": "News headlines",
+      "description": "The latest headlines from your news feeds.",
+      "needs": "Feedreader event entities",
       "slots": {
-        "feeds": { "kind": "feeds", "domains": ["event"], "required": true, "label": "Feed entities" }
+        "feeds": {
+          "kind": "feeds",
+          "domains": [
+            "event"
+          ],
+          "required": true,
+          "label": "Feed entities"
+        }
+      }
+    },
+    "table": {
+      "label": "Table",
+      "description": "Rows and columns: each row is an entity, each column its name, state, an attribute or fixed text, with times, durations and colours by value.",
+      "needs": "one entity per row (a sensor, a calendar-style sensor ...)",
+      "slots": {
+        "rows": {
+          "kind": "entities",
+          "domains": [],
+          "required": true,
+          "label": "Rows (one entity each)"
+        }
       }
     }
   }

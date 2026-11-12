@@ -2,7 +2,7 @@
 
 ## The model
 - A **pane** is a layout (see `docs/pane-schema.md`). Three are shipped as files (`mirror`, `house` and `video`). A pane **saved from the builder** is kept in Home Assistant's storage. A saved pane with the same id as a shipped one *replaces* it. Delete the saved one and the shipped one comes back.
-- A **display** is a screen, normally your mirror: with an `id`, a `name`, an optional `timezone` for the times it shows, and the pane it is showing now.
+- A **display** is a screen, normally your mirror: with an `id`, a `name`, an optional `timezone` for the times it shows (empty follows Home Assistant's own zone, which the display record also reports as `ha_timezone`), and the pane it is showing now.
 - Each display also gets a **`button` entity per pane** (for dashboards, voice and scenes). Pressing it shows that pane on that display. Its visible name follows the pane's name, but its entity id is fixed when it is created (for example `button.glass_panes_mirror_movie_night`). Buttons for the built-in panes start **disabled**, so a fresh install does not add a screenful of entities. Enable them in the entity settings. Buttons for panes you create start enabled and are removed with the pane.
 - Each display gets one **`select` entity** whose options are all the panes and whose state is the pane it is showing. Its device is called "Glass Panes <name>", so a display named "Mirror" is `select.glass_panes_mirror`. Choosing an option switches the display. The option is the pane's permanent id, so renaming a pane never breaks an automation. That means every native Home Assistant trigger already works for switching panes: a state change, a time, a presence sensor, a scene. Example automation action:
   ```yaml
@@ -59,6 +59,9 @@ Any logged-in user can read. Every command that changes something needs an admin
 | `glass_panes/panes/update` (admin) | `pane_id`, optional `name`, optional `description` | the list. Renames only the label: the id, so every automation that uses it, stays the same |
 | `glass_panes/panes/delete` (admin) | `pane_id` | the list. Only a saved pane; refused while a display is showing it |
 | `glass_panes/displays/list` | | `displays` |
+| `glass_panes/groups/list` (admin) | none | `groups`: reusable widget groups you saved (each with `id`, `name`, `widgets`, `bindings`) |
+| `glass_panes/groups/save` (admin) | `name`, `widgets`, `bindings` | `group` and `groups`. The widgets are checked as a pane would be; their bindings may hold your entity ids, so groups are private storage and never shipped |
+| `glass_panes/groups/delete` (admin) | `group_id` | `groups` |
 | `glass_panes/displays/save` (admin) | `display` | `display` (same fields as the service) |
 | `glass_panes/displays/delete` (admin) | `display_id` | `displays` |
 | `glass_panes/displays/login/create` (admin) | `display_id` | `token` (shown once, never stored), `user`, `display`. Makes a dedicated ordinary (non-admin, home-network-only) user for the display with one long-lived token; replaces an existing login. Websocket only: there is deliberately no service for this |

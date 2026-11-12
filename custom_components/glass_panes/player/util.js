@@ -151,3 +151,75 @@ export function makeTime(tz) {
   }
   return { parts, midnight, dayStart, sameDay, shortTime, ampm, time24, dayTime, timeAgo };
 }
+
+// ---------------------------------------------------------------- divider looks
+
+export const DIVIDER_STYLES = ['solid', 'dashed', 'dotted', 'double', 'fade'];
+const COLOR_TOKENS = ['fg', 'dim', 'faint', 'accent', 'warn', 'good', 'bad'];
+/** A colour option (a theme token like "accent" or a #rrggbb) as CSS, or `fallback` when it is neither. */
+export function colorCss(v, fallback = 'currentColor') {
+  if (COLOR_TOKENS.includes(v)) return 'var(--gp-' + v + ')';
+  return /^#[0-9a-fA-F]{6}$/.test(v || '') ? v : fallback;
+}
+/** A divider drawn as a `box` frames a group instead of separating sections, so the "only between two things" rule skips it. */
+export const isSeparator = (spec) => spec.type === 'divider' && (spec.options || {}).look !== 'box';
+
+/**
+ * The CSS for a divider widget. `look: 'line'` (default) is a rule in one of five styles; `look: 'box'` is an outline with rounded
+ * corners and an optional soft fill. Returns { line, fill } as cssText strings (fill is null for a line or a box without a fill).
+ */
+export function dividerCss(o = {}) {
+  const t = Math.max(1, Math.min(20, Math.round(o.thickness || 2)));
+  if (o.look === 'box') {
+    const r = Math.max(0, Math.min(200, Math.round(o.radius == null ? 24 : o.radius)));
+    const line = 'position:absolute;inset:0;box-sizing:border-box;border:' + t + 'px ' + (o.style === 'dashed' || o.style === 'dotted' ? o.style : 'solid') + ' currentColor;border-radius:' + r + 'px';
+    const op = Math.max(0, Math.min(100, Math.round(o.fill_opacity == null ? 10 : o.fill_opacity))) / 100;
+    const fill = o.fill ? 'position:absolute;inset:0;border-radius:' + r + 'px;background:' + colorCss(o.fill) + ';opacity:' + op : null;
+    return { line, fill };
+  }
+  const base = 'width:100%;box-sizing:border-box;';
+  if (o.style === 'dashed' || o.style === 'dotted') return { line: base + 'height:0;border-top:' + t + 'px ' + o.style + ' currentColor', fill: null };
+  if (o.style === 'double') return { line: base + 'height:' + t * 3 + 'px;border-top:' + t + 'px solid currentColor;border-bottom:' + t + 'px solid currentColor', fill: null };
+  if (o.style === 'fade') return { line: base + 'height:' + t + 'px;background:linear-gradient(to right,transparent,currentColor 20%,currentColor 80%,transparent)', fill: null };
+  return { line: base + 'height:' + t + 'px;background:currentColor', fill: null };
+}
+
+/** The time zone a display shows times in: its own when it has one, otherwise Home Assistant's, else '' (the device's own zone). */
+export function displayZone(display) {
+  const own = display && typeof display.timezone === 'string' ? display.timezone.trim() : '';
+  if (own) return own;
+  const ha = display && typeof display.ha_timezone === 'string' ? display.ha_timezone.trim() : '';
+  return ha;
+}
+
+
+// ---------------------------------------------------------------- tile and chip looks (Entity value)
+
+export const VALUE_LOOKS = ['plain', 'tile', 'chip'];
+
+/**
+ * The CSS for an Entity value drawn as a `tile` (a rounded card: an icon in a tinted circle, the name over the value) or a `chip` (a
+ * small pill: an icon and the value). Everything scales from `S`, the widget's text size, so it looks the same at any size.
+ * Returns cssText strings: box, fill (a soft layer behind the content), badge, badgeFill, texts, name, value, and the icon's pixel size.
+ */
+export function tileCss(look, S, radius) {
+  const r = look === 'chip' ? 999 : Math.max(0, Math.min(200, Math.round(radius == null ? 28 : radius)));
+  const px = (k) => Math.round(S * k);
+  const fill = 'position:absolute;inset:0;border-radius:' + r + 'px;background:var(--gp-fg);opacity:.08';
+  if (look === 'chip') {
+    return {
+      box: 'position:relative;display:inline-flex;align-items:center;gap:' + px(0.3) + 'px;max-width:100%;box-sizing:border-box;padding:' + px(0.25) + 'px ' + px(0.6) + 'px;border-radius:999px;overflow:hidden',
+      fill, badge: 'position:relative;flex:none;display:inline-flex;align-items:center', badgeFill: null,
+      texts: 'position:relative;min-width:0;display:flex;align-items:baseline;gap:' + px(0.3) + 'px',
+      name: 'font-size:' + px(0.6) + 'px;color:var(--gp-dim)', value: 'font-size:' + S + 'px;color:var(--gp-fg);white-space:nowrap', iconSize: px(0.9),
+    };
+  }
+  return {
+    box: 'position:relative;display:flex;align-items:center;gap:' + px(0.55) + 'px;width:100%;height:100%;box-sizing:border-box;padding:0 ' + px(0.6) + 'px;border-radius:' + r + 'px;overflow:hidden',
+    fill,
+    badge: 'position:relative;flex:none;width:' + px(1.7) + 'px;height:' + px(1.7) + 'px;display:flex;align-items:center;justify-content:center',
+    badgeFill: 'position:absolute;inset:0;border-radius:50%;background:currentColor;opacity:.2',
+    texts: 'position:relative;min-width:0;display:flex;flex-direction:column;justify-content:center',
+    name: 'font-size:' + px(0.5) + 'px;color:var(--gp-dim);line-height:1.2', value: 'font-size:' + S + 'px;color:var(--gp-fg);line-height:1.1', iconSize: px(0.9),
+  };
+}

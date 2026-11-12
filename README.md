@@ -6,11 +6,11 @@
 
 [![CI](https://github.com/git-nimrod/glass-panes/actions/workflows/ci.yml/badge.svg)](https://github.com/git-nimrod/glass-panes/actions/workflows/ci.yml)
 ![Status: public beta](https://img.shields.io/badge/status-public%20beta-6bc370)
-![Version](https://img.shields.io/badge/version-0.11.x-a3df90)
+![Version](https://img.shields.io/badge/version-0.12.x-a3df90)
 
 Design screens for your **Lululemon Studio smart mirror** inside Home Assistant, then switch between them with your own automations. Each screen is a **pane**.
 
-> **Public beta (v0.11.x).** It works and it runs daily on a real mirror, but there are rough edges. If you hit one, please tell us (see [Beta testing](#beta-testing)).
+> **Public beta (v0.12.x).** It works and it runs daily on a real mirror, but there are rough edges. If you hit one, please tell us (see [Beta testing](#beta-testing)).
 
 > **What's next:** a Bluetooth proxy, a voice assistant, and support for the other FCC ID mirror are planned. See the [roadmap](docs/roadmap.md).
 
@@ -28,8 +28,12 @@ Design screens for your **Lululemon Studio smart mirror** inside Home Assistant,
 - **Pictures and looping videos** you upload from your computer or phone.
 - **Looks you can change in a click:** six colour themes (including one made for two-way mirror glass), ten bundled fonts, a vinyl or CD look for Now playing, and a digital, traditional or alarm clock with its own time zone.
 - **Photos and music:** a slideshow from a Home Assistant media folder, pictures from image and camera entities, and the mirror's own speaker as a media player that Music Assistant can play to.
+- **Icons, tiles, chips and tables:** 7,400+ Material Design Icons, entity values drawn as tiles or chips, and a Table widget that formats times, durations and numbers for you.
+- **Colours that follow your data.** Change a widget's colour, size or icon when a value goes above, below or between numbers, and edit the warnings a Status summary shows.
 - **Widgets that switch on and off.** Show a photo when no team plays today, a warning only when a door is open, a different layout at night.
-- **One `select` entity per display** (plus a button per pane), so normal Home Assistant automations decide what each screen shows.
+- **A widget catalogue and reusable groups:** every widget with a live preview, and a set of widgets you saved, dropped into any pane with one click.
+- **One `select` entity per display** (plus a button per pane), so normal Home Assistant automations decide what each screen shows. A mirror also gets a **Brightness** number and a **Presence detection** switch, and a blueprint brightens it when someone walks up.
+- **Pair a mirror with a six-digit code** shown on its screen. Home Assistant sets it up, with no token to copy.
 - **A player page** that draws a pane full screen. The Mirror Kiosk app runs it on your mirror, and any browser can open it too.
 - **A limited login per display**, made with one button, so you never paste a token into a device by hand.
 - **Shareable panes.** Export a pane as a file and send it to a friend. Only the layout travels, never your entities or uploads.
@@ -73,7 +77,7 @@ Thank you for trying this. It helps a lot when you:
 - **Keep secrets out of issues.** Never paste tokens, webhook addresses or anything private.
 - **Watch for a Discord server** for beta testers. It's being set up, and the invite link will go here.
 
-How releases work: the integration is tagged `v0.11.N` and called "public beta". The mirror app has its own releases (`app-v...`) because it changes much less often. Updating through HACS is safe: your panes, uploads and logins are kept. Which app version a feature needs: [docs/compatibility.md](docs/compatibility.md).
+How releases work: the integration is tagged `v0.12.N` and called "public beta". The mirror app has its own releases (`app-v...`) because it changes much less often. Updating through HACS is safe: your panes, uploads and logins are kept. Which app version a feature needs: [docs/compatibility.md](docs/compatibility.md).
 
 ## Documentation
 

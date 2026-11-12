@@ -8,8 +8,10 @@
 //   ctx.onDestroy(fn)                  cleanup when the pane is replaced
 // Nothing here knows any entity ID. Everything comes from ctx.slots.
 
-import { COND, clear, el, FULL_MONTHS, isBad, makeTime, MONTHS, num, okState, seeded, strictNumber, unitOf } from './util.js';
-import { describe } from './format.js';
+import { checkProblem, pickStyleRule } from './conditions.js';
+import { COND, clear, colorCss, dividerCss, tileCss, el, FULL_MONTHS, isBad, makeTime, MONTHS, num, okState, seeded, strictNumber, unitOf } from './util.js';
+import { describe, tableCell } from './format.js';
+import { chosenIcon, iconNode, loadIcon } from './icons.js';
 
 const pad = (n) => (n < 10 ? '0' : '') + n;
 const asList = (v) => (Array.isArray(v) ? v : v ? [v] : []);
@@ -287,9 +289,77 @@ function slideshow(ctx) {
   ctx.every(30000, () => { if (ctx.data.generation !== gen) { gen = ctx.data.generation; relist().then(() => { if (front < 0) next(); }).catch(() => {}); } });
 }
 
+// An icon from the bundled library (icons.js). With no `icon` option it shows the bound entity's own icon. A style rule may swap the icon
+// (and the size) while its condition holds.
+function iconWidget(ctx) {
+  const o = ctx.opts, entity = ctx.slots.entity;
+  let ruleIcon = '', key = '';
+  const render = async () => {
+    const st = entity ? await ctx.data.state(entity) : null;
+    const d = await loadIcon(chosenIcon(ruleIcon, o.icon || (entity ? 'auto' : ''), st));
+    const size = parseFloat(ctx.root.style.fontSize) || ctx.style.size || 48;      // the root's size follows a style rule
+    clear(ctx.root);
+    if (d) ctx.root.appendChild(iconNode(d, size));
+  };
+  ctx.onStyle((style) => {
+    const next = (style.icon || '') + '|' + (style.size || '');
+    if (next === key) return;
+    key = next; ruleIcon = style.icon || '';
+    render();
+  });
+  ctx.refresh(render, [entity], 0);
+}
+
+// A table: each bound entity is a row; each column shows its name, its state, one attribute, or fixed text, formatted as you choose.
+// A column's style rules (colour, weight, size, opacity, icon) look at the cell's own value, so one column can turn red when it is late.
+function table(ctx) {
+  const o = ctx.opts, ids = asList(ctx.slots.rows), cols = o.columns || [], S = ctx.style.size || 28;
+  const render = async () => {
+    const states = await Promise.all(ids.slice(0, o.max_rows || 8).map((id) => ctx.data.state(id)));
+    // every cell once: its text, and the style rule (if any) that its value triggers
+    const cells = states.map((st, r) => cols.map((c) => {
+      const { text, raw } = tableCell(c, st, ids[r], { time: ctx.time });
+      return { text, rule: pickStyleRule(c.style_rules, { state: raw === undefined ? '' : String(raw) }) };
+    }));
+    const wanted = new Set(cells.flat().map((x) => x.rule && x.rule.style.icon).filter(Boolean));
+    const loaded = new Map(await Promise.all([...wanted].map(async (n) => [n, await loadIcon(n)])));
+    clear(ctx.root);
+    const grid = el('div', 'gp-table');
+    grid.style.cssText = 'display:grid;grid-template-columns:' + cols.map(() => 'auto').join(' ') + ';column-gap:' + Math.round(S * 0.9) + 'px;row-gap:' + Math.round(S * 0.3) + 'px;align-items:baseline';
+    const put = (text, c, extra) => {
+      const cell = el('div', 'gp-ellip', text);
+      cell.style.textAlign = c.align || 'left';
+      if (extra) extra(cell);
+      grid.appendChild(cell);
+      return cell;
+    };
+    if (o.show_header !== false && cols.some((c) => c.header)) {
+      cols.forEach((c) => put(c.header || '', c, (cell) => { cell.classList.add('gp-dim'); cell.style.fontSize = Math.round(S * 0.7) + 'px'; cell.style.textTransform = 'uppercase'; cell.style.letterSpacing = '1px'; }));
+    }
+    cells.forEach((row) => row.forEach(({ text, rule }, i) => {
+      const c = cols[i];
+      put(text, c, (cell) => {
+        const s = rule ? rule.style : {};
+        if (s.color) cell.style.color = COLORS_CSS[s.color] || s.color;
+        if (s.weight) cell.style.fontWeight = s.weight;
+        if (s.size) cell.style.fontSize = s.size + 'px';
+        if (s.opacity != null) cell.style.opacity = s.opacity;
+        const d = s.icon ? loaded.get(s.icon) : null;
+        if (d) { const ic = iconNode(d, Math.round((s.size || S) * 0.8)); ic.style.marginRight = Math.round(S * 0.15) + 'px'; cell.insertBefore(ic, cell.firstChild); }
+      });
+    }));
+    ctx.root.appendChild(grid);
+  };
+  ctx.refresh(render, ids, 0);
+}
+
+const COLORS_CSS = { fg: 'var(--gp-fg)', dim: 'var(--gp-dim)', faint: 'var(--gp-faint)', accent: 'var(--gp-accent)', warn: 'var(--gp-warn)', good: 'var(--gp-good)', bad: 'var(--gp-bad)' };
+
 function divider(ctx) {
+  const css = dividerCss(ctx.opts);
+  if (css.fill) { const fill = el('div'); fill.style.cssText = css.fill; ctx.root.appendChild(fill); }      // a box's soft fill sits under its outline
   const line = el('div');
-  line.style.cssText = 'width:100%;height:' + (ctx.opts.thickness || 2) + 'px;background:currentColor';
+  line.style.cssText = css.line;
   ctx.root.appendChild(line);
 }
 
@@ -370,12 +440,17 @@ function message(ctx) {
 
 function entityValue(ctx) {
   const o = ctx.opts, entity = ctx.slots.entity, S = ctx.style.size || 32;
+  let ruleIcon = '', ruleColor = '';
+  const look = o.look === 'tile' || o.look === 'chip' ? o.look : 'plain';
   // a camera or image entity is a picture: its state ("idle", a timestamp) means nothing on a mirror, so show what it shows instead.
   // Panes made before the Image widget took entities used this widget for cameras; they now show the picture without any change.
   if (/^(camera|image)\./.test(String(entity || ''))) { entityPicture(ctx); return; }
   const render = async () => {
     if (!entity) { clear(ctx.root); return; }
     const s = await ctx.data.state(entity);
+    // an icon beside the value: a name, or "auto" for the entity's own. A tile or a chip shows the entity's own icon unless told not to.
+    const wantIcon = look === 'plain' ? (o.icon || ruleIcon) : o.show_icon !== false;
+    const iconD = wantIcon ? await loadIcon(chosenIcon(ruleIcon, o.icon || (look === 'plain' ? '' : 'auto'), s)) : null;
     clear(ctx.root);
     let v = '-', unit = '';
     if (okState(s)) {
@@ -383,15 +458,40 @@ function entityValue(ctx) {
       const a = s.attributes || {}, raw = o.attribute ? a[o.attribute] : s.state;
       const shown = describe(raw, {
         domain: String(entity).split('.')[0], deviceClass: o.attribute ? null : a.device_class, format: o.format, decimals: o.decimals,
-        thousands: o.thousands_separator, rawState: o.raw_state, time: ctx.time,
+        thousands: o.thousands_separator, rawState: o.raw_state, durationUnit: o.duration_unit, time: ctx.time,
       });
       v = shown.text;
       // the entity's own unit belongs to its state, so an attribute only gets the unit you typed
       if (!isNaN(shown.n)) unit = o.unit != null ? o.unit : o.attribute ? '' : unitOf(s);
       else if (o.unit) unit = o.unit;
     }
+    if (look !== 'plain') {
+      // The icon takes the widget's colour (a style rule can turn it red); the words stay the theme's own text colours.
+      const tint = colorCss(ruleColor || ctx.style.color || '', 'var(--gp-accent)');
+      const css = tileCss(look, S, o.radius);
+      const name = o.label || (s && s.attributes && s.attributes.friendly_name) || '';
+      const layer = (text) => { const e = el('div'); e.style.cssText = text; return e; };
+      const card = layer(css.box);
+      card.appendChild(layer(css.fill));
+      if (iconD) {
+        const badge = layer(css.badge + ';color:' + tint);
+        if (css.badgeFill) badge.appendChild(layer(css.badgeFill));
+        const ic = iconNode(iconD, css.iconSize); ic.style.position = 'relative';
+        badge.appendChild(ic); card.appendChild(badge);
+      }
+      const texts = layer(css.texts);
+      const showName = look === 'tile' ? o.show_label !== false : o.show_label === true;
+      if (showName && name) { const nm = el('div', 'gp-ellip', name); nm.style.cssText = css.name; texts.appendChild(nm); }
+      const val = el('div', 'gp-ellip', v + (unit ? (/^[%°]/.test(unit) ? '' : ' ') + unit : '')); val.style.cssText = css.value;
+      texts.appendChild(val);
+      card.appendChild(texts);
+      if (look === 'chip') { ctx.root.style.display = 'flex'; ctx.root.style.alignItems = 'center'; ctx.root.style.justifyContent = { center: 'center', right: 'flex-end' }[ctx.root.dataset.align] || 'flex-start'; }
+      ctx.root.appendChild(card);
+      return;
+    }
     const line = el('div', 'gp-ellip', v);
     line.style.lineHeight = '1.05';
+    if (iconD) { const ic = iconNode(iconD, Math.round(S * 0.8)); ic.style.marginRight = Math.round(S * 0.15) + 'px'; line.insertBefore(ic, line.firstChild); }
     if (unit) { const u = el('span', 'gp-unit', unit); u.style.fontSize = Math.round(S * 0.36) + 'px'; line.appendChild(u); }
     ctx.root.appendChild(line);
     if (o.show_label !== false) {
@@ -403,6 +503,10 @@ function entityValue(ctx) {
       }
     }
   };
+  ctx.onStyle((style) => {
+    const icon = style.icon || '', color = look === 'plain' ? '' : (style.color || '');          // a tile's icon follows the colour a rule sets
+    if (icon !== ruleIcon || color !== ruleColor) { ruleIcon = icon; ruleColor = color; render(); }
+  });
   ctx.refresh(render, [entity], 0);
 }
 
@@ -569,17 +673,36 @@ function nowPlaying(ctx) {
   const o = ctx.opts, players = asList(ctx.slots.players), S = ctx.style.size || 32, look = npStyle(o);
   let view = null;          // vinyl / CD only: the drawn pieces, kept between updates so the tonearm can swing instead of being rebuilt
 
+  // The cover, shrunk by Home Assistant to the size it is drawn at. A full-size cover (often 1400 px) decodes to about 8 MB on the mirror, and
+  // the card look used to load it twice. `glow` is a tiny copy for the soft light behind the card. If Home Assistant cannot shrink it (an
+  // older integration, an art address it cannot read), the full-size address is used, as before. The blobs are let go when the cover changes.
+  let covers = { src: '', big: '', glow: '', wantsGlow: false };
+  const letGo = (u) => { if (u && u.startsWith('blob:')) URL.revokeObjectURL(u); };
+  const dropCovers = () => { letGo(covers.big); letGo(covers.glow); covers = { src: '', big: '', glow: '', wantsGlow: false }; };
+  ctx.onDestroy(dropCovers);
+  const coverFor = async (p, a, wantsGlow) => {
+    const src = o.show_art !== false ? pictureOf(ctx, a) : '';
+    if (!src) { dropCovers(); return covers; }
+    if (covers.src === src && (covers.glow || !wantsGlow)) return covers;
+    const size = Math.max(128, Math.round(ctx.h || 480));
+    const ask = (px) => (ctx.data.picture && p.entity_id ? ctx.data.picture(p.entity_id, px, px).catch(() => null) : null);
+    const [big, glow] = await Promise.all([ask(size), wantsGlow ? ask(128) : null]);
+    letGo(covers.big); letGo(covers.glow);
+    covers = { src, big: big || src, glow: wantsGlow ? (glow || big || src) : '', wantsGlow };
+    return covers;
+  };
+
   // The vinyl record or CD, drawn with CSS only (no picture files). Sized from one number, --d (the disc's width).
   // Only two things ever move: the disc (spins) and the tonearm (swings). Both use CSS "transform" only, each on its own layer,
   // and nothing is animated unless a song is playing (the "playing" class on the outer wrapper is the on/off switch).
-  const buildDisc = (p) => {
+  const buildDisc = (p, cover) => {
     const a = p.attributes || {}, d = ctx.h;
     const wrap = el('div', 'gp-np gp-np-' + look + (o.burn_in_saver === true ? ' gp-drift' : ''));
     const stage = el('div', 'gp-np-disc');
     stage.style.cssText = '--d:' + d + 'px;margin-right:' + Math.round(S * 1.1) + 'px';
     const spin = el('div', 'gp-spin gp-' + look);             // the part that rotates
     const label = el('div', 'gp-disc-label');                 // the album art (a plain coloured label when there is none)
-    const art = o.show_art !== false ? pictureOf(ctx, a) : '';
+    const art = cover;
     if (art) {
       const i = el('img'); i.alt = ''; i.src = art; label.appendChild(i);
       if (look === 'cd') spin.classList.add('gp-art');         // a printed CD: the art covers the whole disc, not only the ring round the hole
@@ -604,16 +727,19 @@ function nowPlaying(ctx) {
     return { wrap, label };
   };
 
-  const render = async () => {
+  let queue = Promise.resolve();                       // draws one after another, so two quick state changes cannot fetch the same cover twice
+  const render = () => { queue = queue.then(draw, draw); return queue; };
+  const draw = async () => {
     const list = await Promise.all(players.map((p) => ctx.data.state(p)));
     const p = pickPlayer(list, o.paused_timeout_minutes, Date.now());
     if (look !== 'card' && p) {
       const a = p.attributes || {};
       const pic = o.show_art !== false ? pictureOf(ctx, a) : '';
+      const cover = (await coverFor(p, a, false)).big;
       // draw the record again only when there is none yet or the album art changed; otherwise just update the words and play/pause
       if (!view || !ctx.root.contains(view.wrap) || pic !== view.pic) {
         clear(ctx.root);
-        view = buildDisc(p);
+        view = buildDisc(p, cover);
         view.pic = pic;
         ctx.root.appendChild(view.wrap);
         // set one frame later, so a freshly drawn tonearm visibly swings onto the record instead of appearing already down
@@ -638,11 +764,12 @@ function nowPlaying(ctx) {
       return;
     }
     const a = p.attributes || {}, art = ctx.h;
+    const cover = await coverFor(p, a, true);
     const wrap = el('div', 'gp-np' + (o.burn_in_saver === true ? ' gp-drift' : ''));
-    if (o.show_art !== false && pictureOf(ctx, a)) {
+    if (cover.big) {
       const box = el('div', 'gp-np-art');
       box.style.cssText = 'width:' + art + 'px;height:' + art + 'px;margin-right:' + Math.round(S * 1.1) + 'px';
-      ['gp-np-glow', 'gp-np-img'].forEach((c) => { const i = el('img', c); i.alt = ''; i.src = pictureOf(ctx, a); box.appendChild(i); });
+      [['gp-np-glow', cover.glow], ['gp-np-img', cover.big]].forEach(([c, src]) => { const i = el('img', c); i.alt = ''; i.src = src; box.appendChild(i); });
       wrap.appendChild(box);
     }
     wrap.appendChild(infoBlock(p, a, true));
@@ -740,12 +867,8 @@ function statusSummary(ctx) {
     const list = await Promise.all(checks.map((k) => ctx.data.state(k.entity)));
     const issues = [];
     list.forEach((s, i) => {
-      const k = checks[i], v = s ? s.state : 'unavailable', n = strictNumber(v), offline = !s || v === 'unavailable' || v === 'unknown';
-      let why = null;
-      if (k.below != null) { if (isNaN(n)) why = 'offline'; else if (n < k.below) why = 'low'; }
-      else if (k.above != null) { if (isNaN(n)) why = 'offline'; else if (n > k.above) why = 'high'; }
-      else if (k.ok) { if (k.ok.indexOf(v) < 0) why = offline ? 'offline' : v; }
-      else if (k.bad ? k.bad.indexOf(v) >= 0 : isBad(v)) why = offline ? 'offline' : v;
+      const k = checks[i];
+      let why = checkProblem(k, s);          // the same rules the warnings editor describes (conditions.js)
       // offline for a long time is deliberate, not a surprise: stop mentioning it
       if (why === 'offline' && s && s.last_changed && Date.now() - Date.parse(s.last_changed) > staleMs) why = null;
       if (why) issues.push((k.name || k.entity) + (k.text ? ' ' + k.text : ' ' + why));
@@ -1002,7 +1125,7 @@ function news(ctx) {
 }
 
 export const widgets = {
-  clock, date, text, image, slideshow, video, divider, message,
+  clock, date, text, image, slideshow, video, divider, icon: iconWidget, table, message,
   entity_value: entityValue, weather, calendar_agenda: calendarAgenda, todo_list: todoList, now_playing: nowPlaying,
   people, lights_summary: lightsSummary, status_summary: statusSummary, progress_ring: progressRing, sports, news,
 };

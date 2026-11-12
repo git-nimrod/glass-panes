@@ -9,7 +9,8 @@
 //   widget.flow        { after, gap }                                   "Place below" another widget
 // Entity conditions name a slot (when_1, when_2 ...); the entity itself goes in the BINDINGS, never in the pane.
 
-import { DAYS, MAX_CONDITIONS, conditionsOf, newCondition, describeCondition, findRuleLoops } from '../player/conditions.js';
+import { iconField } from './icon-picker.js';
+import { DAYS, MAX_CONDITIONS, MAX_STYLE_RULES, conditionsOf, newCondition, describeCondition, findRuleLoops } from '../player/conditions.js';
 
 export const RULES_CSS = `
 .rulecard { margin: 8px 0; padding: 10px; border-radius: 12px; background: var(--ui-sunken); }
@@ -209,11 +210,13 @@ function placeBelow(ctx, others, nameOf) {
     ctx.widgets.forEach((x) => { if (x.flow && !followers.has(x.id) && [].concat(x.flow.after).some((a) => followers.has(a))) { followers.add(x.id); changed = true; } });
   }
   const choices = others.filter((o) => !followers.has(o.id));
+  // unlinking pins the widget where it is shown now
+  const unlink = (x) => { delete x.flow; x.y = Math.max(0, Math.min(Math.round(ctx.rect.y), 1920 - x.h)); };
   const wrap = h('div', {}, h('label', { class: 'lbl', text: 'Place below' }),
     h('select', { class: 'field', 'data-field': 'flow-after', onChange: (ev) => {
       const id = ev.target.value;
       ctx.edit((x) => {
-        if (!id) { delete x.flow; x.y = Math.max(0, Math.min(Math.round(ctx.rect.y), 1920 - x.h)); return; }
+        if (!id) { unlink(x); return; }
         x.flow = { after: id, gap: (x.flow && x.flow.gap) || 0 };
       });
     } }, h('option', { value: '', selected: !after.length, text: 'Nothing: stay where I put it' }),
@@ -223,7 +226,88 @@ function placeBelow(ctx, others, nameOf) {
     wrap.append(h('div', { class: 'grid2', style: 'margin-top:6px' }, h('div', {}, h('label', { class: 'lbl', text: 'Gap (px)' }),
       h('input', { class: 'field', type: 'number', min: 0, max: 400, step: 10, value: w.flow.gap || 0, 'data-field': 'flow-gap',
         onChange: (ev) => { const n = parseInt(ev.target.value, 10); if (Number.isFinite(n)) ctx.edit((x) => { x.flow.gap = Math.max(0, Math.min(400, n)); }); } }))),
-    h('div', { class: 'hint', text: 'It sits below that widget wherever it ends up, and anything empty above is skipped, so there is no gap. Dragging it by hand pins it again.' }));
+    h('button', { class: 'btn sm ghost', style: 'margin-top:6px', 'data-field': 'flow-unlink', title: 'Stop following that widget and stay where it is now', onClick: () => ctx.edit(unlink) }, 'Unlink'),
+    h('div', { class: 'hint', text: 'It sits below that widget wherever it ends up, and anything empty above is skipped, so there is no gap. Dragging it up or down changes the gap, sideways moves it across; the link stays until you press Unlink.' }));
   }
   return wrap;
+}
+
+// ---------------------------------------------------------------- conditional formatting (style_rules)
+// Under the widget's "Show when" section. A rule is: when the widget's entity is above / below / between / equal to something, wear this
+// colour, size, weight or opacity. The first rule that holds wins, so the order matters.
+
+const STYLE_TEST_LABELS = [['above', 'is above'], ['below', 'is below'], ['between', 'is between'], ['is', 'is'], ['is_not', 'is not']];
+const COLOR_CHOICES = [['', 'Unchanged'], ['fg', 'Normal'], ['dim', 'Dim'], ['accent', 'Accent'], ['good', 'Good (green)'], ['warn', 'Warning (amber)'], ['bad', 'Bad (red)']];
+const WEIGHT_CHOICES = [['', 'Unchanged'], ['100', 'Thin'], ['300', 'Light'], ['400', 'Regular'], ['600', 'Semi-bold'], ['700', 'Bold']];
+
+/** A new rule that continues the pattern: above the highest number so far, in red. */
+export function newStyleRule(existing = []) {
+  const top = existing.reduce((m, r) => (Number.isFinite(r.value) ? Math.max(m, r.value, Number.isFinite(r.to) ? r.to : -Infinity) : m), -Infinity);
+  return { test: 'above', value: Number.isFinite(top) ? top : 0, style: { color: 'bad' } };
+}
+
+/**
+ * ctx = { h, icon, w, entityName(slot), edit(fn) }  (the same ctx as ruleSection; `edit` receives the widget)
+ * Returns the section, or null for a widget with no `entity` slot (nothing for a rule to look at).
+ */
+export function styleRulesSection(ctx, hasEntitySlot) {
+  const { h, icon, w } = ctx;
+  if (!hasEntitySlot) return null;
+  const own = ctx.owner || ((x) => x);                    // where the rules live: the widget, or a table column
+  const rules = own(w).style_rules || [];
+  const root = h('details', { class: 'fold stylerules', open: rules.length > 0 || ctx.styleOpen === true },
+    h('summary', { onClick: (ev) => { if (ctx.setStyleOpen) ctx.setStyleOpen(!ev.currentTarget.parentElement.open); } }, h('span', { class: 'lbl', style: 'display:inline;margin:0', text: ctx.title || 'Colours and sizes by value' })));
+  root.append(h('div', { class: 'hint', style: 'margin-top:8px', text: 'Change how this widget looks depending on its entity. The first rule that holds wins.' }));
+  rules.forEach((r, i) => {
+    const set = (patch) => ctx.edit((x) => { Object.assign(own(x).style_rules[i], patch); });
+    const setStyle = (key, value) => ctx.edit((x) => {
+      const st = { ...own(x).style_rules[i].style };
+      if (value === '' || value == null) delete st[key]; else st[key] = value;
+      own(x).style_rules[i].style = st;
+    });
+    const num = r.test === 'above' || r.test === 'below' || r.test === 'between';
+    const card = h('div', { class: 'rulecard', 'data-style-rule': i + 1 });
+    card.append(h('div', { class: 'row' },
+      h('span', { class: 'hint', text: 'When it' }),
+      h('select', { class: 'field', style: 'width:auto', 'data-field': 'test', onChange: (ev) => {
+        const test = ev.target.value;
+        ctx.edit((x) => {
+          const rule = own(x).style_rules[i];
+          rule.test = test;
+          if (test === 'above' || test === 'below') { rule.value = Number.isFinite(parseFloat(rule.value)) ? parseFloat(rule.value) : 0; delete rule.to; }
+          else if (test === 'between') { const a = Number.isFinite(parseFloat(rule.value)) ? parseFloat(rule.value) : 0; rule.value = a; rule.to = Number.isFinite(rule.to) ? rule.to : a + 10; }
+          else { if (typeof rule.value !== 'string' && !Array.isArray(rule.value)) rule.value = 'on'; delete rule.to; }
+        });
+      } }, STYLE_TEST_LABELS.map(([v, t]) => h('option', { value: v, selected: r.test === v, text: t }))),
+      h('button', { class: 'btn sm ghost', title: 'Check this rule earlier', disabled: i === 0, onClick: () => ctx.edit((x) => { const [m] = own(x).style_rules.splice(i, 1); own(x).style_rules.splice(i - 1, 0, m); }) }, '↑'),
+      h('button', { class: 'btn sm ghost danger', title: 'Remove this rule', onClick: () => ctx.edit((x) => { own(x).style_rules.splice(i, 1); if (!own(x).style_rules.length) delete own(x).style_rules; }) }, icon('x'))));
+    if (num) {
+      card.append(h('div', { class: 'row' },
+        h('input', { class: 'field', style: 'width:90px', type: 'number', 'data-field': 'value', value: r.value, onChange: (ev) => { const n = parseFloat(ev.target.value); if (Number.isFinite(n)) set({ value: n }); } }),
+        r.test === 'between' ? h('span', { class: 'hint', text: 'and' }) : null,
+        r.test === 'between' ? h('input', { class: 'field', style: 'width:90px', type: 'number', 'data-field': 'to', value: r.to, onChange: (ev) => { const n = parseFloat(ev.target.value); if (Number.isFinite(n)) set({ to: n }); } }) : null));
+    } else {
+      card.append(h('input', { class: 'field', 'data-field': 'value', type: 'text', maxlength: 80, value: [].concat(r.value === undefined ? '' : r.value).join(', '),
+        placeholder: 'a state, like on or open (several: separate with commas)',
+        onChange: (ev) => { const parts = ev.target.value.split(',').map((s) => s.trim()).filter(Boolean); if (parts.length) set({ value: parts.length === 1 ? parts[0] : parts.slice(0, 10) }); } }));
+    }
+    card.append(h('input', { class: 'field', 'data-field': 'attribute', type: 'text', maxlength: 64, value: r.attribute || '', placeholder: 'Look at an attribute instead of the state (optional)',
+      onChange: (ev) => { const v = ev.target.value.trim(); ctx.edit((x) => { if (v) own(x).style_rules[i].attribute = v; else delete own(x).style_rules[i].attribute; }); } }));
+    const st = r.style || {};
+    card.append(h('div', { class: 'hint', style: 'margin-top:6px', text: 'then it shows with' }),
+      h('div', { class: 'grid2' },
+        h('select', { class: 'field', 'data-field': 'color', title: 'Colour', onChange: (ev) => setStyle('color', ev.target.value) }, COLOR_CHOICES.map(([v, t]) => h('option', { value: v, selected: (st.color || '') === v, text: t }))),
+        h('select', { class: 'field', 'data-field': 'weight', title: 'Weight', onChange: (ev) => setStyle('weight', ev.target.value ? parseInt(ev.target.value, 10) : null) }, WEIGHT_CHOICES.map(([v, t]) => h('option', { value: v, selected: String(st.weight || '') === v, text: t }))),
+        h('input', { class: 'field', type: 'number', min: 8, max: 400, 'data-field': 'size', title: 'Size (px)', placeholder: 'Size', value: st.size || '', onChange: (ev) => { const n = parseInt(ev.target.value, 10); setStyle('size', Number.isFinite(n) ? Math.max(8, Math.min(400, n)) : null); } }),
+        h('input', { class: 'field', type: 'number', min: 0, max: 100, step: 10, 'data-field': 'opacity', title: 'Opacity (%)', placeholder: 'Opacity %', value: st.opacity != null ? Math.round(st.opacity * 100) : '',
+          onChange: (ev) => { const n = parseFloat(ev.target.value); setStyle('opacity', Number.isFinite(n) ? Math.max(0, Math.min(100, n)) / 100 : null); } })));
+    card.append(h('div', { class: 'hint', style: 'margin-top:6px', text: 'Icon' }), iconField(h, { value: st.icon || '', emptyLabel: 'Keep the widget’s icon', onPick: (name) => setStyle('icon', name || null) }));
+    if (!Object.keys(st).length) card.append(h('div', { class: 'warnbox poor', text: 'This rule changes nothing yet. Pick a colour, weight, size or opacity.' }));
+    root.append(card);
+  });
+  if (!ctx.noEntityHint && !ctx.entityName('entity')) root.append(h('div', { class: 'hint', text: 'Bind an entity to this widget first: the rules look at it.' }));
+  root.append(rules.length < MAX_STYLE_RULES
+    ? h('button', { class: 'btn sm', 'data-field': 'add-style-rule', onClick: () => ctx.edit((x) => { own(x).style_rules = [...(own(x).style_rules || []), newStyleRule(own(x).style_rules || [])]; }) }, icon('plus'), 'Add a rule')
+    : h('div', { class: 'hint', text: 'That is the most rules a widget can have (' + MAX_STYLE_RULES + ').' }));
+  return root;
 }

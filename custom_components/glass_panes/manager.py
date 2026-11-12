@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import json
+import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -36,20 +37,25 @@ from .const import (
     SIGNAL_DISPLAY_UPDATED,
     SIGNAL_PANES_CHANGED,
 )
+from . import groups as groups_lib
 from . import media as media_lib
 from . import photos as photos_lib
 from . import widget_ops
-from .storage import BindingsStore, DisplayStore, DraftStore, MediaStore, PaneStore
+from .storage import BindingsStore, DisplayStore, DraftStore, GroupStore, MediaStore, PaneStore
+
+
+async def remove_user_by_id(hass: HomeAssistant, user_id: str | None) -> None:
+    """Delete one display login user (which also ends all its tokens). Never touches an owner or an administrator."""
+    user = await hass.auth.async_get_user(user_id) if user_id else None
+    if user is not None and not user.is_owner and not user.is_admin:        # never touch anyone who is not one of ours
+        await hass.auth.async_remove_user(user)
 
 
 async def remove_login_user(hass: HomeAssistant, record: dict[str, Any]) -> None:
     """Delete the Home Assistant user behind one display record (which also ends all its tokens) and forget its id.
 
     Safe to call when the user is already gone or the record has no login. Never touches an owner or an administrator."""
-    user_id = record.pop("login_user_id", None)
-    user = await hass.auth.async_get_user(user_id) if user_id else None
-    if user is not None and not user.is_owner and not user.is_admin:        # never touch anyone who is not one of ours
-        await hass.auth.async_remove_user(user)
+    await remove_user_by_id(hass, record.pop("login_user_id", None))
 
 
 class Manager:
@@ -74,6 +80,8 @@ class Manager:
         self.media_store = media_store
         self.draft_store = draft_store
         self._checker = checker
+        self.group_store = GroupStore(hass)                    # loaded the first time a group is asked for
+        self._status_reads: dict[str, asyncio.Task] = {}      # the /status read under way for each display, so the controls of one display share it
         self._photo_lock = asyncio.Lock()                    # one picture is shrunk at a time, so a big folder cannot starve Home Assistant
         self.pane_schema: dict[str, Any] = {}                 # the pane JSON Schema, kept so tools and agents can be handed it
         self._mirror_locks: dict[str, asyncio.Lock] = {}     # one per display: a measurement and a presence switch must not overlap
@@ -132,6 +140,42 @@ class Manager:
             await self.pane_store.async_put(pane)
         async_dispatcher_send(self.hass, SIGNAL_PANES_CHANGED)
         return []
+
+    # ------------------------------------------------------------------ reusable widget groups
+
+    async def _groups(self) -> dict[str, dict[str, Any]]:
+        if not self.group_store.loaded:
+            await self.group_store.async_load()
+        return self.group_store.groups
+
+    async def list_groups(self) -> list[dict[str, Any]]:
+        groups = await self._groups()
+        return [groups_lib.shape(g) for g in sorted(groups.values(), key=lambda g: g["name"].lower())]
+
+    async def save_group(self, name: Any, widgets: Any, bindings: Any) -> tuple[list[str], dict[str, Any] | None]:
+        """Save a set of widgets (and what they are bound to) under a name. The widgets are checked as a pane would be, so a group
+        can never hold something a pane could not."""
+        errors = groups_lib.validate_request(name, widgets, bindings)
+        if errors:
+            return errors, None
+        errors = self._checker.check(groups_lib.stand_in_pane(name, widgets))
+        if not errors:
+            errors = bindings_lib.validate(bindings_lib.wrap({groups_lib.PANE_ID: bindings}))
+        if errors:
+            return errors, None
+        async with self._lock:
+            groups = await self._groups()
+            if len(groups) >= groups_lib.MAX_GROUPS:
+                return [f"too many saved groups (the limit is {groups_lib.MAX_GROUPS})"], None
+            group = {"id": groups_lib.unique_id(name, set(groups)), "name": name.strip(), "widgets": copy.deepcopy(widgets),
+                     "bindings": copy.deepcopy(bindings), "created": datetime.now(timezone.utc).isoformat()}
+            await self.group_store.async_put(group)
+        return [], groups_lib.shape(group)
+
+    async def delete_group(self, group_id: Any) -> bool:
+        async with self._lock:
+            await self._groups()
+            return isinstance(group_id, str) and await self.group_store.async_remove(group_id)
 
     async def create_pane(self, name: Any, description: Any = "", copy_from: Any = None) -> tuple[list[str], dict[str, Any] | None]:
         """Make a new pane, blank or a copy of an existing one. Its id comes from the name and never changes after that."""
@@ -282,6 +326,7 @@ class Manager:
                 return [f"there is no draft '{draft_id}' (list_drafts shows yours)"], None
             pane, bindings = draft["pane"], draft["bindings"]
             widget: dict[str, Any] | None = None
+            added: list[str] = []
             try:
                 if action == "add_widget":
                     entities = args.pop("entities", None)
@@ -291,6 +336,12 @@ class Manager:
                             raise ops.OpError("entities must be an object: slot name -> entity id (or list)")
                         for slot, value in entities.items():
                             bindings = ops.bind(pane, bindings, self.registry, widget["id"], slot, value)
+                elif action == "add_group":
+                    saved = (await self._groups()).get(args.get("group")) if isinstance(args.get("group"), str) else None
+                    if saved is None:
+                        names = ", ".join(f"{g['id']} ({g['name']})" for g in sorted((await self._groups()).values(), key=lambda g: g["id"])) or "none yet"
+                        raise ops.OpError(f"there is no saved group '{args.get('group')}'. Saved groups: {names}")
+                    pane, bindings, added = ops.add_group(pane, bindings, saved)
                 elif action == "update_widget":
                     pane, widget = ops.update_widget(pane, args.pop("widget", None), **args)
                 elif action == "place_widget":
@@ -325,6 +376,8 @@ class Manager:
             await self.draft_store.async_save()
             summary = self._draft_summary(draft)
             result: dict[str, Any] = {"draft": draft_id, "widgets": summary["widgets"]}
+            if action == "add_group":
+                result["added"] = added
             if widget is not None:
                 result["widget"] = copy.deepcopy(widget)
                 result["bindings"] = copy.deepcopy(bindings.get(widget["id"], {}))
@@ -457,7 +510,8 @@ class Manager:
         return async_sign_path(self.hass, f"/api/{DOMAIN}/picture?{query}", timedelta(days=7), use_content_user=True)
 
     async def entity_picture(self, entity_id: str, w: Any, h: Any) -> bytes | None:
-        """The current picture of an image or camera entity, shrunk to w by h as a JPEG. None when the entity gives no picture now.
+        """The current picture of an image or camera entity, or the cover art of a media player, shrunk to w by h as a JPEG. None when the entity
+        gives no picture now. (A full-size cover decodes to several MB on the mirror, so Now playing asks for the size it draws.)
         Raises ValueError when what it gave is not a readable picture."""
         from homeassistant.exceptions import HomeAssistantError
 
@@ -470,15 +524,22 @@ class Manager:
             if entity_id.startswith("camera."):
                 from homeassistant.components import camera
 
-                found = await camera.async_get_image(self.hass, entity_id, 10, w, h)
+                content = (await camera.async_get_image(self.hass, entity_id, 10, w, h)).content
+            elif entity_id.startswith("media_player."):
+                from homeassistant.components.media_player.const import DATA_COMPONENT
+
+                player = self.hass.data[DATA_COMPONENT].get_entity(entity_id)
+                content = (await player.async_get_media_image())[0] if player is not None else None
             else:
                 from homeassistant.components import image
 
-                found = await image.async_get_image(self.hass, entity_id)
-        except (HomeAssistantError, asyncio.TimeoutError, KeyError, ImportError):
+                content = (await image.async_get_image(self.hass, entity_id)).content
+        except (HomeAssistantError, asyncio.TimeoutError, KeyError, ImportError, AttributeError):
+            return None
+        if not content:
             return None
         async with self._photo_lock:
-            return await self.hass.async_add_executor_job(photos_lib.shrink, found.content, w, h)
+            return await self.hass.async_add_executor_job(photos_lib.shrink, content, w, h)
 
 
     def _ingest(self, file_id: str, media_id: str) -> dict[str, Any]:
@@ -525,6 +586,8 @@ class Manager:
         record = self.display_store.displays[display_id]
         entity_id = er.async_get(self.hass).async_get_entity_id("select", DOMAIN, f"{DOMAIN}_{display_id}")
         return {"id": display_id, "name": record["name"], "timezone": record.get("timezone"), "pane": record["pane"], "entity_id": entity_id,
+                # Home Assistant's own zone: a display with no zone of its own shows times in this one (read live, so a change follows)
+                "ha_timezone": self.hass.config.time_zone,
                 "has_login": bool(record.get("login_user_id")),
                 # Only yes/no answers: the mirror's address is shown to administrators by the mirror commands, and the key is never shown
                 "has_mirror": bool(record.get("endpoint")), "key_set": bool(record.get("key"))}
@@ -611,13 +674,18 @@ class Manager:
     async def _remove_login(self, record: dict[str, Any]) -> None:
         await remove_login_user(self.hass, record)
 
-    async def create_display_login(self, display_id: str) -> tuple[str | None, dict[str, Any] | None]:
-        """Make (or replace) the display's login. Returns (problem, {"token", "user"}). The token is not kept anywhere."""
+    async def create_display_login(self, display_id: str, keep_previous: bool = False) -> tuple[str | None, dict[str, Any] | None]:
+        """Make (or replace) the display's login. Returns (problem, {"token", "user", "previous_user_id"}). The token is not kept anywhere.
+
+        Normally the old login is removed first, so its token stops working at once. With `keep_previous` it is left alone and its user id
+        is returned, so the caller can remove it once the new token has really reached the display (see pair_mirror)."""
         async with self._lock:
             record = self.display_store.displays.get(display_id)
             if record is None:
                 return f"there is no display '{display_id}'", None
-            await self._remove_login(record)                      # replacing: the old token stops working
+            previous = record.get("login_user_id") if keep_previous else None
+            if not keep_previous:
+                await self._remove_login(record)                  # replacing: the old token stops working
             user = await self.hass.auth.async_create_user(f"Glass Panes: {record['name']}"[:80], group_ids=[GROUP_ID_USER], local_only=True)
             try:
                 refresh = await self.hass.auth.async_create_refresh_token(
@@ -629,7 +697,25 @@ class Manager:
                 raise
             record["login_user_id"] = user.id
             await self.display_store.async_save()
-        return None, {"token": token, "user": user.name}
+        return None, {"token": token, "user": user.name, "previous_user_id": previous}
+
+    async def _settle_login(self, display_id: str, login: dict[str, Any], delivered: bool) -> None:
+        """After a pairing that kept the old login: once the new token was delivered the old user goes; if not, the new user goes and the
+        old login is put back, so a failed pairing leaves the display exactly as it was."""
+        async with self._lock:
+            record = self.display_store.displays.get(display_id)
+            if record is None:
+                return
+            new_id = record.get("login_user_id")
+            if delivered:
+                await remove_user_by_id(self.hass, login.get("previous_user_id"))
+            else:
+                await remove_user_by_id(self.hass, new_id)
+                if login.get("previous_user_id"):
+                    record["login_user_id"] = login["previous_user_id"]
+                else:
+                    record.pop("login_user_id", None)
+            await self.display_store.async_save()
 
     async def revoke_display_login(self, display_id: str) -> str | None:
         async with self._lock:
@@ -684,6 +770,55 @@ class Manager:
         async_dispatcher_send(self.hass, SIGNAL_DISPLAY_UPDATED, display_id)
         return None
 
+    async def pair_mirror(self, display_id: Any, endpoint: Any, code: Any, base_url: Any) -> str | None:
+        """Set a mirror up from the code it shows on its screen. Returns the problem, or None when it worked.
+
+        1. the mirror is asked whether the code is right (nothing changes yet), so a typo cannot cost a working display its login;
+        2. Home Assistant makes the display's login and sends the mirror its page address, the login token and a new control key, all
+           straight over the home network: the token is never shown to the builder and never put in a log or an answer;
+        3. the mirror's address and key are remembered, like the Connect a mirror form does.
+
+        The display's previous login (if it had one) is only removed once the mirror has the new one, so a pairing that fails halfway leaves
+        a working display working."""
+        record = self.display_store.displays.get(display_id) if isinstance(display_id, str) else None
+        if record is None:
+            return f"there is no display '{display_id}'"
+        problem = mirror_lib.code_problem(code)
+        if problem:
+            return problem
+        address, problem = mirror_lib.parse_endpoint(endpoint)
+        if problem:
+            return f"mirror address: {problem}"
+        player, problem = mirror_lib.player_url(base_url, display_id)
+        if problem:
+            return problem
+        digits = mirror_lib.clean_code(code)
+        try:
+            await mirror.call(self.hass, address, None, "/pair", {"code": digits, "check": 1})
+        except mirror.MirrorError as err:
+            return str(err)
+        problem, login = await self.create_display_login(display_id, keep_previous=True)        # the old login keeps working until this one is delivered
+        if problem or login is None:
+            return problem or "could not make the display's login"
+        key = secrets.token_urlsafe(24)
+        try:
+            await mirror.call(self.hass, address, None, "/pair", {"code": digits, "url": player, "token": login["token"], "key": key})
+        except mirror.MirrorError as err:
+            await self._settle_login(display_id, login, delivered=False)
+            return str(err)
+        except BaseException:
+            await self._settle_login(display_id, login, delivered=False)
+            raise
+        await self._settle_login(display_id, login, delivered=True)
+        async with self._lock:
+            record = self.display_store.displays.get(display_id)
+            if record is not None:
+                self._set_endpoint(record, address)
+                record["key"] = key
+                await self.display_store.async_save()
+        async_dispatcher_send(self.hass, SIGNAL_DISPLAY_UPDATED, display_id)
+        return None
+
     def _mirror_target(self, display_id: Any) -> tuple[str | None, str | None, str | None]:
         record = self.display_store.displays.get(display_id) if isinstance(display_id, str) else None
         if record is None:
@@ -735,6 +870,16 @@ class Manager:
             return {"ok": True, "endpoint": endpoint, "key_set": bool(key), **status, "verdict": mirror_lib.verdict(status["memory"]),
                     "measuring": self._mirror_lock(display_id).locked()}
         return await self._mirror_run(display_id, work)
+
+    async def mirror_status_cached(self, display_id: Any) -> tuple[str | None, dict[str, Any] | None]:
+        """The mirror's status. Callers that ask while a read is already running join it, so the number and the switch of one display,
+        whose timers fire together, cost one call between them. A read that has finished is never reused: every poll is a fresh look."""
+        running = self._status_reads.get(display_id)
+        if running is not None and not running.done():
+            return await asyncio.shield(running)
+        task = self.hass.async_create_task(self.mirror_status(display_id))          # a tracked task, so Home Assistant waits for it on shutdown
+        self._status_reads[display_id] = task
+        return await asyncio.shield(task)
 
     async def mirror_set_presence(self, display_id: Any, enabled: Any) -> tuple[str | None, dict[str, Any] | None]:
         if not isinstance(enabled, bool):

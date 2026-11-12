@@ -27,6 +27,7 @@ object Kiosk {
     @Volatile var lastFinishedMs = 0L      // when a page load last finished, well or badly. A load started after this has not ended yet
     @Volatile var shownPane = ""           // the pane the player last said it is showing
     @Volatile var bootId = 0               // counts every start of the app, kept across restarts and power cycles
+    val pair = PairLogic()                 // the code shown while the mirror is not set up (see PairLogic)
     val boot = BootTimeline { mono() }     // the steps of this start, for the loading bar and /status
     @Volatile var eventLog: EventLog? = null
     @Volatile var videoState = "stopped"      // stopped | starting | playing | error <what>/<extra>

@@ -21,6 +21,8 @@ import kotlin.concurrent.thread
  *                              -> turn the picture (the screen is landscape-native; remembered across restarts;
  *                                 "auto" leaves it to Android). If it comes out upside down, use the other one.
  *   GET /reload                -> load the mirror page again
+ *   GET /pair?code=482913&url=&token=&key= -> set the mirror up from the code on its screen (only while it is not set up, or after
+ *                                 adb ... --es pair 1). ?check=1 only says whether the code is right. See PairLogic.kt.
  *   GET /display/fix          -> run the display clean-up again (turns off Qualcomm CABL/PP)
  *   GET /presence              -> camera presence: someone there? (from changes in light only, see Presence.kt)
  *   GET /presence/on | /off    -> turn the camera presence on or off (remembered across restarts)
@@ -156,12 +158,13 @@ class ControlService : Service() {
                     ?.let { try { URLDecoder.decode(it, "UTF-8") } catch (e: Exception) { it } } ?: ""
                 // compared in constant time, so the key cannot be guessed a character at a time
                 val keyOk = java.security.MessageDigest.isEqual(wantedKey.toByteArray(Charsets.UTF_8), givenKey.toByteArray(Charsets.UTF_8))
-                if (wantedKey.isNotEmpty() && !keyOk && !fromThisDevice) {
+                if (wantedKey.isNotEmpty() && !keyOk && !fromThisDevice && path != "/pair") {          // /pair has its own credential: the code on the screen
                     reply(s, 403, """{"ok":false,"error":"bad key"}""")
                     return
                 }
 
                 when {
+                    path == "/pair" -> pair(s, params(query))
                     path == "/" || path == "/status" -> reply(s, 200, statusJson())
                     path == "/alive" -> {
                         // the player page says it is running. Only the page on the mirror itself may say so.
@@ -389,6 +392,43 @@ class ControlService : Service() {
     }
 
     /** The ?a=1&b=2 part of an address as a map, with the values decoded. Used by the newer calls. */
+    /**
+     * Pairing (see PairLogic): only while the mirror has no page address yet, or after `--es pair 1`. `check=1` asks whether the code is
+     * right and changes nothing. Otherwise the page address, login and control key are stored and the page loads. Answers never echo
+     * the token or key, and a wrong code says only that it was wrong.
+     */
+    private fun pair(s: Socket, args: Map<String, String>) {
+        val p = Kiosk.prefs(this)
+        val open = (p.getString("url", "") ?: "").isEmpty() || p.getBoolean("pairing", false)
+        if (!open) {
+            reply(s, 400, """{"ok":false,"error":"this mirror is already set up; to pair it again run adb ... --es pair 1"}""")
+            return
+        }
+        val check = args.containsKey("check")
+        val url = args["url"] ?: ""
+        val token = args["token"] ?: ""
+        val key = args["key"] ?: ""
+        if (!check) {
+            val bad = PairLogic.payloadProblem(url, token, key)          // before the code is used up, so a bad request wastes nothing
+            if (bad != null) { reply(s, 400, """{"ok":false,"error":"$bad"}"""); return }
+        }
+        when (Kiosk.pair.check(args["code"] ?: "", Kiosk.mono(), consume = !check)) {
+            PairLogic.Result.LOCKED -> reply(s, 403, """{"ok":false,"error":"too many wrong codes: wait a minute"}""")
+            PairLogic.Result.WRONG -> {
+                Kiosk.log("pair_refused", "wrong code")
+                Kiosk.main.post { Kiosk.activity?.showPairingScreen() }          // the code changes after too many wrong tries
+                reply(s, 403, """{"ok":false,"error":"wrong code"}""")
+            }
+            PairLogic.Result.OK -> {
+                if (check) { reply(s, 200, """{"ok":true,"checked":true}"""); return }
+                p.edit().putString("url", url).putString("token", token).putString("key", key).putBoolean("pairing", false).apply()
+                Kiosk.log("paired", Origins.of(url) ?: "page address set")
+                Kiosk.main.post { Kiosk.activity?.reloadPage() }
+                reply(s, 200, """{"ok":true}""")
+            }
+        }
+    }
+
     private fun params(query: String): Map<String, String> =
         query.split("&").filter { it.isNotEmpty() }.associate { part ->
             val kv = part.split("=", limit = 2)

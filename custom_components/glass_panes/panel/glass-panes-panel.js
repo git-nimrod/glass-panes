@@ -11,12 +11,15 @@
 import { PaneRenderer } from '/glass_panes/player/engine.js';
 import { HassClient } from '/glass_panes/player/hass-client.js';
 import { validZone } from '/glass_panes/player/widgets.js';
-import { MockClient, mockBindings } from '/glass_panes/player/data.js';
+import { MockClient, mockBindings } from '/glass_panes/player/mock.js';
 import { makeTime } from '/glass_panes/player/util.js';
 import { CSS as PANEL_CSS } from '/glass_panes/panel/styles.js';
 import * as ops from '/glass_panes/panel/ops.js';
 import { THEMES, themeIsDark, paneBackground } from '/glass_panes/player/themes.js';
-import { ruleSection, RULES_CSS, forceControl } from '/glass_panes/panel/rules-ui.js';          // "Show when" and the preview on/off controls
+import { openCatalogue, CATALOGUE_CSS } from '/glass_panes/panel/catalogue.js';
+import { iconField } from '/glass_panes/panel/icon-picker.js';
+import { warningsEditor, asCheck } from '/glass_panes/panel/warnings-ui.js';
+import { ruleSection, styleRulesSection, RULES_CSS, forceControl } from '/glass_panes/panel/rules-ui.js';          // "Show when" and the preview on/off controls
 import { findRuleLoops, foldShowIf, usesRules } from '/glass_panes/player/conditions.js';
 
 const PLAYER = '/glass_panes/player/index.html';
@@ -73,7 +76,7 @@ const whenSlots = (b) => Object.fromEntries(Object.entries(b || {}).filter(([k])
 const DOMAIN_ORDER = ['calendar', 'weather', 'media_player', 'todo', 'person', 'light', 'sensor', 'event', 'input_number', 'number', 'binary_sensor', 'switch', 'climate', 'cover'];
 const ELEMENT_INFO = {
   clock: 'The time', date: 'Today’s date', text: 'Any words you type', image: 'A picture from your device, or an image or camera entity', slideshow: 'Photos from a media folder, one after another', video: 'A looping video from your device',
-  divider: 'A thin line between sections', message: 'Friendly lines that rotate',
+  divider: 'A thin line between sections', icon: 'A symbol from the icon library', message: 'Friendly lines that rotate',
 };
 // How the display sits in the mirror in Mirror view. Estimated from two photos of a real Lululemon Studio Mirror, so approximate, not measured:
 // a very thin frame, the display close to the edges at the top and sides, a longer strip of plain glass below it (the display is roughly
@@ -148,10 +151,10 @@ class GlassPanesPanel extends HTMLElement {
     if (this._built) return;
     this._built = true;
     this.shadowRoot.innerHTML = `
-      <style>${PANEL_CSS}${RULES_CSS}</style>
+      <style>${PANEL_CSS}${RULES_CSS}${CATALOGUE_CSS}</style>
       <link rel="stylesheet" href="/glass_panes/player/player.css">
       <div class="app">
-        <header class="top"><span id="menu"></span><div class="brand"><img class="logo-img" src="/glass_panes/player/logo-mark.png" alt=""><span class="brandname">Glass Panes</span></div><div class="showing" id="showing"></div><span class="spacer"></span><span id="status"></span><button class="btn sm" id="settingsbtn" title="Settings for your mirror: presence, brightness, speaker volume"></button><button class="btn sm" id="themebtn" title="Switch between the cream and dark look"></button></header>
+        <header class="top"><span id="menu"></span><div class="brand"><img class="logo-img" src="/glass_panes/player/logo-mark.png" alt=""><span class="brandname">Glass Panes</span></div><div class="showing" id="showing"></div><span class="spacer"></span><span id="status"></span><button class="btn sm" id="catalogbtn" title="See every kind of widget, with a preview and what to bind to it">Widgets</button><button class="btn sm" id="settingsbtn" title="Settings for your mirror: presence, brightness, speaker volume"></button><button class="btn sm" id="themebtn" title="Switch between the cream and dark look"></button></header>
         <div class="layout" id="layout">
           <aside class="rail">
             <div class="tabs"><button class="tab on" data-tab="panes">Panes</button><button class="tab" data-tab="displays">Displays</button></div>
@@ -193,6 +196,7 @@ class GlassPanesPanel extends HTMLElement {
     const settingsBtn = $('settingsbtn');
     settingsBtn.append(icon('gear'), h('span', { class: 'btntext', text: 'Settings' }));
     settingsBtn.setAttribute('aria-pressed', 'false');
+    $('catalogbtn').addEventListener('click', () => this._openCatalogue());
     settingsBtn.addEventListener('click', () => { if (this.state.view === 'settings') this._closeSettings(); else this._openSettings(); });
     this.shadowRoot.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => { this.state.tab = t.dataset.tab; this._renderRail(true); }));
     $('dcancel').addEventListener('click', () => { $('details').style.display = 'none'; });
@@ -204,6 +208,10 @@ class GlassPanesPanel extends HTMLElement {
     overlay.addEventListener('pointerup', (e) => this._pointerUp(e));
     overlay.addEventListener('pointercancel', (e) => this._pointerUp(e, true));
     this.addEventListener('keydown', (e) => this._keyDown(e));
+    $('wrap').addEventListener('wheel', (e) => {            // Ctrl + wheel zooms the editor (only while editing)
+      if (!e.ctrlKey || !this.edit) return;
+      e.preventDefault(); this._setZoom((this._zoom || 1) * (e.deltaY < 0 ? 1.1 : 1 / 1.1));
+    }, { passive: false });
     this._ro = new ResizeObserver(() => this._fitPreview());
     this._ro.observe($('wrap'));
     // the sidebar button on narrow screens, if this version of the frontend provides the element
@@ -393,6 +401,8 @@ class GlassPanesPanel extends HTMLElement {
         h('div', { class: 'row' }, h('div', { class: 'grow' }, h('div', { class: 'name', text: d.name }), h('div', { class: 'sub', text: d.entity_id || d.id })),
           h('button', { class: 'btn sm ghost danger', title: 'Remove this display', onClick: () => this._removeDisplay(d) }, icon('trash'))),
         h('label', { class: 'lbl', text: 'Showing' }), sel,
+        this._displayZoneField(d),
+        this._pairBox(d),
         h('label', { class: 'lbl', text: 'Sign-in' }),
         d.has_login
           ? h('div', { class: 'row' }, h('span', { class: 'pill good' }, h('span', { class: 'dot' }), 'Login set up'),
@@ -410,7 +420,7 @@ class GlassPanesPanel extends HTMLElement {
       return;
     }
     const name = h('input', { class: 'field', placeholder: 'Display name, e.g. Kitchen tablet', maxlength: 80, required: true });
-    const tz = h('input', { class: 'field', placeholder: 'Timezone (optional)', value: (this._hass.config && this._hass.config.time_zone) || '' });
+    const tz = h('input', { class: 'field', placeholder: 'Time zone (optional: empty follows Home Assistant' + (this._hass.config && this._hass.config.time_zone ? ', ' + this._hass.config.time_zone : '') + ')' });
     body.append(h('form', { class: 'card newpane', onSubmit: (e) => { e.preventDefault(); this._addDisplay(name.value, tz.value); } },
       name, h('div', { style: 'height:8px' }), tz, h('div', { style: 'height:10px' }),
       h('div', { class: 'row' }, h('button', { class: 'btn primary', type: 'submit', text: 'Add display' }),
@@ -557,6 +567,109 @@ class GlassPanesPanel extends HTMLElement {
     return box;
   }
 
+  /**
+   * The table's columns: each says what to show for every row (the row's entity name, its state, one attribute, or fixed words), how to
+   * format it, and, optionally, colours by value. Every change is one undoable step through _patch.
+   */
+  _tableColumns(box, w) {
+    const cols = (w.options && w.options.columns) || [];
+    const change = (fn) => this._patch(w.id, (x) => { x.options = JSON.parse(JSON.stringify(x.options || {})); x.options.columns = x.options.columns || []; fn(x.options); });
+    box.append(h('label', { class: 'lbl', text: 'Columns' }),
+      h('div', { class: 'hint', text: 'Each entity you bind below is one row. Each column shows something about the row’s entity.' }));
+    const SOURCES = [['name', 'Its name'], ['state', 'Its state'], ['attribute', 'One attribute'], ['text', 'Fixed words']];
+    const FORMATS = [['auto', 'As is'], ['time', 'Time'], ['date', 'Date'], ['datetime', 'Date and time'], ['relative', 'Relative (in 5 min)'], ['duration', 'Duration (1 h 15 min)'], ['number', 'Number'], ['raw', 'Exactly as stored']];
+    cols.forEach((c, i) => {
+      const card = h('div', { class: 'rulecard', 'data-column': i + 1 });
+      const set = (key, value) => change((o) => { if (value === '' || value == null) delete o.columns[i][key]; else o.columns[i][key] = value; });
+      card.append(h('div', { class: 'row' },
+        h('input', { class: 'field', style: 'flex:1', 'data-field': 'header', type: 'text', maxlength: 40, placeholder: 'Column title (optional)', value: c.header || '', onChange: (ev) => set('header', ev.target.value.trim()) }),
+        h('button', { class: 'btn sm ghost', title: 'Move left', disabled: i === 0, onClick: () => change((o) => { const [m] = o.columns.splice(i, 1); o.columns.splice(i - 1, 0, m); }) }, '\u2190'),
+        h('button', { class: 'btn sm ghost', title: 'Move right', disabled: i === cols.length - 1, onClick: () => change((o) => { const [m] = o.columns.splice(i, 1); o.columns.splice(i + 1, 0, m); }) }, '\u2192'),
+        h('button', { class: 'btn sm ghost danger', title: 'Remove this column', disabled: cols.length < 2, onClick: () => change((o) => { o.columns.splice(i, 1); }) }, icon('x'))));
+      card.append(h('select', { class: 'field', 'data-field': 'source', onChange: (ev) => change((o) => {
+        const col = o.columns[i]; col.source = ev.target.value;
+        if (col.source !== 'attribute') delete col.attribute;
+        if (col.source !== 'text') delete col.text;
+        if (col.source === 'attribute' && !col.attribute) col.attribute = 'value';
+        if (col.source === 'text' && !col.text) col.text = 'text';
+        if (col.source === 'name' || col.source === 'text') { delete col.format; delete col.decimals; delete col.unit; delete col.duration_unit; }
+      }) }, SOURCES.map(([v, t]) => h('option', { value: v, selected: c.source === v, text: t }))));
+      if (c.source === 'attribute') card.append(h('input', { class: 'field', 'data-field': 'attribute', type: 'text', maxlength: 64, spellcheck: false, placeholder: 'Attribute name, like leave_by', value: c.attribute || '',
+        onChange: (ev) => { const v = ev.target.value.trim().toLowerCase(); if (/^[a-z0-9_]{1,64}$/.test(v)) set('attribute', v); else this.toast('An attribute name uses lower case letters, digits and _ only.', true); } }));
+      if (c.source === 'text') card.append(h('input', { class: 'field', 'data-field': 'text', type: 'text', maxlength: 80, placeholder: 'Words shown in every row', value: c.text || '', onChange: (ev) => set('text', ev.target.value.trim()) }));
+      if (c.source === 'state' || c.source === 'attribute') {
+        card.append(h('div', { class: 'grid2' },
+          h('select', { class: 'field', 'data-field': 'format', title: 'How the value is shown', onChange: (ev) => set('format', ev.target.value === 'auto' ? '' : ev.target.value) }, FORMATS.map(([v, t]) => h('option', { value: v, selected: (c.format || 'auto') === v, text: t }))),
+          h('select', { class: 'field', 'data-field': 'align', title: 'Alignment', onChange: (ev) => set('align', ev.target.value === 'left' ? '' : ev.target.value) }, [['left', 'Left'], ['center', 'Centre'], ['right', 'Right']].map(([v, t]) => h('option', { value: v, selected: (c.align || 'left') === v, text: t }))),
+          h('input', { class: 'field', 'data-field': 'decimals', type: 'number', min: 0, max: 6, placeholder: 'Decimals', value: c.decimals != null ? c.decimals : '', onChange: (ev) => { const n = parseInt(ev.target.value, 10); set('decimals', Number.isFinite(n) ? Math.max(0, Math.min(6, n)) : ''); } }),
+          h('input', { class: 'field', 'data-field': 'unit', type: 'text', maxlength: 20, placeholder: 'Unit', value: c.unit || '', onChange: (ev) => set('unit', ev.target.value.trim()) })));
+        if (c.format === 'duration') card.append(h('select', { class: 'field', 'data-field': 'duration_unit', title: 'What the number counts', onChange: (ev) => set('duration_unit', ev.target.value === 'minutes' ? '' : ev.target.value) },
+          [['minutes', 'The number is minutes'], ['seconds', 'The number is seconds'], ['hours', 'The number is hours']].map(([v, t]) => h('option', { value: v, selected: (c.duration_unit || 'minutes') === v, text: t }))));
+      }
+      if (c.source === 'state' || c.source === 'attribute') {
+        const sec = styleRulesSection({ h, icon, w: { ...w, options: { columns: cols } }, noEntityHint: true, title: 'Colours by value (this column)', owner: (x) => x.options.columns[i],
+          edit: (fn) => change((o) => { fn({ options: o }); }), styleOpen: this._styleOpen === w.id + ':' + i, setStyleOpen: (on) => { this._styleOpen = on ? w.id + ':' + i : null; } }, true);
+        if (sec) card.append(sec);
+      }
+      box.append(card);
+    });
+    if (cols.length < 8) box.append(h('button', { class: 'btn sm', 'data-field': 'add-column', onClick: () => change((o) => { o.columns.push({ source: 'state' }); }) }, icon('plus'), 'Add a column'));
+    box.append(h('label', { class: 'check', style: 'margin-top:8px' }, h('input', { type: 'checkbox', 'data-field': 'show-header', checked: (w.options || {}).show_header !== false,
+      onChange: (ev) => change((o) => { if (ev.target.checked) delete o.show_header; else o.show_header = false; }) }), 'Show the column titles'));
+  }
+
+  // ---------------------------------------------------------------- reusable widget groups
+  /** "Save these as a group": a name and a button. The group keeps the widgets, their look and what they are bound to. */
+  _saveGroupBox() {
+    const name = h('input', { class: 'field', 'data-field': 'group-name', type: 'text', maxlength: 80, placeholder: 'Group name, like Trips table' });
+    return h('div', { style: 'margin-top:14px' }, h('label', { class: 'lbl', text: 'Reuse these' }), name,
+      h('button', { class: 'btn sm', style: 'margin-top:6px', 'data-field': 'group-save', onClick: () => this._saveGroup(name.value) }, icon('plus'), 'Save as a group'),
+      h('div', { class: 'hint', text: 'Find it again under Add, Groups. Links to widgets outside the group are left out.' }));
+  }
+
+  async _saveGroup(name) {
+    name = name.trim();
+    if (!name) { this.toast('Give the group a name first.', true); return; }
+    const made = ops.groupFrom(this.edit.pane.widgets, this.edit.selected, this.edit.bindings);
+    if (!made) return;
+    try {
+      const r = await this.ws({ type: 'glass_panes/groups/save', name, widgets: made.widgets, bindings: made.bindings });
+      this.state.groups = r.groups;
+      this.toast('Saved the group “' + name + '”');
+      this._renderInspector();
+    } catch (e) { this.fail(e); }
+  }
+
+  async _loadGroups() {
+    try { this.state.groups = (await this.ws({ type: 'glass_panes/groups/list' })).groups; } catch (e) { this.state.groups = this.state.groups || []; }
+    if (this._drawer) this._renderDrawerList();
+  }
+
+  _dropGroup(group) {
+    const pane = clone(this.edit.pane), bindings = clone(this.edit.bindings);
+    const placed = ops.groupDrop(group, pane.widgets, this._grid());
+    if (pane.widgets.length + placed.widgets.length > 64) { this.toast('A pane holds at most 64 widgets.', true); return; }
+    pane.widgets.push(...placed.widgets);
+    Object.assign(bindings, placed.bindings);
+    this.edit.selected = placed.ids;
+    this._commit(pane, bindings);
+    this._closeDrawer();
+    this.toast('Added the group “' + group.name + '”');
+  }
+
+  async _deleteGroup(group) {
+    try { this.state.groups = (await this.ws({ type: 'glass_panes/groups/delete', group_id: group.id })).groups; this._renderDrawerList(); } catch (e) { this.fail(e); }
+  }
+
+  /** The widget catalogue over the builder. While editing, each card can add its widget to the pane. */
+  _openCatalogue() {
+    if (this._closeCatalogue) this._closeCatalogue();
+    this._closeCatalogue = openCatalogue({
+      h, icon, root: this.shadowRoot, registry: this.state.registry, time: this.time,
+      onAdd: this.edit ? (type, label) => this._addWidget(type, label) : null,
+    });
+  }
+
   // ---------------------------------------------------------------- the Settings page (the gear next to Dark mode)
   // A page of its own, one card per part of the mirror: the speaker, then everything Display settings used to show inside the
   // Displays tab (presence, brightness, memory, the address), then what is planned but not built yet. It uses the same mirror
@@ -686,6 +799,62 @@ class GlassPanesPanel extends HTMLElement {
 
   async _setDisplayPane(id, pane) {
     try { await this.ws({ type: 'glass_panes/displays/save', display: { id, pane } }); this.toast('Display switched to ' + pane); } catch (e) { this.fail(e); }
+    await this._reload();
+  }
+
+  /**
+   * Pair a mirror from the code on its screen (app 0.12.0+). Home Assistant makes the display's login and sends it to the mirror
+   * itself, so nobody copies a token. The builder only carries the six digits, the mirror's address and the address of Home Assistant
+   * that the MIRROR can reach (an internal http address, not the browser's cloud address).
+   */
+  _pairBox(d) {
+    const open = this.state.pairing === d.id;
+    if (!open) {
+      return h('div', { style: 'margin-top:10px' },
+        h('button', { class: 'btn sm', 'data-field': 'pair-open', onClick: () => { this.state.pairing = d.id; this._renderRail(true); } }, d.has_login && d.has_mirror ? 'Pair again…' : 'Pair a mirror…'),
+        h('div', { class: 'hint', style: 'margin-top:6px', text: 'A mirror that is not set up shows a six-digit code on its screen. Enter it here and Home Assistant sets the mirror up for you.' }));
+    }
+    const cfg = this._hass.config || {};
+    const base = cfg.internal_url || location.origin;
+    const code = h('input', { class: 'field', 'data-field': 'pair-code', type: 'text', inputmode: 'numeric', maxlength: 7, placeholder: 'Code on the mirror, like 482 913', autocomplete: 'off' });
+    const mirror = h('input', { class: 'field', 'data-field': 'pair-mirror', type: 'text', maxlength: 100, placeholder: 'Mirror address shown under the code, like mirror.local', value: d.has_mirror ? '' : '', autocomplete: 'off', spellcheck: 'false' });
+    const ha = h('input', { class: 'field', 'data-field': 'pair-base', type: 'text', maxlength: 200, value: base, autocomplete: 'off', spellcheck: 'false' });
+    const go = h('button', { class: 'btn sm primary', 'data-field': 'pair-go', onClick: async () => {
+      go.disabled = true;
+      try {
+        await this.ws({ type: 'glass_panes/mirror/pair', display_id: d.id, endpoint: mirror.value.trim(), code: code.value.trim(), base_url: ha.value.trim() });
+        this.state.pairing = null;
+        this.toast('The mirror is set up. Its pane should appear in a moment.');
+        await this._reload();
+      } catch (e) { this.fail(e); go.disabled = false; }
+    } }, 'Pair');
+    return h('div', { class: 'rulecard', style: 'margin-top:10px', 'data-pair': d.id },
+      h('label', { class: 'lbl', text: 'Code' }), code,
+      h('label', { class: 'lbl', text: 'Mirror address' }), mirror,
+      h('label', { class: 'lbl', text: 'Home Assistant address, as the mirror reaches it' }), ha,
+      base.startsWith('https') ? h('div', { class: 'warnbox poor', text: 'This is an https address. Older mirrors cannot use one: type your local http address, like http://homeassistant.local:8123.' }) : null,
+      h('div', { class: 'row', style: 'margin-top:8px' }, go, h('button', { class: 'btn sm ghost', onClick: () => { this.state.pairing = null; this._renderRail(true); } }, 'Cancel')),
+      h('div', { class: 'hint', text: 'The login goes from Home Assistant to the mirror over your home network. You never see or copy it.' }));
+  }
+
+  /** The time zone of one display: type a place, or leave it empty to follow Home Assistant's own zone (so a daylight-saving change just works). */
+  _displayZoneField(d) {
+    const ha = d.ha_timezone || (this._hass.config && this._hass.config.time_zone) || '';
+    let zones;
+    try { zones = Intl.supportedValuesOf('timeZone'); } catch (e) { zones = ['America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'Europe/London', 'Europe/Paris', 'Asia/Tokyo', 'Australia/Sydney', 'UTC']; }
+    const input = h('input', { class: 'field', type: 'text', list: 'gp-tzlist', 'data-display-zone': d.id, value: d.timezone || '', autocomplete: 'off', spellcheck: 'false',
+      placeholder: ha ? 'Follows Home Assistant (' + ha + ')' : 'Follows Home Assistant',
+      onChange: () => this._setDisplayZone(d, input) });
+    return h('div', {}, h('label', { class: 'lbl', text: 'Time zone' }), input,
+      h('datalist', { id: 'gp-tzlist' }, zones.map((z) => h('option', { value: z }))),
+      h('div', { class: 'hint', text: d.timezone ? 'This display keeps its own zone. Empty the box to follow Home Assistant' + (ha ? ' (' + ha + ')' : '') + '.'
+        : 'Following Home Assistant' + (ha ? ' (' + ha + ')' : '') + ', so a daylight-saving change is picked up. Type a place to give this display its own.' }));
+  }
+
+  async _setDisplayZone(d, input) {
+    const v = input.value.trim();
+    if (v && !validZone(v)) { this.toast('“' + v + '” is not a time zone name. Try one like America/Chicago.', true); input.value = d.timezone || ''; return; }
+    try { await this.ws({ type: 'glass_panes/displays/save', display: { id: d.id, timezone: v } }); this.toast(v ? 'Time zone set to ' + v : 'Following Home Assistant’s time zone'); } catch (e) { this.fail(e); }
     await this._reload();
   }
 
@@ -948,6 +1117,13 @@ class GlassPanesPanel extends HTMLElement {
       actions.append(ctl(h('label', { class: 'lbl', text: 'Theme' }), themeSel, ...(themeBgBox ? [themeBgBox] : [])),
         ctl(h('label', { class: 'lbl', text: 'Background' }), bg, h('span', { class: 'hint', text: 'Black is see-through on a mirror.' })),
         ctl(h('label', { class: 'lbl', text: 'Brightness' }), bright),
+        ctl(h('label', { class: 'lbl', text: 'Grid' }), h('select', { id: 'gridpick', class: 'field', style: 'width:auto;padding:5px 9px', title: 'Snap size while you drag (kept in this browser)',
+          onChange: (ev) => { try { localStorage.setItem('glass_panes_grid', ev.target.value); } catch (e) { /* ignore */ } this._renderInspector(); } },
+        ops.GRID_CHOICES.map((n) => h('option', { value: n, selected: this._grid() === n, text: n ? n + ' px' : 'Off' })))),
+        ctl(h('label', { class: 'lbl', text: 'Zoom' }),
+          h('button', { class: 'btn sm ghost', id: 'zoomout', title: 'Zoom out', onClick: () => this._setZoom((this._zoom || 1) / 1.25) }, '−'),
+          h('button', { class: 'btn sm ghost', id: 'zoomlbl', title: 'Fit to screen', onClick: () => this._setZoom(1) }, this._zoom > 1 ? Math.round(this._zoom * 100) + '%' : 'Fit'),
+          h('button', { class: 'btn sm ghost', id: 'zoomin', title: 'Zoom in (or Ctrl + mouse wheel)', onClick: () => this._setZoom((this._zoom || 1) * 1.25) }, '+')),
         // fade: widgets switched by "show when" rules fade in and out instead of popping
         h('label', { class: 'check', title: 'Widgets switched by "Show when" rules fade in and out' },
           h('input', { type: 'checkbox', id: 'fadepick', checked: !!(pane.motion && pane.motion.widgets === 'fade'), onChange: (ev) => this._setPaneField('motion', ev.target.checked ? { widgets: 'fade' } : null) }), 'Fade'),
@@ -1029,6 +1205,19 @@ class GlassPanesPanel extends HTMLElement {
         h('button', { class: 'btn primary', disabled: !e.dirty, onClick: () => this._save() }, icon('check'), 'Save')));
   }
 
+  /** The snap grid in pixels (10, 20, 40, or 0 for off). A builder setting kept in this browser, not in the pane file. */
+  _grid() {
+    try { const v = parseInt(localStorage.getItem('glass_panes_grid'), 10); if (ops.GRID_CHOICES.includes(v)) return v; } catch (e) { /* no storage: default */ }
+    return ops.GRID;
+  }
+
+  /** Zoom the editor: 1 is "fit to screen"; the view then scrolls. Handles keep their screen size through --inv. */
+  _setZoom(z) {
+    this._zoom = z == null ? 1 : Math.min(ops.ZOOM_MAX, Math.max(1, Math.round(z * 100) / 100));
+    this._scale = 0; this._fitPreview();
+    const lbl = this.$('zoomlbl'); if (lbl) lbl.textContent = this._zoom === 1 ? 'Fit' : Math.round(this._zoom * 100) + '%';
+  }
+
   _fitPreview() {
     const wrap = this.$('wrap'), preview = this.$('preview'), stage = this.$('stage'), overlay = this.$('overlay');
     if (!wrap || !preview) return;
@@ -1039,7 +1228,7 @@ class GlassPanesPanel extends HTMLElement {
     // in mirror view the glass reaches past the display on every side
     const g = this.state.mirror ? MIRROR_GLASS : { left: 0, right: 0, top: 0, bottom: 0 };       // glass around the display, as a share of the display's size
     const gl = 1080 * g.left, gr = 1080 * g.right, gt = 1920 * g.top, gb = 1920 * g.bottom;
-    const s = Math.max(0.05, Math.min(availW / (1080 + gl + gr), availH / ((1920 + gt + gb) * (1 + standShare))));
+    const s = Math.max(0.05, Math.min(availW / (1080 + gl + gr), availH / ((1920 + gt + gb) * (1 + standShare)))) * (this._zoom || 1);
     if (Math.abs(s - this._scale) < 0.0005) return;
     this._scale = s;
     preview.style.width = Math.floor(1080 * s) + 'px';
@@ -1066,7 +1255,7 @@ class GlassPanesPanel extends HTMLElement {
     el.textContent = '';
     if (!this._shownPane()) return;
     el.append(bad.length
-      ? h('span', { class: 'pill bad', title: bad.map((b) => b.widget).join(', ') }, bad.length + (bad.length > 1 ? ' items do' : ' item does') + ' not fit')
+      ? h('span', { class: 'pill bad', title: ops.misfitNames(bad, (this._shownPane() || {}).widgets || [], (w) => this._label(w)).join(', ') }, bad.length + (bad.length > 1 ? ' items do' : ' item does') + ' not fit')
       : h('span', { class: 'pill good' }, h('span', { class: 'dot' }), 'Everything fits'));
   }
 
@@ -1083,6 +1272,7 @@ class GlassPanesPanel extends HTMLElement {
   _stopEdit(quiet) {
     clearInterval(this._syncTimer);
     this.edit = null;
+    if (this._zoom > 1) this._setZoom(1);                  // the zoom controls live in the edit toolbar, so the viewer goes back to Fit
     this._closeDrawer();
     if (!quiet) this._draw();
   }
@@ -1245,16 +1435,19 @@ class GlassPanesPanel extends HTMLElement {
       box.classList.toggle('ghost', r.ghost);
       this._syncEye(box, w);
       box.classList.toggle('sel', this.edit.selected.includes(w.id));
+      this.$('overlay').classList.toggle('multi', this.edit.selected.length > 1);
       const entityIds = this._boundIds(w.id);
       const explain = r.ghost && entityIds.length > 0 && !this.edit.sample.has(w.id);
       const opts = w.options || {};
       const noMedia = (w.type === 'image' && !opts.media && !opts.asset && !this._boundIds(w.id).length) || (w.type === 'slideshow' && !opts.folder) || (w.type === 'video' && !opts.media && !(opts.sources || []).length);
+      const needs = this._useMock(w) ? '' : ops.missingBinding(w, this.edit.bindings[w.id], this.state.registry);
       const status = this.renderer.statusOf(w.id);
       const ruleOff = !!status && status.state === 'off' && status.why === 'rule';         // switched off by its Show when rule
-      box.classList.toggle('bound', explain || noMedia || ruleOff);
-      if (explain || noMedia || ruleOff) {
+      box.classList.toggle('bound', explain || noMedia || ruleOff || !!needs);
+      if (explain || noMedia || ruleOff || needs) {
         const why = box.querySelector('.why');
         const text = ruleOff ? 'Off right now: its Show when rule does not hold. Use the eye to preview it on.'
+          : needs ? needs.charAt(0).toUpperCase() + needs.slice(1) + '. Pick it in the panel on the right.'
           : noMedia ? (w.type === 'video' ? 'Choose a video in the panel on the right' : w.type === 'slideshow' ? 'Type a photo folder in the panel on the right' : 'Choose a picture in the panel on the right')
             : ops.whyEmpty(w.type, entityIds, (this._hass && this._hass.states) || {});
         if (why.textContent !== text) why.textContent = text;
@@ -1313,7 +1506,7 @@ class GlassPanesPanel extends HTMLElement {
       const w = widgets.find((x) => x.id === id);
       const box = overlay.querySelector('.box[data-id="' + id.replace(/"/g, '') + '"]');
       if (!w || !box) return;
-      const next = d.mode === 'move' ? ops.moved(w, rect, dx, dy) : ops.resized(w, rect, d.handle, dx, dy);
+      const next = d.mode === 'move' ? ops.moved(w, rect, dx, dy, this._grid(), ops.followsAny(w, [...d.rects.keys()])) : ops.resized(w, rect, d.handle, dx, dy, this._grid());
       const hh = next.auto_height ? rect.h : next.h;
       box.classList.add('dragging');
       box.style.left = next.x + 'px'; box.style.top = next.y + 'px'; box.style.width = next.w + 'px'; box.style.height = Math.max(hh, 36) + 'px';
@@ -1342,8 +1535,8 @@ class GlassPanesPanel extends HTMLElement {
     pane.widgets = pane.widgets.map((w) => {
       const rect = d.rects.get(w.id);
       if (!rect) return w;
-      if (d.mode === 'resize') return w.id === d.id ? ops.resized(w, rect, d.handle, dx, dy) : w;
-      return ops.moved(w, rect, dx, dy);
+      if (d.mode === 'resize') return w.id === d.id ? ops.resized(w, rect, d.handle, dx, dy, this._grid()) : w;
+      return ops.moved(w, rect, dx, dy, this._grid(), ops.followsAny(w, [...d.rects.keys()]));
     });
     this._commit(pane);
   }
@@ -1363,7 +1556,7 @@ class GlassPanesPanel extends HTMLElement {
     if (step) {
       e.preventDefault();
       const pane = clone(this.edit.pane);
-      pane.widgets = pane.widgets.map((w) => (sel.includes(w.id) ? ops.moved(w, this._rectOf(w), step[0] * ops.GRID, step[1] * ops.GRID) : w));
+      pane.widgets = pane.widgets.map((w) => (sel.includes(w.id) ? ops.moved(w, this._rectOf(w), step[0] * (this._grid() || 1), step[1] * (this._grid() || 1), this._grid(), ops.followsAny(w, sel)) : w));
       this._commit(pane);
     }
   }
@@ -1415,7 +1608,7 @@ class GlassPanesPanel extends HTMLElement {
       }
       return;
     }
-    const skip = ['text', 'lines', 'media', 'asset', 'sources', 'folder']
+    const skip = ['text', 'lines', 'media', 'asset', 'sources', 'folder', 'icon', 'columns']
       .concat((TOGGLES[w.type] || []).map((t) => t[0]), (CHOICES[w.type] || []).map((c) => c[0]), w.type === 'clock' || w.type === 'date' ? ['timezone'] : []);
     const fields = ops.optionFields(this._schemaDefs['opt_' + w.type], skip);
     if (!fields.length) return;
@@ -1481,7 +1674,7 @@ class GlassPanesPanel extends HTMLElement {
       copy.id = ops.uniqueWidgetId(src.id, pane.widgets);
       delete copy.flow;
       const rect = this._rectOf(src);
-      copy.x = Math.min(ops.snap(rect.x + ops.GRID), ops.CANVAS_W - copy.w); copy.y = Math.min(ops.snap(rect.y + ops.GRID), ops.CANVAS_H - copy.h);
+      copy.x = Math.min(ops.snap(rect.x + (this._grid() || ops.GRID), this._grid()), ops.CANVAS_W - copy.w); copy.y = Math.min(ops.snap(rect.y + (this._grid() || ops.GRID), this._grid()), ops.CANVAS_H - copy.h);
       pane.widgets.push(copy);
       if (bindings[id]) bindings[copy.id] = clone(bindings[id]);
       made.push(copy.id);
@@ -1502,7 +1695,7 @@ class GlassPanesPanel extends HTMLElement {
 
   _addWidget(type, label, entityId, slot, kind) {
     const pane = clone(this.edit.pane), bindings = clone(this.edit.bindings);
-    const made = ops.newWidget(type, label, pane.widgets, entityId, slot, kind);
+    const made = ops.newWidget(type, label, pane.widgets, entityId, slot, kind, this._grid());
     pane.widgets.push(made.widget);
     if (hasBinding(made.binding)) bindings[made.widget.id] = made.binding;
     this.edit.selected = [made.widget.id];
@@ -1555,7 +1748,8 @@ class GlassPanesPanel extends HTMLElement {
         h('div', { class: 'grid2', style: 'margin-top:12px' }, ALIGN_BUTTONS.map(([mode, label]) => h('button', { class: 'btn sm', onClick: () => this._align(mode) }, icon(mode), label.replace('Align ', '').replace('Space evenly ', 'Spread ')))),
         h('div', { class: 'row', style: 'margin-top:14px' },
           h('button', { class: 'btn sm', onClick: () => this._duplicateWidgets(this.edit.selected) }, icon('copy'), 'Duplicate'),
-          h('button', { class: 'btn sm danger', onClick: () => this._removeWidgets(this.edit.selected) }, icon('trash'), 'Remove')));
+          h('button', { class: 'btn sm danger', onClick: () => this._removeWidgets(this.edit.selected) }, icon('trash'), 'Remove')),
+        this._saveGroupBox());
       return;
     }
     const w = sel[0];
@@ -1593,6 +1787,14 @@ class GlassPanesPanel extends HTMLElement {
     if (w.type === 'text') {
       box.append(h('label', { class: 'lbl', text: 'Text' }), h('textarea', { class: 'field', rows: 3, onChange: (ev) => setOpt('text', ev.target.value) }, (w.options || {}).text || ''));
     }
+    if (w.type === 'icon' || w.type === 'entity_value') {
+      const current = (w.options || {}).icon || '';
+      box.append(h('label', { class: 'lbl', text: 'Icon' }), iconField(h, {
+        value: current, auto: true, emptyLabel: w.type === 'icon' ? 'The entity’s own icon, if one is bound' : 'No icon',
+        onPick: (name) => this._patch(w.id, (x) => { x.options = { ...(x.options || {}) }; if (name) x.options.icon = name; else delete x.options.icon; }),
+      }));
+    }
+    if (w.type === 'table') this._tableColumns(box, w);
     if (w.type === 'message') {
       box.append(h('label', { class: 'lbl', text: 'Lines (one per line)' }),
         h('textarea', { class: 'field', rows: 4, onChange: (ev) => setOpt('lines', ev.target.value.split('\n').map((s) => s.trim()).filter(Boolean)) }, ((w.options || {}).lines || []).join('\n')));
@@ -1612,7 +1814,22 @@ class GlassPanesPanel extends HTMLElement {
       const value = ((this.edit.bindings[w.id] || {})[slot]);
       const list = Array.isArray(value) ? value : value ? [value] : [];
       box.append(h('label', { class: 'lbl', text: def.label || slot }));
-      if (def.kind === 'checks') { box.append(h('div', { class: 'hint', text: 'Checks (what is worth warning about) are set up in the rule editor, which is coming soon.' })); return; }
+      if (def.kind === 'checks') {
+        box.append(warningsEditor({
+          h, icon, checks: list, friendly: (id) => this._friendly(id),
+          add: () => this._openDrawer('bind', { id: w.id, slot, def }),
+          edit: (fn) => {
+            const bindings = clone(this.edit.bindings), cur = bindings[w.id] || {};
+            const rows = (Array.isArray(cur[slot]) ? cur[slot] : []).map(asCheck);
+            fn(rows);
+            const kept = rows.map((r) => (Object.keys(r).length === 1 ? r.entity : r));          // a check with only an entity goes back to a plain id
+            if (kept.length) cur[slot] = kept; else delete cur[slot];
+            if (hasBinding(cur)) bindings[w.id] = cur; else delete bindings[w.id];
+            this._commit(clone(this.edit.pane), bindings);
+          },
+        }));
+        return;
+      }
       box.append(h('div', { class: 'chips' }, list.map((v) => { const id = typeof v === 'string' ? v : v.entity; return h('span', { class: 'chip' }, h('span', { text: this._friendly(id), title: id }), h('button', { title: 'Remove', onClick: () => this._unbind(w.id, slot, id) }, icon('x'))); })));
       box.append(h('button', { class: 'btn sm', onClick: () => this._openDrawer('bind', { id: w.id, slot, def }) }, icon('plus'), def.kind === 'entity' ? (list.length ? 'Change' : 'Choose entity') : 'Add entity'));
     });
@@ -1682,7 +1899,7 @@ class GlassPanesPanel extends HTMLElement {
 
     box.append(h('label', { class: 'lbl', text: 'Position and size' }),
       h('div', { class: 'grid2' }, number('X', rect.x, setBox('x')), number('Y', rect.y, setBox('y')), number('Width', rect.w, setBox('w')), number('Height', rect.h, setBox('h'))),
-      h('div', { class: 'hint', style: 'margin-top:6px', text: 'Snaps to a 40 px grid when you drag. Type a number for an exact spot.' }));
+      h('div', { class: 'hint', style: 'margin-top:6px', text: (this._grid() ? 'Snaps to a ' + this._grid() + ' px grid when you drag.' : 'Grid is off: drags land on any pixel.') + ' Type a number for an exact spot.' }));
 
 
     // "Show when" and the layout rules: folded away until needed, open by itself when this widget already uses one (or after you opened it)
@@ -1698,6 +1915,10 @@ class GlassPanesPanel extends HTMLElement {
       rules.append(h('label', { class: 'check', style: 'margin-top:12px', title: 'Only for this preview. Nothing is saved.' }, sample, 'Preview with sample data'));
     }
     box.append(rules);
+    // colours and sizes that change with the entity's value (only for a widget that has an `entity` slot to look at)
+    const slots = ((this.state.registry || {})[w.type] || {}).slots || {};
+    const styled = styleRulesSection({ ...this._ruleCtx(w), styleOpen: this._styleOpen === w.id, setStyleOpen: (on) => { this._styleOpen = on ? w.id : null; } }, !!slots.entity && slots.entity.kind === 'entity');
+    if (styled) box.append(styled);
     this._moreOptions(box, w);
   }
 
@@ -1906,7 +2127,7 @@ class GlassPanesPanel extends HTMLElement {
       h('h2', {}, bind ? 'Choose an entity' : 'Add to this pane', D.docked ? null : h('button', { class: 'btn icon ghost', title: 'Close', onClick: () => this._closeDrawer() }, icon('x'))));
     if (!bind) {
       head.append(h('div', { class: 'seg' },
-        ['entities', 'elements'].map((t) => h('button', { class: D.tab === t ? 'on' : '', text: t === 'entities' ? 'Your entities' : 'Facets', onClick: () => { D.tab = t; this._renderDrawer(D); } }))));
+        ['entities', 'elements', 'groups'].map((t) => h('button', { class: D.tab === t ? 'on' : '', text: t === 'entities' ? 'Your entities' : t === 'groups' ? 'Groups' : 'Facets', onClick: () => { D.tab = t; this._renderDrawer(D); } }))));
     }
     if (!bind && D.docked) head.append(h('div', { class: 'hint', text: 'Drag to move, corners to resize, shift-click to pick several. The dashed line is the safe zone.' }));
     if (D.tab === 'entities') head.append(search);
@@ -1918,6 +2139,14 @@ class GlassPanesPanel extends HTMLElement {
     const list = D.host && D.host.querySelector('.list');
     if (!list) return;
     list.textContent = '';
+    if (D.tab === 'groups') {
+      if (!this.state.groups) { this._loadGroups(); list.append(h('div', { class: 'hint', style: 'padding:8px 6px', text: 'Loading…' })); return; }
+      if (!this.state.groups.length) list.append(h('div', { class: 'hint', style: 'padding:8px 6px', text: 'No groups yet. Select two or more widgets, then press Save as a group in the panel on the right.' }));
+      this.state.groups.forEach((g) => list.append(h('div', { class: 'row', 'data-group': g.id },
+        h('button', { class: 'tile grow', onClick: () => this._dropGroup(g) }, h('b', { text: g.name }), h('span', { class: 'sub', text: g.widgets.length + (g.widgets.length === 1 ? ' widget' : ' widgets') })),
+        h('button', { class: 'btn sm ghost danger', title: 'Delete this group', onClick: () => this._deleteGroup(g) }, icon('trash')))));
+      return;
+    }
     if (D.tab === 'elements') {
       list.append(h('div', { class: 'tiles' }, ops.plainElements(this.state.registry).map((el) =>
         h('button', { class: 'tile', onClick: () => this._addWidget(el.type, el.label) }, h('b', { text: el.label }), h('span', { class: 'sub', text: ELEMENT_INFO[el.type] || '' })))));

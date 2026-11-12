@@ -33,6 +33,8 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     "image": {"w": 400, "h": 400, "options": {}},
     "slideshow": {"w": 1000, "h": 750, "options": {}},
     "video": {"w": 1080, "h": 1920, "options": {}},
+    "table": {"w": 760, "h": 240, "auto_height": True, "style": {"size": 30}, "options": {"columns": [{"header": "Name", "source": "name"}, {"header": "Value", "source": "state"}], "max_rows": 8}},
+    "icon": {"w": 80, "h": 80, "style": {"size": 64}, "options": {}},
     "divider": {"w": 400, "h": 40, "style": {"color": "faint"}, "options": {"thickness": 2}},
     "message": {"w": 760, "h": 44, "style": {"size": 32, "italic": True, "color": "accent"}, "options": {"lines": ["Have a good day", "Looking good"]}},
     "entity_value": {"w": 360, "h": 120, "style": {"size": 64, "weight": 200}, "options": {}},
@@ -148,6 +150,53 @@ def _fit(widget: dict[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------- adding
 
 
+def _rules_list(value: Any) -> list[Any]:
+    """Conditional formatting rules as given by an agent: a list (the pane checker then says exactly what is wrong with each rule)."""
+    if not isinstance(value, list) or not value:
+        raise OpError("style_rules must be a list of rules like {\"test\": \"above\", \"value\": 30, \"style\": {\"color\": \"bad\"}}")
+    return copy.deepcopy(value)
+
+
+def add_group(pane: dict[str, Any], bindings: dict[str, Any], group: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], list[str]]:
+    """Drop a saved widget group into a pane: new ids (links between the group's widgets follow them), the first free spot that fits the
+    whole group, and the group's bindings under the new ids. Returns (new pane, new bindings, the new widget ids)."""
+    out = copy.deepcopy(pane)
+    widgets = out.setdefault("widgets", [])
+    items = copy.deepcopy(group["widgets"])
+    if len(widgets) + len(items) > MAX_WIDGETS:
+        raise OpError(f"a pane can hold at most {MAX_WIDGETS} widgets, and this group has {len(items)}")
+    taken = list(widgets)
+    mapping: dict[str, str] = {}
+    for item in items:
+        new_id = unique_widget_id(item["id"], taken)
+        mapping[item["id"]] = new_id
+        taken.append({"id": new_id})
+    width = min(CANVAS_W, max(i["x"] + i["w"] for i in items))
+    height = min(CANVAS_H, max(i["y"] + i["h"] for i in items))
+    left, top = free_spot(widgets, width, height)
+    for original, item in zip(group["widgets"], items):
+        item["id"] = mapping[original["id"]]
+        item["x"] = int(_clamp(item["x"] + left, 0, CANVAS_W - item["w"]))
+        item["y"] = int(_clamp(item["y"] + top, 0, CANVAS_H - item["h"]))
+        flow = item.get("flow")
+        if isinstance(flow, dict):
+            after = flow.get("after")
+            flow["after"] = [mapping.get(a, a) for a in after] if isinstance(after, list) else mapping.get(after, after)
+            if flow.get("show_if") in mapping:
+                flow["show_if"] = mapping[flow["show_if"]]
+        rule = item.get("show_when")
+        if isinstance(rule, dict):
+            for condition in rule.get("conditions", []):
+                if condition.get("widget") in mapping:
+                    condition["widget"] = mapping[condition["widget"]]
+        widgets.append(item)
+    merged = copy.deepcopy(bindings)
+    for old_id, slots in (group.get("bindings") or {}).items():
+        if old_id in mapping:
+            merged[mapping[old_id]] = copy.deepcopy(slots)
+    return out, merged, [mapping[o["id"]] for o in group["widgets"]]
+
+
 def add_widget(
     pane: dict[str, Any],
     widget_type: Any,
@@ -163,6 +212,7 @@ def add_widget(
     options: Any = None,
     style: Any = None,
     auto_height: Any = None,
+    style_rules: Any = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Add a widget. Returns (new pane, the widget). Where it goes: `x`/`y` if given, else directly under `below`, else the first free spot."""
     if not isinstance(widget_type, str) or widget_type not in registry:
@@ -191,6 +241,8 @@ def add_widget(
         widget["style"] = _merge(copy.deepcopy(start.get("style")), style, "style")
     if start.get("options") or options:
         widget["options"] = _merge(copy.deepcopy(start.get("options")), options, "options")
+    if style_rules is not None:
+        widget["style_rules"] = _rules_list(style_rules)
     widgets.append(_fit(widget))
     return out, widget
 
@@ -208,9 +260,10 @@ def update_widget(
     auto_height: Any = None,
     when_hidden: Any = None,
     show_when: Any = "unchanged",
+    style_rules: Any = "unchanged",
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Change a widget's name, options, style or rules. `options` and `style` are merged over what is there (a key set to null is removed).
-    `show_when` replaces the rule; pass null to remove it. Where the widget is and how big it is are changed with `place_widget`."""
+    `show_when` replaces the rule; pass null to remove it. `style_rules` (conditional formatting) replaces the list; pass null to remove it. Where the widget is and how big it is are changed with `place_widget`."""
     out = copy.deepcopy(pane)
     widget = out["widgets"][widget_index(out, widget_id)]
     if name is not None:
@@ -245,6 +298,11 @@ def update_widget(
             widget.pop("show_when", None)
         else:
             widget["show_when"] = show_when
+    if style_rules != "unchanged":
+        if style_rules is None:
+            widget.pop("style_rules", None)
+        else:
+            widget["style_rules"] = _rules_list(style_rules)
     return out, widget
 
 

@@ -3,7 +3,8 @@
 //
 // A "rect" is where a widget really is on the 1080x1920 canvas: {x, y, w, h}. It can differ from the saved numbers because widgets that
 // flow or size themselves are placed by the engine. Whenever you move or resize a widget it is pinned to where it is shown plus your
-// change: its `flow` goes away, and nothing else on the pane is touched.
+// change, and nothing else on the pane is touched. Its `flow` goes away, except for a widget placed below another one: that link stays
+// (see `placed`).
 
 import { themeColors } from '../player/themes.js';
 import { foldShowIf, withoutReferences } from '../player/conditions.js';       // "show when" rules: pure helpers shared with the player
@@ -14,40 +15,63 @@ export const CANVAS_H = 1920;
 const MIN_W = 40;
 const MIN_H = 40;
 
-export const snap = (v, g = GRID) => Math.round(v / g) * g;
+export const ZOOM_MAX = 4;                                       // the editor zooms from "fit" up to 4 times that
+export const GRID_CHOICES = [10, 20, 40, 0];                 // the builder's snap settings; 0 = off (whole pixels)
+/** Snap to a grid of `g` pixels; g of 0 (or less) means no grid, only whole pixels. */
+export const snap = (v, g = GRID) => (g > 0 ? Math.round(v / g) * g : Math.round(v));
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), Math.max(lo, hi));
 const copy = (o) => JSON.parse(JSON.stringify(o));
 
-/** A widget with new numbers; `flow` is dropped (it is placed by hand now). `auto_height` goes too when the height is set by hand. */
-function placed(widget, box, { heightByHand = false } = {}) {
-  const w = { ...foldShowIf(widget) };         // a flow.show_if survives as an ordinary "has content" rule when `flow` goes
-  delete w.flow;
-  w.x = Math.round(box.x); w.y = Math.round(box.y); w.w = Math.round(box.w);
+/**
+ * A widget with new numbers. A widget that is placed by hand loses nothing but `flow`. A widget that is placed BELOW another one
+ * (`flow.after`) KEEPS that link: dragging it up or down changes `flow.gap` (never below 0), and sideways changes `x`. Only the
+ * Unlink button removes the link. `rect` is where the widget is shown now (needed to turn a vertical change into a gap change).
+ * `anchorMoves` says the widget it follows is being moved in the same step, so the gap stays and the follower rides along.
+ * `auto_height` goes when the height is set by hand.
+ */
+function placed(widget, box, { heightByHand = false, rect = null, anchorMoves = false } = {}) {
+  const linked = !!(widget.flow && rect);
+  const w = linked ? { ...widget } : { ...foldShowIf(widget) };         // an unlinked flow.show_if survives as an ordinary "has content" rule
+  let y = box.y;
+  if (linked) {
+    const was = widget.flow.gap || 0;
+    const gap = anchorMoves ? was : clamp(Math.round(was + box.y - rect.y), 0, MAX_GAP);
+    w.flow = { ...widget.flow, gap };
+    if (!anchorMoves) y = rect.y + (gap - was);                       // where it really lands: the anchor's bottom plus the new gap
+  } else delete w.flow;
+  w.x = Math.round(box.x); w.y = Math.round(y); w.w = Math.round(box.w);
   if (heightByHand || !widget.auto_height) { w.h = Math.round(box.h); if (heightByHand) delete w.auto_height; }
   return w;
 }
 
+const MAX_GAP = 400;                                                    // the same limit the "Place below" gap field has
+
+/** Does this widget follow one of `ids` (so it already moves when they do)? Used so a follower dragged with its anchor keeps its gap. */
+export function followsAny(widget, ids) {
+  return !!(widget.flow && [].concat(widget.flow.after).some((a) => ids.includes(a)));
+}
+
 /** The widget after a drag ends: moved by (dx, dy) from where it is shown, snapped to whole grid cells, and kept on the canvas. */
-export function moved(widget, rect, dx, dy) {
+export function moved(widget, rect, dx, dy, grid = GRID, anchorMoves = false) {
   const w = widget.w;
   const h = widget.auto_height ? Math.min(widget.h, rect.h) : widget.h;
-  const x = clamp(snap(rect.x + dx), 0, CANVAS_W - w);
-  const y = clamp(snap(rect.y + dy), 0, CANVAS_H - h);
-  return placed(widget, { x, y, w, h: widget.h });
+  const x = clamp(snap(rect.x + dx, grid), 0, CANVAS_W - w);
+  const y = clamp(snap(rect.y + dy, grid), 0, CANVAS_H - h);
+  return placed(widget, { x, y, w, h: widget.h }, { rect, anchorMoves });
 }
 
 /** Drag a handle ('nw','ne','sw','se','n','s','e','w') by (dx, dy): the dragged edges snap to the grid, the others stay put. */
-export function resized(widget, rect, handle, dx, dy) {
+export function resized(widget, rect, handle, dx, dy, grid = GRID) {
   let left = rect.x, top = rect.y, right = rect.x + rect.w, bottom = rect.y + rect.h;
-  if (handle.includes('w')) left = snap(left + dx);
-  if (handle.includes('e')) right = snap(right + dx);
-  if (handle.includes('n')) top = snap(top + dy);
-  if (handle.includes('s')) bottom = snap(bottom + dy);
+  if (handle.includes('w')) left = snap(left + dx, grid);
+  if (handle.includes('e')) right = snap(right + dx, grid);
+  if (handle.includes('n')) top = snap(top + dy, grid);
+  if (handle.includes('s')) bottom = snap(bottom + dy, grid);
   left = clamp(left, 0, right - MIN_W); right = clamp(right, left + MIN_W, CANVAS_W);
   top = clamp(top, 0, bottom - MIN_H); bottom = clamp(bottom, top + MIN_H, CANVAS_H);
   const heightByHand = /[ns]/.test(handle) && (top !== rect.y || bottom !== rect.y + rect.h);
   const next = { x: left, y: top, w: right - left, h: heightByHand ? bottom - top : widget.h };
-  return placed(widget, next, { heightByHand });
+  return placed(widget, next, { heightByHand, rect });
 }
 
 const bounds = (rects) => {
@@ -65,7 +89,7 @@ export function aligned(widgets, ids, rects, mode) {
   if (chosen.length < 2) return widgets;
   const b = bounds(chosen.map((w) => rects[w.id]));
   const out = new Map();
-  const put = (w, box, byHand) => out.set(w.id, placed(w, { ...rects[w.id], ...box }, { heightByHand: !!byHand }));
+  const put = (w, box, byHand) => out.set(w.id, placed(w, { ...rects[w.id], ...box }, { heightByHand: !!byHand, rect: rects[w.id], anchorMoves: followsAny(w, ids) }));
   if (mode === 'left') chosen.forEach((w) => put(w, { x: b.left }));
   else if (mode === 'right') chosen.forEach((w) => put(w, { x: b.right - rects[w.id].w }));
   else if (mode === 'center') chosen.forEach((w) => put(w, { x: (b.left + b.right) / 2 - rects[w.id].w / 2 }));
@@ -111,6 +135,8 @@ export const DEFAULTS = {
   image: { w: 400, h: 400, options: {} },
   slideshow: { w: 1000, h: 750, options: {} },
   video: { w: 1080, h: 1920, options: {} },
+  table: { w: 760, h: 240, auto_height: true, style: { size: 30 }, options: { columns: [{ header: 'Name', source: 'name' }, { header: 'Value', source: 'state' }], max_rows: 8 } },
+  icon: { w: 80, h: 80, style: { size: 64 }, options: {} },
   divider: { w: 400, h: 40, style: { color: 'faint' }, options: { thickness: 2 } },
   message: { w: 760, h: 44, style: { size: 32, italic: true, color: 'accent' }, options: { lines: ['Have a good day', 'Looking good'] } },
   entity_value: { w: 360, h: 120, style: { size: 64, weight: 200 }, options: {} },
@@ -126,10 +152,11 @@ export const DEFAULTS = {
 };
 
 /** Where a new widget goes: the first free grid spot from the top, so it never lands exactly on another one. */
-export function freeSpot(widgets, w, h) {
+export function freeSpot(widgets, w, h, grid = GRID) {
+  const step = grid > 0 ? grid : 10;            // with the grid off, search in 10 px steps
   const boxes = widgets.map((o) => ({ x: o.x, y: o.y, w: o.w, h: o.h }));
-  for (let y = 80; y <= CANVAS_H - h; y += GRID) {
-    for (let x = 40; x <= CANVAS_W - w; x += GRID) {
+  for (let y = 80; y <= CANVAS_H - h; y += step) {
+    for (let x = 40; x <= CANVAS_W - w; x += step) {
       if (!boxes.some((b) => x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y)) return { x, y };
     }
   }
@@ -140,10 +167,10 @@ export function freeSpot(widgets, w, h) {
  * A new widget of `type`, and the binding it starts with ({slot: value}) when an entity was chosen.
  * Returns { widget, binding } without changing `widgets`.
  */
-export function newWidget(type, label, widgets, entityId = null, slotName = null, slotKind = null) {
+export function newWidget(type, label, widgets, entityId = null, slotName = null, slotKind = null, grid = GRID) {
   const d = DEFAULTS[type];
   if (!d) throw new Error('no such widget type ' + type);
-  const spot = freeSpot(widgets, d.w, d.h);
+  const spot = freeSpot(widgets, d.w, d.h, grid);
   const widget = { id: uniqueWidgetId(label || type, widgets), name: label || type, type, x: spot.x, y: spot.y, w: d.w, h: d.h };
   if (d.auto_height) widget.auto_height = true;
   if (d.style) widget.style = copy(d.style);
@@ -190,7 +217,7 @@ export function candidatesFor(entityId, state, registry) {
     if (slots.length !== 1 || !DEFAULTS[type]) continue;
     const [slot, def] = slots[0];
     if (def.kind !== 'entity' && def.kind !== 'entities' && def.kind !== 'feeds') continue;
-    if (type === 'message') continue;
+    if (type === 'message' || type === 'icon' || type === 'table') continue;        // offered from Facets, not for every entity
     const generic = def.domains.length === 0;
     if (!generic && !def.domains.includes(domain)) continue;
     if (type === 'sports' && !looksLikeSports(state)) continue;
@@ -207,7 +234,7 @@ export function candidatesFor(entityId, state, registry) {
 /** Widgets with no entity at all: always available. */
 export function plainElements(registry) {
   return Object.entries(registry)
-    .filter(([type, spec]) => DEFAULTS[type] && (Object.keys(spec.slots || {}).length === 0 || type === 'message' || type === 'image'))
+    .filter(([type, spec]) => DEFAULTS[type] && (Object.keys(spec.slots || {}).length === 0 || type === 'message' || type === 'image' || type === 'icon'))
     .map(([type, spec]) => ({ type, label: spec.label }));
 }
 
@@ -351,6 +378,17 @@ export function widgetLabel(w, registry = {}, entityName = null) {
   return base + ': ' + (quoted ? '“' + snip + '”' : snip);
 }
 
+/**
+ * The names to show for widgets that do not fit. `bad` is the player's list ({widget: id, ...}). Each id becomes the name the user gave
+ * the widget, else the readable label (`labelOf`), else the id as a last resort, so a tooltip never says `entity_value_5`.
+ */
+export function misfitNames(bad, widgets, labelOf = widgetLabel) {
+  return bad.map((b) => {
+    const w = widgets.find((x) => x.id === b.widget);
+    return (w && (w.name || labelOf(w))) || b.widget;
+  });
+}
+
 const overlapping = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
 /**
@@ -456,4 +494,113 @@ export function mediaWarnings(info) {
     }
   }
   return out;
+}
+
+/** Icon names for a search: names that start with a word of the search first, then names that contain it. Pure. */
+export function searchIcons(list, query, limit = 60) {
+  const q = String(query || '').trim().toLowerCase().replace(/\s+/g, '-');
+  if (!q) return list.slice(0, limit);
+  const starts = [], inside = [];
+  for (const n of list) {
+    if (n.startsWith(q)) starts.push(n);
+    else if (n.includes(q)) inside.push(n);
+    if (starts.length >= limit) break;
+  }
+  return starts.concat(inside).slice(0, limit);
+}
+
+const NO_PREVIEW = new Set(['video']);                      // played by the display app itself; a browser cannot show it (catalogue)
+
+/**
+ * The cards to draw, in alphabetical order. Pure. `defaults` is ops.DEFAULTS (the size and look a new widget starts with); a widget with
+ * no defaults (status_summary, which has its own rule editor coming) is listed without a preview.
+ */
+export function catalogueEntries(registry, defaults = DEFAULTS) {
+  return Object.entries(registry).map(([type, spec]) => {
+    const d = defaults[type] || null;
+    const slots = Object.entries(spec.slots || {}).map(([name, s]) => ({ name, label: s.label || name, required: s.required !== false }));
+    const widget = d ? { id: 'demo', type, x: 0, y: 0, w: d.w, h: d.h, ...(d.auto_height ? { auto_height: true } : {}), ...(d.style ? { style: d.style } : {}), options: d.options || {} } : null;
+    return {
+      type, label: spec.label || type, description: spec.description || '', needs: spec.needs || '', slots,
+      pane: widget && !NO_PREVIEW.has(type) ? { id: 'catalogue_' + type, name: type, widgets: [widget] } : null,
+      box: d ? { w: d.w, h: d.h, auto: !!d.auto_height } : null,
+    };
+  }).sort((a, b) => a.label.localeCompare(b.label));
+}
+
+
+/**
+ * "needs: ..." for a widget whose required slots have nothing bound yet, else ''. `bound` is that widget's bindings ({slot: entity | [..]}).
+ * It uses the registry's plain-words `needs` (for example "a weather entity"), or the slot labels.
+ */
+export function missingBinding(widget, bound, registry) {
+  const spec = registry[widget.type] || {};
+  const slots = Object.entries(spec.slots || {}).filter(([, s]) => s.required === true);
+  if (!slots.length) return '';
+  const has = (v) => (Array.isArray(v) ? v.length > 0 : !!v);
+  if (slots.every(([name]) => has((bound || {})[name]))) return '';
+  return 'needs: ' + (spec.needs || slots.map(([, s]) => (s.label || '').toLowerCase()).join(', '));
+}
+
+// ---------------------------------------------------------------- reusable widget groups
+// A group is a set of widgets saved by name (with what they are bound to) to drop into any pane. Both directions are pure.
+
+/**
+ * The widgets chosen by `ids`, ready to save as a group: positions made relative to the group's top-left corner, links to widgets outside
+ * the group removed (a "place below" of something not in the group, a show-when rule that waits on it), and their bindings alongside.
+ * Returns { widgets, bindings } or null when nothing is chosen.
+ */
+export function groupFrom(widgets, ids, bindings = {}) {
+  const chosen = widgets.filter((w) => ids.includes(w.id)).map(copy);
+  if (!chosen.length) return null;
+  const inside = new Set(chosen.map((w) => w.id));
+  const left = Math.min(...chosen.map((w) => w.x)), top = Math.min(...chosen.map((w) => w.y));
+  const out = chosen.map((w) => {
+    w.x -= left; w.y -= top;
+    if (w.flow) {
+      const after = [].concat(w.flow.after).filter((a) => inside.has(a));
+      if (!after.length) delete w.flow;
+      else { w.flow.after = after.length === 1 ? after[0] : after; if (w.flow.show_if && !inside.has(w.flow.show_if)) delete w.flow.show_if; }
+    }
+    if (w.show_when) {
+      const conditions = w.show_when.conditions.filter((c) => !c.widget || inside.has(c.widget));
+      if (conditions.length) w.show_when = { ...w.show_when, conditions }; else delete w.show_when;
+    }
+    return w;
+  });
+  const kept = {};
+  out.forEach((w) => { if (bindings[w.id] && Object.keys(bindings[w.id]).length) kept[w.id] = copy(bindings[w.id]); });
+  return { widgets: out, bindings: kept };
+}
+
+/**
+ * A saved group placed into a pane: every widget gets a new id that is free in the pane (links between them are re-pointed), and the
+ * whole group lands at the first free spot that fits it, so it never covers anything. Returns { widgets, bindings, ids }.
+ */
+export function groupDrop(group, existing, grid = GRID) {
+  const taken = [...existing];
+  const map = new Map();
+  group.widgets.forEach((w) => {
+    const id = uniqueWidgetId(w.id, taken);
+    map.set(w.id, id);
+    taken.push({ id });
+  });
+  const width = Math.min(CANVAS_W, Math.max(...group.widgets.map((w) => w.x + w.w)));
+  const height = Math.min(CANVAS_H, Math.max(...group.widgets.map((w) => w.y + w.h)));
+  const spot = freeSpot(existing, width, height, grid);
+  const widgets = group.widgets.map((src) => {
+    const w = copy(src);
+    w.id = map.get(src.id);
+    w.x = clamp(Math.round(w.x + spot.x), 0, CANVAS_W - w.w); w.y = clamp(Math.round(w.y + spot.y), 0, CANVAS_H - w.h);
+    if (w.flow) {
+      const after = [].concat(w.flow.after).map((a) => map.get(a) || a);
+      w.flow.after = after.length === 1 ? after[0] : after;
+      if (w.flow.show_if) w.flow.show_if = map.get(w.flow.show_if) || w.flow.show_if;
+    }
+    if (w.show_when) w.show_when.conditions = w.show_when.conditions.map((c) => (c.widget ? { ...c, widget: map.get(c.widget) || c.widget } : c));
+    return w;
+  });
+  const bindings = {};
+  Object.entries(group.bindings || {}).forEach(([id, slots]) => { if (map.has(id)) bindings[map.get(id)] = copy(slots); });
+  return { widgets, bindings, ids: widgets.map((w) => w.id) };
 }

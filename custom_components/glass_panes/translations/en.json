@@ -326,6 +326,10 @@
         "entities": {
           "name": "Entities",
           "description": "Entities for this widget: {slot: entity id or list}."
+        },
+        "style_rules": {
+          "name": "Style rules",
+          "description": "Conditional formatting for a widget with an `entity` slot: a list of up to 8 rules, the first that holds wins. Each is {test: above|below|between|is|is_not, value, to (between only), attribute (optional), style: {color, size, weight, opacity, icon}}."
         }
       }
     },
@@ -368,6 +372,28 @@
         "clear_show_when": {
           "name": "Clear show when",
           "description": "Remove the widget's show-when rule."
+        },
+        "style_rules": {
+          "name": "Style rules",
+          "description": "Replace the widget's conditional formatting (see add_widget)."
+        },
+        "clear_style_rules": {
+          "name": "Clear style rules",
+          "description": "Remove the widget's conditional formatting."
+        }
+      }
+    },
+    "add_group": {
+      "name": "Add a saved group",
+      "description": "Add a widget group the person saved in the builder (a set of widgets with their look and entities, such as a table with its title) to the draft. Give the group's id. If it is not known, the error lists the saved groups. The widgets get new ids and land in the first free spot. Administrators only.",
+      "fields": {
+        "draft": {
+          "name": "Draft",
+          "description": "The draft's id, as start_draft or list_drafts gave it."
+        },
+        "group": {
+          "name": "Group",
+          "description": "The group's id."
         }
       }
     },

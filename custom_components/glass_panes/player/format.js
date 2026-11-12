@@ -1,7 +1,8 @@
 // Turning an entity's raw value into words for a screen. Pure: no page, no Home Assistant, so it is tested on its own.
 //
 // describe(raw, opts) -> { text, n }   `n` is the number when the value is one (NaN otherwise), for rings and comparisons.
-//   opts: domain, deviceClass, format ('auto' | 'relative' | 'time' | 'date' | 'datetime' | 'raw'), decimals, thousands,
+//   opts: domain, deviceClass, format ('auto' | 'relative' | 'time' | 'date' | 'datetime' | 'duration' | 'raw'), decimals, thousands,
+//         durationUnit ('seconds' | 'minutes' | 'hours', what a number means for format 'duration'; default minutes),
 //         rawState (true keeps "on" instead of "Open"), time (makeTime(tz) from util.js), now (ms, for tests)
 
 import { formatNumber, MONTHS, strictNumber, WD_SHORT } from './util.js';
@@ -61,10 +62,24 @@ function moment(text, format, time, now) {
   return null;
 }
 
+const UNIT_MINUTES = { seconds: 1 / 60, minutes: 1, hours: 60 };
+
+/** 75 minutes -> "1 h 15 min"; 5 -> "5 min"; 0.2 -> "<1 min"; 0 -> "0 min". `unit` says what the number counts. */
+export function durationText(value, unit = 'minutes') {
+  const n = strictNumber(value);
+  if (isNaN(n)) return null;
+  const mins = n * (UNIT_MINUTES[unit] || 1), sign = mins < 0 ? '-' : '', abs = Math.abs(mins);
+  if (abs > 0 && abs < 1) return sign + '<1 min';
+  const total = Math.round(abs), h = Math.floor(total / 60), m = total % 60;
+  if (h === 0) return sign + m + ' min';
+  return sign + h + ' h' + (m ? ' ' + m + ' min' : '');
+}
+
 export function describe(raw, opts = {}) {
   const format = opts.format || 'auto', now = opts.now != null ? opts.now : Date.now();
   if (raw === undefined || raw === null || raw === '') return { text: '-', n: NaN };
   if (format === 'raw') return { text: String(raw), n: strictNumber(raw) };
+  if (format === 'duration') { const d = durationText(raw, opts.durationUnit); if (d !== null) return { text: d, n: strictNumber(raw) }; }
   if (typeof raw === 'boolean') return { text: raw ? 'Yes' : 'No', n: NaN };
   if (Array.isArray(raw)) return { text: raw.filter((v) => v != null && typeof v !== 'object').join(', ') || '-', n: NaN };
   if (typeof raw === 'object') return { text: '-', n: NaN };
@@ -82,4 +97,36 @@ export function describe(raw, opts = {}) {
     if (word) return { text: word, n: NaN };
   }
   return { text, n: NaN };
+}
+
+// ---------------------------------------------------------------- table cells (the `table` widget)
+// One column of a table says what to show for each row (each row is one entity): its name, its state, one attribute, or fixed text.
+
+/**
+ * The text of one cell and the raw value a style rule looks at. `col` is { source, attribute, text, format, decimals, unit, duration_unit }.
+ * `st` is the row's entity state (null = missing). Returns { text, raw }.
+ */
+export function tableCell(col, st, entityId, { time = null, now } = {}) {
+  if (col.source === 'text') return { text: col.text || '', raw: col.text || '' };
+  const a = (st && st.attributes) || {};
+  if (col.source === 'name') {
+    const text = a.friendly_name || String(entityId || '').split('.').slice(1).join('.').replace(/_/g, ' ') || '-';
+    return { text, raw: text };
+  }
+  if (!st) return { text: '-', raw: undefined };
+  const raw = col.source === 'attribute' ? a[col.attribute] : st.state;
+  if (raw === undefined || raw === null || raw === '' || raw === 'unavailable' || raw === 'unknown') return { text: '-', raw: undefined };
+  const domain = String(entityId || '').split('.')[0];
+  let text;
+  if (col.format === 'number') {
+    const n = strictNumber(raw);
+    text = isNaN(n) ? '-' : formatNumber(n, col.decimals);
+  } else {
+    text = describe(raw, { domain, deviceClass: col.source === 'attribute' ? null : a.device_class, format: col.format, decimals: col.decimals, durationUnit: col.duration_unit, time, now }).text;
+  }
+  // a number carries a unit: the one you typed, else (for a state, not an attribute) the entity's own
+  const isNum = !isNaN(strictNumber(raw)) && col.format !== 'time' && col.format !== 'date' && col.format !== 'datetime' && col.format !== 'duration';
+  const unit = col.unit != null ? col.unit : col.source === 'state' ? a.unit_of_measurement || '' : '';
+  if (isNum && unit && text !== '-') text += (/^[%°]/.test(unit) ? '' : ' ') + unit;
+  return { text, raw: typeof raw === 'object' ? undefined : raw };
 }

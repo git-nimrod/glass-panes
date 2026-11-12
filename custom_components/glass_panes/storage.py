@@ -5,6 +5,7 @@
 - glass_panes.displays  the displays and which pane each is showing
 - glass_panes.media     the index of uploaded images and videos (the files themselves are in config/glass_panes/media/)
 - glass_panes.drafts    panes an agent is still building (a draft becomes a saved pane when the agent finishes it)
+- glass_panes.groups    reusable widget groups you saved from the builder (see groups.py)
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from homeassistant.helpers.storage import Store
 
 from . import bindings as bindings_lib
 from . import displays as displays_lib
+from . import groups as groups_lib
 from . import media as media_lib
 from .const import DOMAIN, LOGGER
 
@@ -26,6 +28,7 @@ PANES_KEY = f"{DOMAIN}.panes"
 DISPLAYS_KEY = f"{DOMAIN}.displays"
 MEDIA_KEY = f"{DOMAIN}.media"
 DRAFTS_KEY = f"{DOMAIN}.drafts"
+GROUPS_KEY = f"{DOMAIN}.groups"
 
 
 class BindingsStore:
@@ -170,3 +173,38 @@ class DraftStore:
 
     async def async_save(self) -> None:
         await self._store.async_save({"schema_version": 1, "drafts": self.drafts})
+
+
+class GroupStore:
+    """Reusable widget groups, by id (see groups.py). Loaded the first time they are needed."""
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self._store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION, GROUPS_KEY, private=True)      # private: may hold your entity ids
+        self.groups: dict[str, dict[str, Any]] = {}
+        self.loaded = False
+
+    async def async_load(self) -> None:
+        """Read the saved groups. `loaded` becomes true only once the read has worked: if it raises, nothing is marked loaded, so the next
+        save cannot write a list that is missing everything stored before."""
+        stored = await self._store.async_load()
+        if isinstance(stored, dict) and isinstance(stored.get("groups"), dict):
+            for group_id, group in stored["groups"].items():
+                if groups_lib.is_stored_group(group_id, group):
+                    self.groups[group_id] = group
+                else:
+                    LOGGER.warning("A saved widget group is not valid and was ignored: %s", group_id)
+        self.loaded = True
+
+    async def _save(self) -> None:
+        await self._store.async_save({"schema_version": 1, "groups": self.groups})
+
+    async def async_put(self, group: dict[str, Any]) -> None:
+        self.groups[group["id"]] = copy.deepcopy(group)
+        await self._save()
+
+    async def async_remove(self, group_id: str) -> bool:
+        if group_id not in self.groups:
+            return False
+        del self.groups[group_id]
+        await self._save()
+        return True

@@ -27,11 +27,11 @@ QUALITY = 85
 CACHE_MAX_BYTES = 300 * 1024 * 1024
 
 
-_PICTURE_ENTITY = re.compile(r"^(image|camera)\.[a-z0-9_]{1,100}\Z")
+_PICTURE_ENTITY = re.compile(r"^(image|camera|media_player)\.[a-z0-9_]{1,100}\Z")
 
 
 def is_picture_entity(entity_id: Any) -> bool:
-    """Only image and camera entities can be asked for a picture."""
+    """Only image and camera entities, and media players (their cover art), can be asked for a picture."""
     return isinstance(entity_id, str) and bool(_PICTURE_ENTITY.match(entity_id))
 
 

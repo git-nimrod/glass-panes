@@ -1,0 +1,77 @@
+blueprint:
+  name: "Glass Panes: brighten the mirror when someone is there, dim it when not"
+  description: >
+    Raises a display's backlight while someone is in front of the mirror and lowers it a while after they leave.
+    It needs the display's mirror set up in Glass Panes (that gives the display a Brightness number) and something that says
+    someone is there: a toggle or sensor that follows the mirror's presence (see the "a mirror that wakes up when you walk up" recipe
+    in the Glass Panes guide). It only ever changes the Brightness number of the display you choose.
+  domain: automation
+  input:
+    presence:
+      name: Someone is at the mirror
+      description: The toggle or sensor that is on while someone is there.
+      selector:
+        entity:
+          domain:
+            - input_boolean
+            - binary_sensor
+    brightness:
+      name: The display's Brightness number
+      description: Look for "Brightness" under your display, for example number.glass_panes_hall_mirror_brightness.
+      selector:
+        entity:
+          integration: glass_panes
+          domain: number
+    awake_level:
+      name: Brightness while someone is there
+      default: 60
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: "%"
+          mode: slider
+    dim_level:
+      name: Brightness when nobody is there
+      description: 0 is as dark as the panel goes, not off. Pure black stays see-through on a mirror either way.
+      default: 10
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: "%"
+          mode: slider
+    dim_after:
+      name: Wait this long after the last person before dimming
+      default:
+        minutes: 1
+      selector:
+        duration:
+
+mode: restart
+max_exceeded: silent
+
+triggers:
+  - trigger: state
+    entity_id: !input presence
+  - trigger: homeassistant
+    event: start
+
+actions:
+  - if:
+      - condition: state
+        entity_id: !input presence
+        state: "on"
+    then:
+      - action: number.set_value
+        target:
+          entity_id: !input brightness
+        data:
+          value: !input awake_level
+    else:
+      - delay: !input dim_after
+      - action: number.set_value
+        target:
+          entity_id: !input brightness
+        data:
+          value: !input dim_level

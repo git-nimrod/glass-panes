@@ -19,8 +19,9 @@
 // Drawing is done by engine.js (shared with the sidebar builder); this file is the address options, the data client and the token.
 
 import { PaneRenderer } from './engine.js';
-import { HAClient, MockClient, mockBindings } from './data.js';
-import { makeTime } from './util.js';
+import { HAClient } from './data.js';
+import { displayZone, makeTime } from './util.js';
+import { updateNotice } from './empty.js';
 
 const q = new URLSearchParams(location.search);
 // Served by Home Assistant (the normal case), the player only ever talks to that same Home Assistant: an `ha=` in the address is ignored,
@@ -66,6 +67,7 @@ let time = makeTime(q.get('tz') || undefined);   // replaced by the display's ti
 const stage = document.getElementById('stage');
 const errBox = document.getElementById('errors');
 let registry = {}, client = null, renderer = null, bindingsFile = null, current = null;
+let mock = null;                // mock.js, loaded only for ?mock=1 (a display that talks to Home Assistant never downloads it)
 
 function logError(where, err) {
   console.error('[glass_panes]', where, err);
@@ -112,10 +114,11 @@ async function showPane(id) {
   if (!cfg.mock && !cfg.bindings && current !== null) bindingsFile = (await client.bindings()) || bindingsFile;
   current = pane.id;
   document.title = 'Glass Panes: ' + pane.name;
-  const slotsFor = cfg.mock ? mockBindings(registry, pane)
+  const slotsFor = cfg.mock ? mock.mockBindings(registry, pane)
     : ((bindingsFile && bindingsFile.bindings && bindingsFile.bindings[pane.id]) || {});
   renderer.time = time;
   renderer.show(pane, slotsFor);
+  updateNotice(pane);              // a pane with no widgets at all says so for a few minutes, instead of looking broken
   if (cfg.force) renderer.setForce(cfg.force);          // ?force=: look at both layouts of a pane with rules
   // a pane with no video should never sit under a video the app is still playing (an older page may have started one)
   if (cfg.kiosk && !(pane.widgets || []).some((w) => w.type === 'video')) fetch(cfg.appUrl + '/video/stop', { mode: 'no-cors' }).catch(() => {});
@@ -163,7 +166,7 @@ async function main() {
   fit();
   window.addEventListener('resize', fit);
   registry = (await (await fetch(cfg.schemaBase + 'widgets.json')).json()).widgets;
-  if (cfg.mock) { client = new MockClient(time); window.glassPanesMock = client; }   // handle for testing
+  if (cfg.mock) { mock = await import('./mock.js'); client = new mock.MockClient(time); window.glassPanesMock = client; }   // handle for testing
   else {
     if (!getToken()) { showSetup(); return; }
     client = new HAClient({
@@ -187,7 +190,7 @@ async function main() {
     if (display) {
       if (!q.has('pane')) cfg.pane = display.pane;
       if (!q.has('follow') && display.entity_id) cfg.follow = display.entity_id;
-      if (!q.has('tz') && display.timezone) time = makeTime(display.timezone);
+      if (!q.has('tz') && displayZone(display)) time = makeTime(displayZone(display));    // its own zone, else Home Assistant's
     } else logError('display', new Error('there is no display "' + cfg.display + '"'));
   }
   wanted = cfg.pane;

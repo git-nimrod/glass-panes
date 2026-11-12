@@ -104,7 +104,18 @@ The mirror stays plain glass until someone stands in front of it, then the clock
 4. **Leave something calm on.** A widget with no rule stays on all the time, so a small clock or nothing at all can stay while the rest wakes up. Pure black is see-through on the mirror, so with everything off it is just a mirror.
 5. **Tune how long it stays awake.** The mirror counts you as "there" for 30 seconds after the last movement. Change it with the `glass_panes.tune_mirror_presence` action and its `hold` field (seconds), for example from Developer tools > Actions.
 
-Want the backlight lower when nobody's there too? Add an automation on the same toggle that calls `glass_panes.set_mirror_brightness`.
+Want the backlight lower when nobody's there too? Use the blueprint: in Home Assistant open **Settings > Automations & scenes > Blueprints > Import Blueprint** and paste `https://github.com/git-nimrod/glass-panes/blob/main/blueprints/automation/glass_panes/presence_brightness.yaml`. Create an automation from it, pick your toggle and your display's **Brightness** number (see "Controls Home Assistant gets for a mirror" below), and choose the two levels and how long to wait before dimming. A person walking back up cancels the wait.
+
+### Controls Home Assistant gets for a mirror
+
+Once a display has its mirror set up (the mirror address), Home Assistant gets two entities for it, on the display's device. Use them in dashboards, automations and scripts:
+
+| Entity | What it is | Notes |
+|---|---|---|
+| `number.glass_panes_<display>_brightness` | The backlight, 0 to 100 % | Shows the mirror's real setting, read every 10 seconds. Unknown until something sets it (Android is in charge before that). 0 is as dark as the panel goes, not off. |
+| `switch.glass_panes_<display>_presence_detection` | Camera presence on or off | Follows the mirror: it changes by itself if presence is switched in the Settings page. Numbers only, never pictures. |
+
+They need the mirror app 0.10.3 or newer, and they appear and disappear with the mirror address. For a few seconds after Home Assistant starts they show an unknown value, until the first read. A screen on and off switch is not included yet.
 
 ## 6. Share a pane
 
