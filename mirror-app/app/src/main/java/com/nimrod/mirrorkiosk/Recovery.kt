@@ -33,11 +33,13 @@ object Recovery {
     fun loadStalled(startedMs: Long, lastFinishedMs: Long, nowMs: Long, timeoutS: Int): Boolean =
         startedMs > 0 && lastFinishedMs < startedMs && nowMs - startedMs > timeoutS * 1000L
 
-    /** Time to restart the app: boot is stuck past the limit, and the last app restart was long enough ago. */
+    /** Time to restart the app: boot is stuck past the limit, and the last app restart was long enough ago.
+     *  Times are "milliseconds since the device booted", which starts again from 0 after a power cycle, so a saved
+     *  restart time that is LATER than now belongs to an earlier power-on and counts as long ago. */
     fun shouldRestartApp(bootStuckForS: Long, restartAfterMin: Int, lastRestartMs: Long, nowMs: Long): Boolean {
         if (restartAfterMin <= 0) return false
         if (bootStuckForS < restartAfterMin * 60L) return false
-        return lastRestartMs <= 0 || nowMs - lastRestartMs >= RESTART_COOLDOWN_MIN * 60_000L
+        return lastRestartMs <= 0 || lastRestartMs > nowMs || nowMs - lastRestartMs >= RESTART_COOLDOWN_MIN * 60_000L
     }
 
     /** Settings sent to /recovery/tune. A null means "not given". Returns an error sentence, or null when every given value is fine. */

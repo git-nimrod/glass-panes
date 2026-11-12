@@ -73,7 +73,7 @@ class MainActivity : Activity() {
         override fun run() {
             Kiosk.main.postDelayed(this, 30_000)
             val p = Kiosk.prefs(this@MainActivity)
-            val now = System.currentTimeMillis()
+            val now = Kiosk.mono()
             val hasPage = (p.getString("url", "") ?: "").isNotEmpty()
 
             // 1. a load that never ended
@@ -122,7 +122,7 @@ class MainActivity : Activity() {
     /** Restarts the app by itself: Android has no root here, so this is the strongest thing the app can do. It comes back in a few seconds and loads the saved page. */
     private fun restartApp(why: String) {
         Kiosk.log("app_restart", why)
-        Kiosk.prefs(this).edit().putLong("last_app_restart_ms", System.currentTimeMillis()).commit()
+        Kiosk.prefs(this).edit().putLong("last_app_restart_ms", Kiosk.mono()).commit()
         try {
             val launch = packageManager.getLaunchIntentForPackage(packageName) ?: return
             launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -219,7 +219,7 @@ class MainActivity : Activity() {
         hideSystemUi()
         applyBrightness()
         // Coming back (e.g. after the screen slept): make sure the display fix is still in place.
-        if (System.currentTimeMillis() - DisplayPostProc.lastRunMs > 60_000) {
+        if (Kiosk.mono() - DisplayPostProc.lastRunMs > 60_000) {
             DisplayPostProc.ensureOff(this)
         }
     }
@@ -247,7 +247,7 @@ class MainActivity : Activity() {
 
         s.progressDelegate = object : GeckoSession.ProgressDelegate {
             override fun onPageStop(session: GeckoSession, success: Boolean) {
-                Kiosk.lastFinishedMs = System.currentTimeMillis()
+                Kiosk.lastFinishedMs = Kiosk.mono()
                 if (!success) {                      // this load did not finish: try again shortly
                     Kiosk.pageOk = false
                     Kiosk.log("page_stop", "the load did not finish well, trying again soon")
@@ -257,7 +257,7 @@ class MainActivity : Activity() {
                     Kiosk.pageOk = false
                 } else {                             // the real page loaded: nothing left to retry
                     Kiosk.pageOk = true
-                    Kiosk.lastLoadMs = System.currentTimeMillis()
+                    Kiosk.lastLoadMs = Kiosk.mono()
                     stallsInRow = 0
                     if (Kiosk.boot.reach(BootTimeline.Step.PAGE)) Kiosk.log("page_loaded", Kiosk.boot.secondsTo(BootTimeline.Step.PAGE).toString() + " s after the app started")
                     Kiosk.main.removeCallbacks(retryLoad)
@@ -320,7 +320,7 @@ class MainActivity : Activity() {
 
     private fun restartSession() {
         Kiosk.main.post {
-            val now = System.currentTimeMillis()
+            val now = Kiosk.mono()
             crashesInRow = if (now - lastCrashMs > 600_000) 0 else crashesInRow + 1
             lastCrashMs = now
             Kiosk.engineRestarts++
@@ -345,7 +345,11 @@ class MainActivity : Activity() {
             return
         }
         val token = p.getString("token", "") ?: ""
-        Kiosk.loadStartedMs = System.currentTimeMillis()
+        // A fresh attempt: forget that the last one ended on the black "can't reach it" page. A failed load reports
+        // onPageStop(success = false), which never cleared this flag, so the first GOOD load after Wi-Fi came up was
+        // mistaken for the black page and the loading screen stayed up over a working page (fixed in app 0.12.0).
+        errorPageShown = false
+        Kiosk.loadStartedMs = Kiosk.mono()
         Kiosk.log("load_start", Origins.of(url) ?: "address not understood")
         // The mirror page reads "#t=<token>" once, stores it, and strips it from the address.
         // BYPASS_CACHE: always fetch the page fresh from Home Assistant, so a new index.html shows up
@@ -482,6 +486,16 @@ class MainActivity : Activity() {
             splashAnim = loadSplashFrames().also { splashPic.setImageDrawable(it) }
         }
         splash.post { splashAnim?.let { if (!it.isRunning) it.start() } }
+    }
+
+    /** The page's heartbeat reached the control server, so the real page is running. That is the strongest proof there is,
+     *  so take the loading screen away even if the load bookkeeping missed the moment it loaded (safety net, app 0.12.0). */
+    fun pageAlive() {
+        if (!Kiosk.pageOk) {
+            Kiosk.pageOk = true
+            Kiosk.log("page_alive", "the page is running but was marked not loaded; loading screen hidden")
+        }
+        hideSplash()
     }
 
     fun hideSplash() {

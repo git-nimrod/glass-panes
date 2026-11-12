@@ -164,7 +164,7 @@ object Presence {
             c.setErrorCallback { code, _ -> reopen("camera error $code") }
             c.startPreview()
             cam = c
-            lastFrameMs = System.currentTimeMillis()      // the frame watchdog counts from here
+            lastFrameMs = Kiosk.mono()      // the frame watchdog counts from here
             state = "running"
         } catch (e: Exception) {
             // let go of a half-opened camera, or every retry fails with "Fail to connect to camera service"
@@ -178,7 +178,7 @@ object Presence {
 
     // ---- motion: compare a tiny brightness grid with the one from the last look ("scans_per_min", default 120) ----
     private fun look(data: ByteArray) {
-        val now = System.currentTimeMillis()
+        val now = Kiosk.mono()
         lastFrameMs = now; failures = 0
         val prefs = ctx?.let { Kiosk.prefs(it) }
         var perMin = (prefs?.getInt("scans_per_min", 120) ?: 120).coerceIn(1, 240)
@@ -215,7 +215,7 @@ object Presence {
 
     // ---- once a second: decide "someone there", report to Home Assistant when it matters ----
     private fun tick() {
-        val now = System.currentTimeMillis()
+        val now = Kiosk.mono()
         // no picture for 30 s while "running" (the slowest look is every 5 s): the camera went quiet
         if (state == "running" && now - lastFrameMs > 30000) reopen("stalled")
         val holdMs = (ctx?.let { Kiosk.prefs(it).getInt("presence_hold_s", 30) } ?: 30) * 1000L
@@ -266,7 +266,7 @@ object Presence {
     }
 
     fun json(): String {
-        val now = System.currentTimeMillis()
+        val now = Kiosk.mono()
         fun ago(t: Long): Long = if (t == 0L) -1L else (now - t) / 1000
         // faces / distance / hardware_faces are kept (always empty) so Home Assistant's side keeps working
         return "{\"present\":$present,\"distance_m\":-1.0,\"faces\":0," +

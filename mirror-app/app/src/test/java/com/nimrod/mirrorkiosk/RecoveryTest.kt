@@ -32,6 +32,7 @@ class RecoveryTest {
         assertFalse(Recovery.shouldRestartApp(99 * 60L, 0, 0, now))             // 0 = never
         assertFalse(Recovery.shouldRestartApp(99 * 60L, 15, now - 10 * 60_000L, now))   // restarted 10 minutes ago: wait
         assertTrue(Recovery.shouldRestartApp(99 * 60L, 15, now - 31 * 60_000L, now))
+        assertTrue(Recovery.shouldRestartApp(99 * 60L, 15, now + 5 * 60_000L, now))      // saved during an earlier power-on (since-boot clock reset)
     }
 
     @Test fun settingsAreCheckedAgainstTheirRanges() {

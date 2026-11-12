@@ -27,7 +27,7 @@ object Kiosk {
     @Volatile var lastFinishedMs = 0L      // when a page load last finished, well or badly. A load started after this has not ended yet
     @Volatile var shownPane = ""           // the pane the player last said it is showing
     @Volatile var bootId = 0               // counts every start of the app, kept across restarts and power cycles
-    val boot = BootTimeline()              // the steps of this start, for the loading bar and /status
+    val boot = BootTimeline { mono() }     // the steps of this start, for the loading bar and /status
     @Volatile var eventLog: EventLog? = null
     @Volatile var videoState = "stopped"      // stopped | starting | playing | error <what>/<extra>
     @Volatile var brightnessPct = -1          // -1 = system default, otherwise 0..100
@@ -36,7 +36,13 @@ object Kiosk {
      *  (they are the two ways up; one of them is upside down on a given mount). "auto" leaves it to Android. */
     val orientations = listOf("auto", "portrait", "portrait_reverse", "landscape", "landscape_reverse")
     @Volatile var orientation = "auto"
-    val startedMs = System.currentTimeMillis()
+    /** Milliseconds since the device booted. Every "how long ago" sum in the app uses this, because it never jumps.
+     *  The wall clock does: the mirror has no clock battery, so after a power cut it can start in 1970 and leap 56 years
+     *  forward when Wi-Fi sets the time, which used to make every timer think the start had taken forever (app 0.12.0).
+     *  The wall clock is kept only for showing people when something happened (the "ms" in the diary). */
+    fun mono(): Long = android.os.SystemClock.elapsedRealtime()
+
+    val startedMs = mono()
 
     /** Once per run: number this start, open the saved diary and write the first line. Safe to call again. */
     @Synchronized fun init(ctx: Context) {
@@ -51,8 +57,7 @@ object Kiosk {
 
     /** Adds one line to the diary (/log). Never put a token in it; the diary also blanks the obvious ones. */
     fun log(kind: String, detail: String = "") {
-        val now = System.currentTimeMillis()
-        eventLog?.add(bootId, (now - startedMs) / 1000, now, kind, detail)
+        eventLog?.add(bootId, (mono() - startedMs) / 1000, System.currentTimeMillis(), kind, detail)
     }
 
     // Recovery and reporting settings, all changed with /recovery/tune (ranges and rules are in Recovery.kt)

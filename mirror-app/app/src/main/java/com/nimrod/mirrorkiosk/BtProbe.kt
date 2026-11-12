@@ -31,14 +31,14 @@ object BtProbe {
             val before = BtLogic.stateName(adapter.state)
 
             // 1. make sure it is on (a few seconds at most)
-            val started = System.currentTimeMillis()
+            val started = Kiosk.mono()
             if (adapter.state != BluetoothAdapter.STATE_ON) {
                 weTurnedItOn = true
                 adapter.enable()
-                while (adapter.state != BluetoothAdapter.STATE_ON && System.currentTimeMillis() - started < BtLogic.TURN_ON_WAIT_S * 1000L) Thread.sleep(250)
+                while (adapter.state != BluetoothAdapter.STATE_ON && Kiosk.mono() - started < BtLogic.TURN_ON_WAIT_S * 1000L) Thread.sleep(250)
             }
             val becameOn = adapter.state == BluetoothAdapter.STATE_ON
-            val onAfterS = ((System.currentTimeMillis() - started) / 1000).toInt()
+            val onAfterS = ((Kiosk.mono() - started) / 1000).toInt()
 
             // 2. listen (counts only)
             val scanAllowed = app.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED

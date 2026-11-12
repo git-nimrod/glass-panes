@@ -377,7 +377,8 @@
         "show_next": { "type": "boolean", "default": true },
         "game_day_only": { "type": "boolean", "default": false, "description": "Show sports only on game day: live games, tonight's game, and a final only until midnight. Later games are never announced (this overrides show_next). Off keeps a final for about 18 hours, so last night's score is still there in the morning." },
         "show_logos": { "type": "boolean", "default": true, "description": "Draw the team logos." },
-        "verbose_text": { "type": "boolean", "default": false, "description": "Spell results out (\"Lions win · Final\", \"Lions play at 7:30\") instead of just Final or the time. The scores already show who won." }
+        "verbose_text": { "type": "boolean", "default": false, "description": "Spell results out (\"Lions win · Final\", \"Lions play at 7:30\") instead of just Final or the time. The scores already show who won." },
+        "head_top": { "type": "boolean", "default": false, "description": "Rows layout: put the headline (Final, Live, Today · 7 PM) above the logos instead of beside them. For narrow columns." }
       }
     },
     "opt_news": {

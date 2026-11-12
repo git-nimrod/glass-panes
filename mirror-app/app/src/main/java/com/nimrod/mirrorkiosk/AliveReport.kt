@@ -25,7 +25,7 @@ object AliveReport {
         if (id.isEmpty()) { last = "not set up"; return }
         val log = Kiosk.eventLog ?: return
         val pending = AlivePayload.important(log.addedSince(seen))
-        val now = System.currentTimeMillis()
+        val now = Kiosk.mono()
         if (!AlivePayload.due(Kiosk.aliveReportS(ctx), lastSentMs, now, pending.isNotEmpty())) return
         val page = p.getString("url", "") ?: ""
         val base = try { URL(page).let { "${it.protocol}://${it.host}" + (if (it.port > 0) ":${it.port}" else "") } }

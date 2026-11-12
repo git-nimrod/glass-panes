@@ -31,9 +31,9 @@ object MicProbe {
             val meter = MicLevel.Meter()
             val chunk = ShortArray(MicLevel.SAMPLE_RATE / 10)
             val wanted = MicLevel.SAMPLE_RATE.toLong() * seconds
-            val deadline = System.currentTimeMillis() + seconds * 1000L + 3000      // never hang if the microphone stops delivering
+            val deadline = Kiosk.mono() + seconds * 1000L + 3000      // never hang if the microphone stops delivering
             rec.startRecording()
-            while (meter.samples() < wanted && System.currentTimeMillis() < deadline) {
+            while (meter.samples() < wanted && Kiosk.mono() < deadline) {
                 val n = rec.read(chunk, 0, chunk.size)
                 if (n < 0) return MicLevel.json(MicLevel.Meter().result(), seconds, "reading the microphone failed (code $n)")
                 if (n > 0) meter.add(chunk, n)

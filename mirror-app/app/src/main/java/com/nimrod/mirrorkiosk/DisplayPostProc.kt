@@ -65,7 +65,7 @@ object DisplayPostProc {
                 detail = e.javaClass.simpleName
                 Log.w(TAG, "display post-proc failed", e)
             } finally {
-                lastRunMs = System.currentTimeMillis()
+                lastRunMs = Kiosk.mono()
                 busy.set(false)
             }
         }

@@ -173,6 +173,11 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; cursor
 .gp-sc { font-size: 2em; font-weight: 200; margin: 0 .3em; min-width: 1.1em; text-align: center; }
 .gp-mid { display: inline-flex; align-items: center; justify-content: center; min-width: 9.5em; flex: none; }
 .gp-tight .gp-mid { min-width: 3.6em; }
+.gp-gtop { margin: 0 0 .6em; }
+.gp-gtop .gp-headtop { display: block; font-weight: 400; color: var(--gp-strong); font-size: .95em; margin-bottom: .2em; }
+.gp-gtop .gp-game { margin: 0; justify-content: flex-end; }
+.gp-gtop .gp-mid { min-width: 0; }
+.gp-gtop .gp-sc { font-size: 1.7em; }
 .gp-dash { color: var(--gp-line); font-size: 1.4em; margin: 0 .3em; white-space: pre; }
 .gp-gi { margin-left: 1em; font-size: .9em; color: var(--gp-soft); line-height: 1.35; }
 .gp-gi b { display: block; font-weight: 400; color: var(--gp-strong); font-size: 1.07em; }

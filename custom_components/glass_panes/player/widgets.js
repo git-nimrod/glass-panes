@@ -819,7 +819,7 @@ function parseGame(s, time, dayOnly) {
   };
 }
 
-export { parseGame, todayWord };   // exported so the game-picking rules can be tested on their own
+export { parseGame, todayWord, quick };   // exported so the game-picking rules can be tested on their own
 
 // "3rd", "OT", "Halftime"... from the period number if the sensor gives one, else out of the clock text. Never the running clock.
 function periodText(g) {
@@ -906,10 +906,20 @@ function sports(ctx) {
       row.appendChild(logo(g.ologo));
       const gi = el('div', 'gp-gi'), head = el('b');
       if (g.kind === 'live') head.appendChild(el('span', 'gp-live', '● '));
+      if (o.head_top) head.className = 'gp-headtop';   // option head_top: the headline (Live, Final, Tonight ...) goes ABOVE the logos, for narrow columns
       // short by default: the scores already say who won (the loser's is dimmed), so just "Final" or the time; verbose_text brings the old wording back
       head.appendChild(document.createTextNode(o.verbose_text
         ? (g.kind === 'final' ? (g.win ? g.name + ' win' : g.name + ' lose') + ' · Final' : g.kind === 'live' ? liveText(g) : g.name + ' play at ' + T.shortTime(g.t))
         : (g.kind === 'final' ? 'Final' : g.kind === 'live' ? liveText(g) : todayWord(T, g.t) + ' · ' + T.ampm(g.t))));
+      if (o.head_top) {
+        const blk = el('div', 'gp-gtop');
+        blk.appendChild(head);
+        row.style.borderLeft = '0';
+        row.style.paddingLeft = '0';
+        blk.appendChild(row);
+        stack.appendChild(blk);
+        return;
+      }
       gi.appendChild(head);
       row.appendChild(gi);
       stack.appendChild(row);
@@ -937,11 +947,22 @@ function storyFrom(s, srcName) {
   return { title: a.title.trim(), link: a.link, src: srcName || a.friendly_name || '', text: plain.slice(0, 320), t: Date.parse(s.state) || Date.now() };
 }
 const cleanTitle = (t) => String(t).replace(/^(WATCH LIVE|WATCH|LISTEN|LIVE UPDATES|LIVE|ANALYSIS|BREAKING)\s*:\s*/i, '').trim();
-// Headlines have to read in a glance: skip explainers, questions, podcasts and very long ones.
+// Headlines have to read in a glance AND say something. A headline that only invites you into the article ("...Here's why",
+// "The hidden cost of ...", "Why ...?") is dropped, and so are video, audio and photo items (the feed tags them WATCH:, LISTEN: ...).
+const MEDIA_TAG = /^\s*(watch live|watch|listen|video|photos?|podcast|livestream|live stream|gallery)\s*[:|\u2013\u2014-]/i;
+const MEDIA_WORD = /\b(full episode|podcast|livestream|live stream|watch live|in photos)\b/i;
+// Starts like an explainer, a question or a "come and see" piece.
+const TEASER_OPEN = /^(how|why|what|who|when|where|here's|here\u2019s|here is|opinion|podcast|photos|video|quiz|do you|does|did you|is it|are you|can you|should you|inside|behind|meet|a look|explaining|understanding)\b/i;
+// A topic label dressed as a headline ("The hidden cost of ER care"). A number in it means it states a fact, so those stay.
+const LABEL_OPEN = /^the (hidden|real|secret|untold|surprising|true|truth|cost|price|toll|state|future|rise|fall|problem|trouble|case|story|reason|debate|crisis|quiet|silent|growing)( \w+)? (of|for|with|behind|about|against|facing)\b/i;
+// Ends by promising the answer inside ("ERs are losing money. Here's why").
+const TEASER_TAIL = /(here['\u2019]s (why|what|how|the catch|the deal)|why (it|that|this) matters|what (it|this|that) means( for [^.:]*)?|what happens next|what comes next|what('s| is) next|what (we|to|you) (know|expect)|what you (need|should) (to )?know|(experts|analysts) weigh in|find out|you won['\u2019]t believe|may surprise you)\s*[.!:\u2026]*$/i;
+const TEASER_PHRASE = /\b(signs of|what to know|things to know|tips for|explained|recipe|you need to know|everything to know)\b/i;
 function quick(t, max) {
+  if (MEDIA_TAG.test(t) || MEDIA_WORD.test(t)) return false;
   const c = cleanTitle(t);
-  if (/^(how|why|what|who|when|where|here's|here’s|here is|opinion|podcast|photos|video|quiz|do you|does|did you|is it|are you|can you|should you)\b/i.test(c)) return false;
-  if (/\b(signs of|what to know|things to know|tips for|explained|recipe)\b/i.test(c) || /\?/.test(c)) return false;
+  if (TEASER_OPEN.test(c) || TEASER_PHRASE.test(c) || TEASER_TAIL.test(c) || /\?|\u2026|\.\.\./.test(c)) return false;
+  if (LABEL_OPEN.test(c) && !/\d/.test(c)) return false;
   return c.length <= max;
 }
 

@@ -30,7 +30,7 @@ Rough guide, not a promise: older units seem more likely to be the tested Qualco
 |---|---|
 | A mirror | Model One with the **MIR63A0-00-P1 RevP21** board. The sticker is on the main board near the micro-USB and Ethernet end. (The "FW AD V1.01" sticker is **not** the board id.) RevP18 units are reported to behave differently |
 | Cable and computer | A **data** micro-USB cable (many cables only charge) and a Windows computer. Install Google's `platform-tools` (`adb` and `fastboot`) and [scrcpy](https://github.com/Genymobile/scrcpy) |
-| The images | `system.img`, `userdata.sparse` and `SHA256SUMS` from the [`mirror-android-1` release](https://github.com/git-nimrod/glass-panes/releases/tag/mirror-android-1) |
+| The images | `system.img`, `userdata.sparse` and `SHA256SUMS` from the [`mirror-android-2` release](https://github.com/git-nimrod/glass-panes/releases/tag/mirror-android-2) |
 | Time | About an hour. The first boot after flashing takes about 5 minutes |
 
 ## 1. Open the mirror and find the buttons
@@ -64,7 +64,7 @@ A **cold boot** means cutting wall power. A trick that works: plug the mirror in
 
 ## 3. Download and check the images
 
-Download `system.img`, `userdata.sparse` and `SHA256SUMS` from the [`mirror-android-1` release](https://github.com/git-nimrod/glass-panes/releases/tag/mirror-android-1) into one folder. Before you flash anything, check that your copies are the real ones. In Windows PowerShell:
+Download `system.img`, `userdata.sparse` and `SHA256SUMS` from the [`mirror-android-2` release](https://github.com/git-nimrod/glass-panes/releases/tag/mirror-android-2) into one folder. Before you flash anything, check that your copies are the real ones. In Windows PowerShell:
 
 ```powershell
 Get-FileHash .\system.img -Algorithm SHA256
@@ -74,7 +74,7 @@ Get-FileHash .\userdata.sparse -Algorithm SHA256
 Both fingerprints must match these exactly, and must also match the `SHA256SUMS` file:
 
 ```
-d13dd330bce43b1c46edb65a5eb95a77968f8fd9c413f166c4393e0072f83ed5  system.img
+bdb6b8445296666162256affa968d590075f56a8ad2229930f8502b9703e35c1  system.img
 74b1f57ac20ce7c56065083a2bc3ddd283493be29d851fd04efc156ec96cf908  userdata.sparse
 ```
 
@@ -148,8 +148,22 @@ fastboot reboot
 - **A soft reboot can leave stripes in the text.** A full power cut fixes it. The Glass Panes app also turns off the display feature that causes it.
 - **The timezone is stuck on UTC.** Glass Panes shows your Home Assistant's timezone, so you don't need to change it.
 - **`adb` over Wi-Fi never authorizes** on this unit. Use the cable.
-- Android's own sleep leaves a faint backlight glow. For a true "off", put the power supply on a smart plug.
+- **Sleep is fully dark** with the `mirror-android-2` images: when Android puts the screen to sleep, the panel switches off completely, with no backlight glow (the older `mirror-android-1` images left a faint glow). Wake it with `adb shell input keyevent 224` and sleep it with `223`. A smart plug is still the way to cut power entirely.
 - There is **no root** (`adb` runs as the `shell` user).
+
+## Updating from `mirror-android-1`
+
+Already running the first images? You only need the new `system.img`. Your `userdata` stays, so the Glass Panes app and its settings, your Wi-Fi and the ADB key are kept.
+
+1. Download `system.img` and `SHA256SUMS` from the [`mirror-android-2` release](https://github.com/git-nimrod/glass-panes/releases/tag/mirror-android-2) and check the fingerprint (step 3).
+2. With the mirror running and plugged in by USB, put it in fastboot without opening it: `adb reboot bootloader`. After about 10 seconds, `fastboot devices` should list it. (This worked on the tested unit. If nothing is listed and the mirror boots normally, use VOL- at a cold power-on as in step 1.)
+3. Flash only system, then restart:
+   ```bash
+   fastboot flash system system.img
+   fastboot reboot
+   ```
+   Do **not** flash `userdata`: that would erase the app and its settings.
+4. Give it about 5 minutes. After a cold power-on, Wi-Fi again takes about 2.5 minutes.
 
 ## If something goes wrong
 

@@ -94,7 +94,7 @@ const TOGGLES = {
   now_playing: [['show_art', 'Album art', true], ['cd_case', 'CD case beside the disc (CD look)', true], ['burn_in_saver', 'Burn-in saver (very slow drift)', false]],
   people: [['show_avatar', 'Photos', true]],
   lights_summary: [['show_dots', 'Colour dots', true]],
-  sports: [['show_logos', 'Team logos', true], ['show_next', 'Upcoming games', true], ['game_day_only', 'Only on game day', false], ['verbose_text', 'Spell out wins and losses', false]],
+  sports: [['show_logos', 'Team logos', true], ['show_next', 'Upcoming games', true], ['game_day_only', 'Only on game day', false], ['verbose_text', 'Spell out wins and losses', false], ['head_top', 'Headline above the logos (narrow columns)', false]],
   news: [['show_source', 'Source name', false]],
   entity_value: [['show_label', 'Name label', true]],
 };

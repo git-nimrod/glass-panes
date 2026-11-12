@@ -143,7 +143,7 @@ Nothing runs per frame.
 | `lights_summary` | "N of M on" with a dot per light | `lights` | `show_dots` |
 | `status_summary` | Calm "all good", or only what is wrong | `checks` | `ok_text`, `hide_when_ok`, `stale_days` |
 | `progress_ring` | A percentage ring | `entity` | `warn_below`, `crit_below`, `warn_above`, `crit_above` |
-| `sports` | Scores and next games | `teams` | `layout` line/rows/box, `max_games`, `show_next`, `game_day_only` (live games, tonight's game and a final only until midnight; never announces a later game), `show_logos`, `verbose_text` |
+| `sports` | Scores and next games | `teams` | `layout` line/rows/box, `max_games`, `show_next`, `game_day_only` (live games, tonight's game and a final only until midnight; never announces a later game), `show_logos`, `verbose_text`, `head_top` (rows layout: headline above the logos, for narrow columns) |
 | `news` | Headlines | `feeds` | `max_stories`, `keywords`, `max_age_hours` |
 
 `sports` expects Team Tracker style sensors. Team Tracker is a HACS integration that you install separately. `news` expects Home Assistant `event` entities from the Feedreader integration. Both are optional extras. A pane without those widgets needs neither. (This was checked against how the original page reads those attributes, not against the integrations' current docs.)

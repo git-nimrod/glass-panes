@@ -17,7 +17,7 @@ package com.nimrod.mirrorkiosk
  * Each step has a time it is allowed to take after the step before it. Going over it makes [stuck] true. That is a
  * warning on the screen and in the log, not a failure: a slow Wi-Fi is normal.
  */
-class BootTimeline(private val now: () -> Long = { System.currentTimeMillis() }) {
+class BootTimeline(private val now: () -> Long = { System.nanoTime() / 1_000_000 }) {   // the app passes Kiosk.mono()
 
     enum class Step(val key: String, val label: String, val allowedS: Int) {
         STARTED("started", "Starting up", 0),

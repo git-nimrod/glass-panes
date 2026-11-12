@@ -166,7 +166,9 @@ class ControlService : Service() {
                     path == "/alive" -> {
                         // the player page says it is running. Only the page on the mirror itself may say so.
                         if (fromThisDevice) {
-                            Kiosk.lastAliveMs = System.currentTimeMillis()
+                            Kiosk.lastAliveMs = Kiosk.mono()
+                            // A running page must never sit behind the loading screen (UI work belongs on the main thread).
+                            Kiosk.main.post { Kiosk.activity?.pageAlive() }
                             val p = Kiosk.prefs(this)
                             if (!p.getBoolean("heartbeat", false)) p.edit().putBoolean("heartbeat", true).apply()
                             // From player 0.10.8 on, the heartbeat says which pane is showing (pane) and which was asked for (want)
@@ -363,7 +365,7 @@ class ControlService : Service() {
     }
 
     private fun statusJson(): String {
-        val now = System.currentTimeMillis()
+        val now = Kiosk.mono()
         val up = (now - Kiosk.startedMs) / 1000
         val since = if (Kiosk.lastLoadMs == 0L) -1L else (now - Kiosk.lastLoadMs) / 1000
         return "{\"ok\":true,\"app\":\"mirror-kiosk\",\"version\":\"" + Kiosk.versionName(this) + "\"," +
