@@ -8,14 +8,12 @@ import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.AnimationDrawable
-import android.net.Uri
 import android.util.TypedValue
 import android.view.Gravity
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.VideoView
 import android.os.Bundle
 import android.view.View
 import android.view.WindowManager
@@ -52,8 +50,7 @@ class MainActivity : Activity() {
     private lateinit var splashStep: TextView           // "3 of 5 · Waiting for Wi-Fi · 42 s"
     private var splashAnim: AnimationDrawable? = null          // only exists while the launch screen is showing
     private var errorPageShown = false          // the black "can't reach it" page is what just finished loading
-    private var videoView: VideoView? = null
-    private var videoUrl: String? = null
+    private lateinit var video: VideoLayer             // the native video over the browser (VideoLayer.kt)
     private lateinit var session: GeckoSession
     private val retryLoad = Runnable { loadPage() }
 
@@ -189,6 +186,11 @@ class MainActivity : Activity() {
         root.addView(splash, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         setContentView(root)
+        video = VideoLayer(this, root, { s ->
+            Kiosk.videoState = s
+            // look less often while a video plays, so it stays smooth
+            if (s == "starting" || s == "playing") Presence.pause() else Presence.resume()
+        }, { Kiosk.log("video", it) })
         showSplash(getString(R.string.splash_starting))
 
         newSession()
@@ -237,6 +239,7 @@ class MainActivity : Activity() {
         Kiosk.main.removeCallbacks(aliveTick)
         Kiosk.main.removeCallbacks(barTick)
         if (Kiosk.activity === this) Kiosk.activity = null
+        if (::video.isInitialized) video.stop()          // let go of the decoder with the screen
         super.onDestroy()
     }
 
@@ -522,43 +525,12 @@ class MainActivity : Activity() {
 
     /**
      * Plays a looping, silent video with Android's own player (the browser engine cannot start a video
-     * decoder on this device). Safe to call again with the same address: nothing restarts.
+     * decoder on this device). Safe to call again with the same address: nothing restarts. A different address
+     * swaps in place with no black gap: the last frame stays up until the new video draws (VideoLayer.kt).
      */
-    fun playVideo(url: String) {
-        if (videoView != null && url == videoUrl && Kiosk.videoState != "error") return
-        stopVideo()
-        val vv = VideoView(this)
-        vv.setZOrderOnTop(true)                       // draw above the browser's own surface
-        root.addView(vv, FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
-        vv.setOnPreparedListener { mp ->
-            mp.isLooping = true
-            mp.setVolume(0f, 0f)
-            Kiosk.videoState = "playing"
-        }
-        vv.setOnErrorListener { _, what, extra ->
-            Kiosk.videoState = "error $what/$extra"
-            stopVideo(keepState = true)
-            true
-        }
-        Kiosk.videoState = "starting"
-        videoView = vv
-        videoUrl = url
-        vv.setVideoURI(Uri.parse(url))
-        vv.start()
-        Presence.pause()                              // look less often while the video plays, so it stays smooth
-    }
+    fun playVideo(url: String) = video.play(url)
 
-    fun stopVideo(keepState: Boolean = false) {
-        videoView?.let {
-            try { it.stopPlayback() } catch (e: Exception) { /* already stopped */ }
-            root.removeView(it)
-        }
-        videoView = null
-        videoUrl = null
-        if (!keepState) Kiosk.videoState = "stopped"
-        Presence.resume()
-    }
+    fun stopVideo() = video.stop()
 
     // ---------------------------------------------------------------- screen
 
