@@ -90,4 +90,31 @@ class PairLogicTest {
         assertNotNull(PairLogic.payloadProblem(goodUrl, goodToken, "tiny"))
         assertNotNull(PairLogic.payloadProblem(goodUrl, goodToken, "key with spaces 1234567890"))
     }
+
+    // App 0.12.0 bug: on a fresh install the browser's empty start page finished loading, was taken for the real page, and hid
+    // the pairing code (a white screen). Only a saved page address with the pairing code not on screen may count as the page.
+    @Test fun theEmptyStartPageNeverHidesThePairingCode() {
+        val page = "http://homeassistant.local:8123/glass_panes/player/index.html?display=mirror"
+        assertFalse("fresh install: nothing saved", PairLogic.finishedLoadIsPage(null, false))
+        assertFalse("fresh install: empty address", PairLogic.finishedLoadIsPage("", false))
+        assertFalse("blank address", PairLogic.finishedLoadIsPage("   ", false))
+        assertFalse("pairing again on a set-up mirror", PairLogic.finishedLoadIsPage(page, true))
+        assertTrue("set up and not pairing: the real page", PairLogic.finishedLoadIsPage(page, false))
+    }
+
+    // App 0.13.0: on a set-up mirror the engine's own empty page (about:blank) can also finish; it is never the real page.
+    @Test fun theEnginesEmptyPageIsNeverTheRealPage() {
+        val page = "http://homeassistant.local:8123/glass_panes/player/index.html?display=mirror"
+        assertFalse(PairLogic.finishedLoadIsPage(page, false, "about:blank"))
+        assertFalse(PairLogic.finishedLoadIsPage(page, false, ""))
+        assertTrue(PairLogic.finishedLoadIsPage(page, false, page + "#t=x"))
+        assertTrue("start not seen: decided on the address alone", PairLogic.finishedLoadIsPage(page, false, null))
+        assertFalse("fresh install stays on the code whatever finished", PairLogic.finishedLoadIsPage("", false, page))
+    }
+
+    @Test fun anUnpairedMirrorOnlyAnswersPairingAndStatusFromTheNetwork() {
+        for (open in listOf("/pair", "/status", "/")) assertTrue(open, PairLogic.openBeforePairing(open))
+        for (shut in listOf("/screen/off", "/audio/play", "/esphome/bt/on", "/update/install", "/reload", "/brightness/40", "/presence/on", "/pairx", "/status/x"))
+            assertFalse(shut, PairLogic.openBeforePairing(shut))
+    }
 }

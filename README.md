@@ -31,7 +31,7 @@ Design screens for your **Lululemon Studio smart mirror** inside Home Assistant,
 - **Icons, tiles, chips and tables:** 7,400+ Material Design Icons, entity values drawn as tiles or chips, and a Table widget that formats times, durations and numbers for you.
 - **Colours that follow your data.** Change a widget's colour, size or icon when a value goes above, below or between numbers, and edit the warnings a Status summary shows.
 - **Widgets that switch on and off.** Show a photo when no team plays today, a warning only when a door is open, a different layout at night.
-- **A widget catalogue and reusable groups:** every widget with a live preview, and a set of widgets you saved, dropped into any pane with one click.
+- **Reusable groups:** save a set of widgets with their look and entities, and drop it into any pane with one click.
 - **One `select` entity per display** (plus a button per pane), so normal Home Assistant automations decide what each screen shows. A mirror also gets a **Brightness** number and a **Presence detection** switch, and a blueprint brightens it when someone walks up.
 - **Pair a mirror with a six-digit code** shown on its screen. Home Assistant sets it up, with no token to copy.
 - **A player page** that draws a pane full screen. The Mirror Kiosk app runs it on your mirror, and any browser can open it too.

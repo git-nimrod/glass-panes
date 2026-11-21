@@ -1,0 +1,219 @@
+{
+  "schema_version": 1,
+  "about": "Broadcast-style scorebugs for the sports widget (layout: bug). Each is drawn from scratch after a real broadcast's look; no network logos or wordmarks. The bug files are player/bugs/<id>.js. A bug with \"tv\" is drawn with that old-TV picture by default (soft = standard-definition blur and scanlines, vhs = also colour bleed); the widget's bug_tv option overrides it.",
+  "bugs": [
+    {
+      "id": "nfl-floating-25",
+      "label": "Floating logos '25",
+      "era": "2025",
+      "after": "NFL Sunday national package, 2025",
+      "sports": [
+        "football"
+      ],
+      "default_for": [
+        "NFL",
+        "*"
+      ]
+    },
+    {
+      "id": "nfl-blocks-25",
+      "label": "Team blocks '25",
+      "era": "2025",
+      "after": "NFL Sunday regional package, 2025",
+      "sports": [
+        "football",
+        "basketball",
+        "hockey",
+        "soccer",
+        "baseball"
+      ],
+      "default_for": []
+    },
+    {
+      "id": "nfl-medallion-26",
+      "label": "Medallion '26",
+      "era": "2026",
+      "after": "NFL Sunday night package, 2026",
+      "sports": [
+        "football"
+      ],
+      "default_for": []
+    },
+    {
+      "id": "nfl-segments-25",
+      "label": "Segments '25",
+      "era": "2025",
+      "after": "NFL Monday night package, 2023-2025",
+      "sports": [
+        "football"
+      ],
+      "default_for": []
+    },
+    {
+      "id": "possession-bar-25",
+      "label": "Possession colour '25",
+      "era": "2025",
+      "after": "College football Saturday package, 2025 (NFL Monday night from 2026)",
+      "sports": [
+        "football"
+      ],
+      "default_for": [
+        "NCAAF"
+      ]
+    },
+    {
+      "id": "nfl-wedge-25",
+      "label": "Wedge '25",
+      "era": "2025",
+      "after": "NFL Thursday night streaming package, 2022-2025",
+      "sports": [
+        "football"
+      ],
+      "default_for": []
+    },
+    {
+      "id": "box-94",
+      "label": "Box '94",
+      "era": "1994",
+      "after": "The first always-on score box, NFL 1994 (NHL from 1995)",
+      "sports": [
+        "football",
+        "hockey"
+      ],
+      "tv": "soft",
+      "default_for": []
+    },
+    {
+      "id": "nba-panels-25",
+      "label": "Light & dark panels '25",
+      "era": "2025",
+      "after": "NBA weeknight national package, 2025-26",
+      "sports": [
+        "basketball"
+      ],
+      "default_for": []
+    },
+    {
+      "id": "nba-gilt-25",
+      "label": "Gilt frame '25",
+      "era": "2025",
+      "after": "NBA national cable package and Finals, 2024-25",
+      "sports": [
+        "basketball"
+      ],
+      "default_for": [
+        "NBA",
+        "basketball"
+      ]
+    },
+    {
+      "id": "nba-stack-25",
+      "label": "Stacked box '25",
+      "era": "2025",
+      "after": "NBA streaming package, 2025-26",
+      "sports": [
+        "basketball"
+      ],
+      "default_for": []
+    },
+    {
+      "id": "nba-box-98",
+      "label": "Box '98",
+      "era": "1998",
+      "after": "NBA national broadcast package, 1996-98",
+      "sports": [
+        "basketball"
+      ],
+      "default_for": [],
+      "tv": "soft"
+    },
+    {
+      "id": "nba-medal-03",
+      "label": "Medallion '03",
+      "era": "2003",
+      "after": "NBA national cable package, 2002-04",
+      "sports": [
+        "basketball"
+      ],
+      "default_for": [],
+      "tv": "soft"
+    },
+    {
+      "id": "nhl-sog-25",
+      "label": "Shots box '25",
+      "era": "2025",
+      "after": "NHL national cable package, 2021 on",
+      "sports": [
+        "hockey"
+      ],
+      "default_for": [
+        "NHL",
+        "hockey"
+      ]
+    },
+    {
+      "id": "nhl-cup-25",
+      "label": "Smoked glass '25",
+      "era": "2025",
+      "after": "NHL national sports-network package, 2021 on",
+      "sports": [
+        "hockey"
+      ],
+      "default_for": []
+    },
+    {
+      "id": "mlb-bases-25",
+      "label": "Bases box '25",
+      "era": "2025",
+      "after": "MLB Saturday national package, 2024 on",
+      "sports": [
+        "baseball"
+      ],
+      "default_for": [
+        "MLB",
+        "baseball"
+      ]
+    },
+    {
+      "id": "mlb-strip-26",
+      "label": "Glossy strip '26",
+      "era": "2026",
+      "after": "MLB Sunday night package, 2026",
+      "sports": [
+        "baseball"
+      ],
+      "default_for": []
+    },
+    {
+      "id": "mlb-card-26",
+      "label": "Rounded card '26",
+      "era": "2026",
+      "after": "MLB streaming special events, 2026",
+      "sports": [
+        "baseball"
+      ],
+      "default_for": []
+    },
+    {
+      "id": "mlb-glass-25",
+      "label": "Dark glass '25",
+      "era": "2025",
+      "after": "MLB Friday night streaming package, 2022-25",
+      "sports": [
+        "baseball"
+      ],
+      "default_for": []
+    },
+    {
+      "id": "mlb-box-99",
+      "label": "Diamond box '99",
+      "era": "1999",
+      "after": "MLB Saturday national package, 1998-2000",
+      "sports": [
+        "baseball"
+      ],
+      "default_for": [],
+      "tv": "soft"
+    }
+  ]
+}

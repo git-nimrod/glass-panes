@@ -178,11 +178,89 @@ _MEMORY_NUMBERS = ("total_mb", "available_mb", "threshold_mb", "free_mb", "cache
 _SETTINGS_NUMBERS = ("scans_per_min", "video_scans_per_min", "hold_s", "threshold", "preview_w", "preview_fps", "report_interval_s")
 
 
+# ------------------------------------------------------------------ the kiosk API contract (schema/kiosk_api.json, docs/mirror-app/api.md)
+# Every kiosk (this project's Android app, or a Linux kiosk on another board) says in /status which kiosk API it speaks, its platform and
+# board, and which calls it has. Home Assistant reads that instead of assuming the Android app. Names must match kiosk_api.json (a test checks).
+
+KIOSK_API = 1
+REQUIRED_CAPABILITIES = frozenset({"status", "reload", "log", "pair", "brightness"})
+KNOWN_CAPABILITIES = REQUIRED_CAPABILITIES | frozenset({
+    "screen", "presence", "video", "audio", "recovery", "display_fix", "rotation", "mic_test", "bluetooth_test", "engine", "app_update",
+    "esphome", "bluetooth_proxy", "voice", "wake_word"})
+PLATFORMS = ("android", "linux")
+_BOARD = re.compile(r"^[a-z0-9_.-]{1,40}\Z")
+
+
+def _version_at_least(version: Any, major: int, minor: int) -> bool:
+    parts = re.findall(r"\d+", str(version or ""))[:2]
+    return len(parts) == 2 and (int(parts[0]), int(parts[1])) >= (major, minor)
+
+
+def kiosk_info(raw: dict[str, Any]) -> dict[str, Any]:
+    """{platform, board, kiosk_api, capabilities} from a /status document. A kiosk that does not say (the Android app before 0.13)
+    is the Android app, and gets the calls that app version had: the contract was written from it."""
+    caps = raw.get("capabilities")
+    if isinstance(caps, list):
+        known = {c for c in caps if isinstance(c, str) and c in KNOWN_CAPABILITIES}
+        api = raw.get("kiosk_api")
+        return {
+            "platform": raw.get("platform") if raw.get("platform") in PLATFORMS else None,
+            "board": raw["board"] if isinstance(raw.get("board"), str) and _BOARD.match(raw["board"]) else None,
+            "kiosk_api": api if isinstance(api, int) and not isinstance(api, bool) and 0 < api < 1000 else None,
+            "capabilities": sorted(known | REQUIRED_CAPABILITIES),          # required calls are there whatever the list says
+        }
+    version = raw.get("version")
+    legacy = {"status", "reload", "brightness", "presence", "video", "display_fix", "rotation"}
+    if _version_at_least(version, 0, 11):
+        legacy |= {"log", "audio", "recovery"}
+    if _version_at_least(version, 0, 12):
+        legacy.add("pair")
+    if isinstance(raw.get("screen"), dict) and isinstance(raw["screen"].get("on"), bool):
+        legacy.add("screen")
+    return {"platform": "android", "board": None, "kiosk_api": 0, "capabilities": sorted(legacy)}
+
+
+def can(status: dict[str, Any] | None, capability: str) -> bool:
+    """Does the kiosk behind this (shaped) status have this call? False when there is no status yet."""
+    return bool(status) and capability in ((status.get("kiosk") or {}).get("capabilities") or ())
+
+
+def contract_problems(raw: Any) -> list[str]:
+    """What a /status document is missing to meet kiosk API 1 (empty when it meets it). For contract tests and kiosk authors."""
+    if not isinstance(raw, dict):
+        return ["/status is not a JSON object"]
+    problems = []
+    for field in ("ok", "app", "version", "platform", "board", "kiosk_api", "capabilities", "page_ok", "uptime_s"):
+        if field not in raw:
+            problems.append(f"/status has no `{field}`")
+    if raw.get("ok") is not True:
+        problems.append("/status `ok` is not true")
+    if "platform" in raw and raw["platform"] not in PLATFORMS:
+        problems.append(f"`platform` must be one of {', '.join(PLATFORMS)}")
+    if "board" in raw and not (isinstance(raw["board"], str) and _BOARD.match(raw["board"])):
+        problems.append("`board` must be 1 to 40 lowercase letters, digits, _ . or -")
+    if "kiosk_api" in raw and raw["kiosk_api"] != KIOSK_API:
+        problems.append(f"`kiosk_api` must be {KIOSK_API}")
+    caps = raw.get("capabilities")
+    if "capabilities" in raw:
+        if not isinstance(caps, list) or not all(isinstance(c, str) for c in caps):
+            problems.append("`capabilities` must be a list of names")
+        else:
+            problems += [f"`capabilities` lacks the required `{c}`" for c in sorted(REQUIRED_CAPABILITIES - set(caps))]
+            problems += [f"`capabilities` names `{c}`, which is not in kiosk API {KIOSK_API}" for c in sorted(set(caps) - KNOWN_CAPABILITIES)]
+    for field in ("page_ok",):
+        if field in raw and not isinstance(raw[field], bool):
+            problems.append(f"`{field}` must be true or false")
+    if "uptime_s" in raw and (_num(raw["uptime_s"]) is None):
+        problems.append("`uptime_s` must be a number")
+    return problems
+
+
 def shape_status(raw: Any) -> dict[str, Any] | None:
     """Keep only the fields of the mirror's /status that we know, with the right types. None if it does not look like the app.
 
     Anything else the mirror sent is dropped, so a changed or odd answer can never smuggle unexpected text through Home Assistant."""
-    if not isinstance(raw, dict) or not any(k in raw for k in ("memory", "presence", "page_ok")):
+    if not isinstance(raw, dict) or not any(k in raw for k in ("memory", "presence", "page_ok", "kiosk_api")):
         return None
     memory_raw = raw.get("memory") if isinstance(raw.get("memory"), dict) else {}
     presence_raw = raw.get("presence") if isinstance(raw.get("presence"), dict) else {}
@@ -195,7 +273,19 @@ def shape_status(raw: Any) -> dict[str, Any] | None:
     memory.update({"low_memory": _bool(memory_raw.get("low_memory")), "presence_enabled": _bool(memory_raw.get("presence_enabled")), "processes": processes})
     settings = {k: _num(settings_raw.get(k)) for k in _SETTINGS_NUMBERS}
     settings.update({"enabled": _bool(settings_raw.get("enabled")), "webhook_set": _bool(settings_raw.get("webhook_set"))})
+    screen_raw = raw.get("screen") if isinstance(raw.get("screen"), dict) else {}          # app 0.13.0 and later; older apps send none
+    update_raw = raw.get("update") if isinstance(raw.get("update"), dict) else {}          # app 0.13.0 and later (the self-updater)
     return {
+        "kiosk": kiosk_info(raw),
+        "screen": {"on": _bool(screen_raw.get("on")), "off_ready": _bool(screen_raw.get("off_ready"))},
+        "update": {
+            "can_install": _bool(update_raw.get("can_install")),
+            "state": clean_text(update_raw.get("state"), 20),
+            "detail": clean_text(update_raw.get("detail"), 200),
+            "received_bytes": _num(update_raw.get("received_bytes")),
+            "total_bytes": _num(update_raw.get("total_bytes")),
+            "version_code": _num(update_raw.get("version_code")),
+        },
         "version": clean_text(raw.get("version"), 40),
         "page_ok": _bool(raw.get("page_ok")),
         "seconds_since_page_load": _num(raw.get("seconds_since_page_load")),
@@ -208,7 +298,39 @@ def shape_status(raw: Any) -> dict[str, Any] | None:
             "settings": settings,
         },
         "memory": memory,
+        "esphome": shape_esphome(raw.get("esphome")),
     }
+
+
+VOICE_STATES = ("off", "waiting_for_key", "waiting_for_home_assistant", "waiting_for_assist", "ready")
+ESPHOME_LINKS = ("none", "plain", "encrypted", "provisioning")
+_ESPHOME_BOOLS = ("bluetooth", "voice", "wake_word", "encrypted", "running", "ha_connected", "mdns", "ble_scanning", "voice_subscribed",
+                  "mic_open", "turn_active", "lock_to_ha")
+_ESPHOME_NUMBERS = ("connections", "refused", "wrong_key", "plaintext_refused", "advertisements_sent", "turns", "java_heap_kb", "native_heap_kb")
+
+
+def shape_esphome(raw: Any) -> dict[str, Any] | None:
+    """The Bluetooth proxy / voice / wake-word block of the mirror's /status (app 0.13.0), keeping only known fields with the right
+    types. None when the mirror sent none (an older app). It never carries a key, a Bluetooth address or audio: the app sends counts."""
+    if not isinstance(raw, dict):
+        return None
+    wake_raw = raw.get("wake") if isinstance(raw.get("wake"), dict) else {}
+    shaped: dict[str, Any] = {k: _bool(raw.get(k)) for k in _ESPHOME_BOOLS}
+    shaped.update({k: _num(raw.get(k)) for k in _ESPHOME_NUMBERS})
+    shaped["voice_state"] = raw.get("voice_state") if raw.get("voice_state") in VOICE_STATES else None
+    shaped["link"] = raw.get("link") if raw.get("link") in ESPHOME_LINKS else None
+    shaped["name"] = raw["name"] if isinstance(raw.get("name"), str) and re.match(r"^[a-z0-9-]{1,40}\Z", raw["name"]) else None
+    shaped["last_turn"] = clean_text(raw.get("last_turn"), 120)
+    shaped["error"] = clean_text(raw.get("error"), 200)
+    shaped["wake"] = {
+        "model": clean_text(wake_raw.get("model"), 40),
+        "phrase": clean_text(wake_raw.get("phrase"), 40),
+        "listening": _bool(wake_raw.get("listening")),
+        "loaded": _bool(wake_raw.get("loaded")),
+        "wakes": _num(wake_raw.get("wakes")),
+        "model_ms_per_s": _num(wake_raw.get("model_ms_per_s")),
+    }
+    return shaped
 
 
 AUDIO_STATES = ("idle", "buffering", "playing", "paused", "error")
@@ -311,7 +433,7 @@ def clean_code(value: str) -> str:
     return re.sub(r"\D", "", value)
 
 
-_LOCAL_HOSTS = ("localhost", "127.", "0.0.0.0", "[::1]", "::1")
+_LOCAL_HOSTS = ("localhost", "127.", "0.0.0.0", "[::1]", "::1")  # nosec B104  # addresses to refuse, nothing binds to them
 
 
 def player_url(base: Any, display_id: str) -> tuple[str | None, str | None]:

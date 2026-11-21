@@ -73,6 +73,37 @@ class MirrorControl(Entity):
         self.async_write_ha_state()
 
 
+class ScheduleSetting(MirrorControl):
+    """Base of the screen-schedule entities (mode and quiet hours): they show stored settings, so they never read the mirror.
+
+    The mode entity also runs the display's schedule while it exists (see screen_schedule.py), so disabling it stops the schedule."""
+
+    runs_schedule = False
+
+    @property
+    def _schedule(self):
+        return self._manager.screen_schedule
+
+    def _setting(self, field: str) -> Any:
+        return self._schedule.settings(self._display_id)[field]
+
+    async def async_added_to_hass(self) -> None:
+        from .screen_schedule import SIGNAL_SCREEN_SETTINGS
+
+        @callback
+        def changed(display_id: str) -> None:
+            if display_id == self._display_id:
+                self.async_write_ha_state()
+
+        self.async_on_remove(async_dispatcher_connect(self.hass, SIGNAL_SCREEN_SETTINGS, changed))
+        if self.runs_schedule:
+            self._schedule.start(self._display_id)
+            self.async_on_remove(lambda: self._schedule.stop(self._display_id))
+
+    async def async_update(self) -> None:
+        """Nothing to read: the values live in Home Assistant."""
+
+
 async def async_setup_controls(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddConfigEntryEntitiesCallback, platform: str, suffix: str,
     factory: Callable[[Manager, str], MirrorControl],

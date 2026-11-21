@@ -1,5 +1,19 @@
 # Update the Mirror Kiosk app
 
+## From Home Assistant (mirror-android-3 and later)
+
+On a mirror running mirror-android-3 or later, the app is built into Android and installs its own updates. Nothing to do on a computer:
+
+1. In Home Assistant, open **Settings > Updates** (or your mirror's device page under **Settings > Devices & services > Glass Panes**).
+2. A new app release shows up as **Mirror app** on the mirror's device. Press **Install**.
+3. Home Assistant downloads the app from the project's GitHub release, checks its SHA-256 and that it is signed with the project's release key, and sends it to the mirror over your home network. The mirror checks it again, installs it, and comes back on its own after about a minute.
+
+Nothing installs by itself: an update waits until you press **Install** (or run the `update.install` action). The mirror never reaches out to the internet for this; Home Assistant does the download.
+
+If **Mirror app** says the mirror cannot install updates by itself, it runs an older image (mirror-android-1 or 2). Use the steps below, or move to mirror-android-3.
+
+## With a computer (mirror-android-1 and 2)
+
 Updating takes a few minutes. You download the new `.apk`, install it over the old one with `adb`, and the mirror keeps its page address, login and settings. If you set up the mirror with [part 2 of the install guide](install-app-lululemon-studio.md), you already have everything you need.
 
 This page covers the app on the mirror. The Home Assistant side is updated separately through HACS, and a short section at the end covers it.

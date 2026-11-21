@@ -8,7 +8,7 @@
 //   ctx.onDestroy(fn)                  cleanup when the pane is replaced
 // Nothing here knows any entity ID. Everything comes from ctx.slots.
 
-import { checkProblem, pickStyleRule } from './conditions.js';
+import { checkInWindow, checkProblem, checkWindow, clockOf, pickStyleRule } from './conditions.js';
 import { COND, clear, colorCss, dividerCss, tileCss, el, FULL_MONTHS, isBad, makeTime, MONTHS, num, okState, seeded, strictNumber, unitOf } from './util.js';
 import { describe, tableCell } from './format.js';
 import { chosenIcon, iconNode, loadIcon } from './icons.js';
@@ -46,95 +46,29 @@ export function clockAngles(p) {
 
 // ---------------------------------------------------------------- clock
 
+/** A digital time's pieces { h, m, s, ap } ('' when not shown). */
+export function clockPieces(p, o) {
+  const h = o.format === '24h' ? pad(p.h) : String(p.h % 12 || 12);
+  return { h, m: pad(p.mi), s: o.show_seconds ? pad(p.s) : '', ap: o.format !== '24h' && o.hide_meridiem === false ? (p.h < 12 ? 'AM' : 'PM') : '' };
+}
+export const clockLine = (pc) => pc.h + ':' + pc.m + (pc.s ? ':' + pc.s : '') + (pc.ap ? ' ' + pc.ap : '');
+
+// fun.js widgets load only when a pane uses one
+let funModule = null;
+const fun = (name) => (ctx) => ctx.refresh(() => (funModule = funModule || import('./fun.js')).then((m) => { if (ctx.root.parentNode) m[name](ctx, { zoneTime, clockPieces, clockLine, clockAngles }); }), [], 0);
+const stackedClock = fun('stackedClock'), sidewaysClock = fun('sidewaysClock'), twoLineClock = fun('twoLineClock'), roundClock = fun('roundClock');
+export const FUN = ['sparkles', 'radar', 'ascii_art', 'petals', 'art_pond'];   // widget types drawn by fun.js
+export const LAZY = { moon: './sky.js', flights: './flights.js' };   // widget types drawn by their own module, loaded when used
+const lazyMods = {};
+
 function clock(ctx) {
   const o = ctx.opts, time = zoneTime(ctx, o.timezone);
-  if (o.style === 'analog' || o.style === 'alarm') { analogClock(ctx, time, o.style === 'alarm'); return; }
+  if (o.style === 'analog' || o.style === 'alarm') { roundClock(ctx); return; }   // drawn by fun.js, loaded when used
+  if (o.orientation === 'stacked') { stackedClock(ctx); return; }
+  if (o.orientation === 'sideways') { sidewaysClock(ctx); return; }
+  if (o.plain_line) { twoLineClock(ctx); return; }
   ctx.root.style.whiteSpace = 'nowrap';   // a clock never wraps
-  const tick = () => {
-    const p = time.parts(new Date());
-    const h = o.format === '24h' ? pad(p.h) : String(p.h % 12 || 12);
-    let t = h + ':' + pad(p.mi);
-    if (o.show_seconds) t += ':' + pad(p.s);
-    if (o.format !== '24h' && o.hide_meridiem === false) t += p.h < 12 ? ' AM' : ' PM';
-    setText(ctx.root, t);
-  };
-  ctx.every(o.show_seconds ? 1000 : 5000, tick);
-}
-
-const SVG_NS = 'http://www.w3.org/2000/svg';
-function svg(tag, attrs, parent) {
-  const n = document.createElementNS(SVG_NS, tag);
-  for (const k of Object.keys(attrs)) n.setAttribute(k, attrs[k]);
-  if (parent) parent.appendChild(n);
-  return n;
-}
-
-// A round clock face drawn centred on (cx, cy) with radius R: the face, 60 ticks (the hours bolder), the numerals, and the hands.
-// Returns the hands so the clock can turn them. Plain SVG; only `transform` changes after this, once a second at most.
-function drawFace(parent, cx, cy, R, dark, allNumerals, seconds) {
-  const ink = dark ? '#ececec' : '#1c1c1c', faceFill = dark ? '#151515' : '#f7f7f3', k = R / 88;
-  svg('circle', { cx, cy, r: R, fill: faceFill }, parent);
-  const at = (r, deg) => [cx + r * Math.sin(deg * Math.PI / 180), cy - r * Math.cos(deg * Math.PI / 180)];
-  for (let i = 0; i < 60; i++) {
-    const major = i % 5 === 0, a = at(R - (major ? 13 : 7) * k, i * 6), b = at(R - 3 * k, i * 6);
-    svg('line', { x1: a[0].toFixed(2), y1: a[1].toFixed(2), x2: b[0].toFixed(2), y2: b[1].toFixed(2), stroke: ink, 'stroke-width': (major ? 3 : 1.1) * k, 'stroke-linecap': 'round' }, parent);
-  }
-  for (let n = 1; n <= 12; n++) {
-    if (!allNumerals && n % 3 !== 0) continue;
-    const pt = at(R * 0.73, n * 30);
-    const t = svg('text', { x: pt[0].toFixed(2), y: pt[1].toFixed(2), 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': (allNumerals ? 21 : 24) * k, 'font-weight': 500, fill: ink,
-      'font-family': 'Helvetica Neue, Helvetica, Arial, system-ui, sans-serif' }, parent);
-    t.textContent = String(n);
-  }
-  const bar = (len, tail, width) => svg('rect', { x: cx - width / 2, y: cy - len, width, height: len + tail, rx: width / 2, fill: ink }, parent);
-  const hour = bar(50 * k, 12 * k, 7 * k), minute = bar(74 * k, 12 * k, 5 * k);
-  let second = null;
-  if (seconds) {
-    second = svg('g', {}, parent);
-    svg('line', { x1: cx, y1: cy + 18 * k, x2: cx, y2: cy - 78 * k, stroke: '#d9382c', 'stroke-width': 2 * k, 'stroke-linecap': 'round' }, second);
-    svg('circle', { cx, cy, r: 5.5 * k, fill: faceFill, stroke: '#d9382c', 'stroke-width': 2.2 * k }, second);
-  } else {
-    svg('circle', { cx, cy, r: 4.5 * k, fill: ink }, parent);
-  }
-  return { hour, minute, second, cx, cy };
-}
-
-// The two round looks. "analog" is a traditional face (numerals 1 to 12, the minute marks, a red second hand when Show seconds is on).
-// "alarm" is a bedside alarm clock: two bells and a striker on top, feet, a coloured case (the widget's text colour when it is a #rrggbb, else red)
-// and a small gold alarm hand. Both follow the time zone option and the light/dark face option.
-function analogClock(ctx, time, alarm) {
-  const o = ctx.opts, dark = o.face === 'dark', seconds = o.show_seconds === true;
-  const place = { left: 'xMinYMid', right: 'xMaxYMid' }[ctx.style.align] || 'xMidYMid';
-  const root = svg('svg', { viewBox: alarm ? '0 0 200 234' : '0 0 200 200', preserveAspectRatio: place + ' meet', width: '100%', height: '100%', role: 'img', 'aria-label': 'Clock' });
-  root.setAttribute('class', 'gp-clock-svg');
-  root.style.display = 'block';
-  let hands;
-  if (!alarm) {
-    svg('circle', { cx: 100, cy: 100, r: 98, fill: '#2b2b2b' }, root);
-    hands = drawFace(root, 100, 100, 89, dark, true, seconds);
-  } else {
-    const body = /^#[0-9a-f]{6}$/i.test(ctx.style.color || '') ? ctx.style.color : '#d9453d', metal = dark ? '#9a9a9a' : '#7d7d7d';
-    for (const sign of [-1, 1]) {
-      svg('line', { x1: 100 + sign * 50, y1: 196, x2: 100 + sign * 62, y2: 224, stroke: body, 'stroke-width': 10, 'stroke-linecap': 'round' }, root);          // feet
-      svg('path', { d: 'M-34 0 A34 34 0 0 1 34 0 Z', transform: 'translate(' + (100 + sign * 52) + ' 48) rotate(' + (sign * 34) + ')', fill: body }, root);        // bells
-    }
-    svg('rect', { x: 72, y: 12, width: 56, height: 6, rx: 3, fill: metal }, root);                                                                              // striker
-    svg('line', { x1: 100, y1: 18, x2: 100, y2: 40, stroke: metal, 'stroke-width': 5, 'stroke-linecap': 'round' }, root);
-    svg('circle', { cx: 100, cy: 128, r: 86, fill: body }, root);                                                                                                // the case
-    hands = drawFace(root, 100, 128, 72, dark, false, seconds);
-    // the small alarm hand is decoration (about 8 o'clock); the real hands go back on top of it
-    const k = 72 / 88, a = 245 * Math.PI / 180;
-    svg('line', { x1: 100, y1: 128, x2: (100 + 38 * k * Math.sin(a)).toFixed(2), y2: (128 - 38 * k * Math.cos(a)).toFixed(2), stroke: '#e0a73a', 'stroke-width': 3 * k, 'stroke-linecap': 'round' }, root);
-    root.appendChild(hands.hour); root.appendChild(hands.minute); if (hands.second) root.appendChild(hands.second);
-  }
-  clear(ctx.root);
-  ctx.root.appendChild(root);
-  const turn = (node, deg) => { if (node) node.setAttribute('transform', 'rotate(' + deg.toFixed(2) + ' ' + hands.cx + ' ' + hands.cy + ')'); };
-  const tick = () => {
-    const a = clockAngles(time.parts(new Date()));
-    turn(hands.hour, a.hour); turn(hands.minute, a.minute); turn(hands.second, a.second);
-  };
-  ctx.every(seconds ? 1000 : 5000, tick);
+  ctx.every(o.show_seconds ? 1000 : 5000, () => setText(ctx.root, clockLine(clockPieces(time.parts(new Date()), o))));
 }
 
 function date(ctx) {
@@ -249,26 +183,27 @@ function slideshow(ctx) {
   ctx.onDestroy(() => clearTimeout(retry));
 
   const relist = async () => {
-    const r = await ctx.data.slideshowItems(o.folder, w, h);
+    const r = await ctx.data.slideshowItems(o.folder, w, h, o.photo || undefined);
     if (!ctx.root.isConnected) return;
     const changed = r.items.length !== items.length;
     items = r.items;
     if (changed || !order.length) { order = slideOrder(items.length, o.shuffle !== false, last); pos = 0; }
-    say(r.problem === 'folder_not_found' ? 'Folder not found' : r.problem ? 'Photos unavailable' : !items.length ? 'No photos in this folder' : '');
+    say(r.problem === 'folder_not_found' ? 'Folder not found' : r.problem === 'photo_not_found' ? 'Photo not found' : r.problem ? 'Photos unavailable' : !items.length ? 'No photos in this folder' : '');
   };
 
-  const next = () => {
+  const next = (again) => {
     if (busy || !items.length || !ctx.root.isConnected) return;
+    if (items.length === 1 && front >= 0 && again !== true) return;          // one photo: nothing to change to (it is not loaded twice)
     if (pos >= order.length) { order = slideOrder(items.length, o.shuffle !== false, last); pos = 0; }
     const idx = order[pos++], target = front < 0 ? 0 : 1 - front, layer = layers[target];
     busy = true;
     layer.onerror = () => {
       busy = false;
-      if (++errors < 3) { next(); return; }
+      if (++errors < 3) { next(true); return; }
       // three bad pictures in a row: the addresses may have expired (or Home Assistant restarted), so ask for new ones, slowly
       errors = 0;
       clearTimeout(retry);
-      retry = setTimeout(() => relist().then(next).catch(() => {}), 60000);
+      retry = setTimeout(() => relist().then(() => next(true)).catch(() => {}), 60000);
     };
     layer.onload = () => {
       layer.onload = layer.onerror = null;
@@ -283,8 +218,8 @@ function slideshow(ctx) {
     layer.src = items[idx];
   };
 
-  relist().then(next).catch(() => {});
-  ctx.every(seconds * 1000, next);
+  relist().then(() => next(true)).catch(() => {});
+  ctx.every(seconds * 1000, () => next());
   ctx.every(30 * 60000, () => relist());
   ctx.every(30000, () => { if (ctx.data.generation !== gen) { gen = ctx.data.generation; relist().then(() => { if (front < 0) next(); }).catch(() => {}); } });
 }
@@ -363,23 +298,36 @@ function divider(ctx) {
   ctx.root.appendChild(line);
 }
 
-// Looping video. In a normal browser it is a <video>. Inside the kiosk app (?kiosk=1) the page asks the app to play the
-// file natively on top, because the reference mirror's Firefox cannot decode video itself.
+// Looping video: a <video>, or inside a kiosk that lists `video` the kiosk plays it natively on top (the mirror's Firefox cannot decode it).
 function video(ctx) {
   const o = ctx.opts;
-  if (!o.media) { playVideo(ctx, (o.sources || []).map((s) => new URL(ctx.assetBase + s, location.href).href)); return; }
-  // the uploaded video's signed link dies on a Home Assistant restart and after 7 days, so playVideo can ask for a fresh one
-  const fresh = () => Promise.resolve(ctx.data.mediaUrl && ctx.data.mediaUrl(o.media, true)).then((url) => (url ? [new URL(url, location.href).href] : null));
-  Promise.resolve(ctx.data.mediaUrl && ctx.data.mediaUrl(o.media))
-    .then((url) => { if (url && ctx.root.isConnected) playVideo(ctx, [new URL(url, location.href).href], fresh); })
-    .catch(() => {});
+  kioskCan(ctx, 'video').then((native) => {
+    if (!ctx.alive()) return;
+    if (!o.media) { playVideo(ctx, (o.sources || []).map((s) => new URL(ctx.assetBase + s, location.href).href), null, native); return; }
+    // the uploaded video's signed link dies on a Home Assistant restart and after 7 days, so playVideo can ask for a fresh one
+    const fresh = () => Promise.resolve(ctx.data.mediaUrl && ctx.data.mediaUrl(o.media, true)).then((url) => (url ? [new URL(url, location.href).href] : null));
+    Promise.resolve(ctx.data.mediaUrl && ctx.data.mediaUrl(o.media))
+      .then((url) => { if (url && ctx.root.isConnected) playVideo(ctx, [new URL(url, location.href).href], fresh, native); })
+      .catch(() => {});
+  });
+}
+
+// The kiosk's /status `capabilities` (kiosk API), read once, only when needed. No list = the older Android app (native video).
+let kioskCaps = null;
+function kioskCan(ctx, what) {
+  if (!ctx.kiosk) return Promise.resolve(false);
+  if (!kioskCaps) {
+    kioskCaps = fetch(ctx.appUrl + '/status', { mode: 'cors' }).then((r) => r.json())
+      .then((st) => (Array.isArray(st.capabilities) ? st.capabilities : null)).catch(() => null);
+  }
+  return kioskCaps.then((caps) => !caps || caps.includes(what));
 }
 
 // `fresh` (optional) fetches new addresses when the old ones stop working. Retries back off from 30 s to 10 min, so a dead link is
 // never hammered (each failed try would count as a failed login in Home Assistant).
-function playVideo(ctx, srcs, fresh) {
+function playVideo(ctx, srcs, fresh, native) {
   if (!srcs.length) return;
-  if (!ctx.kiosk) {
+  if (!native) {
     const v = el('video');
     v.muted = true; v.loop = true; v.autoplay = true; v.playsInline = true;
     v.style.cssText = 'width:100%;height:100%;object-fit:cover;background:#000';
@@ -420,6 +368,13 @@ function playVideo(ctx, srcs, fresh) {
 
 function message(ctx) {
   const o = ctx.opts, entity = ctx.slots.entity;
+  let out = ctx.root;
+  if (o.look === 'bubble' || o.look === 'thought') {     // manga speech/thought bubble; its CSS loads only here
+    import('./bubble.js').catch(() => {});
+    out = el('div', 'gp-bubble ' + (o.look === 'bubble' ? 'gp-say' : 'gp-think') + ' gp-tail-' + (o.tail || 'left'));
+    if (o.bubble_color) out.style.setProperty('--gp-bubble', o.bubble_color);
+    ctx.root.appendChild(out);
+  }
   const render = async () => {
     let t = '';
     if (entity) {
@@ -431,7 +386,7 @@ function message(ctx) {
       rnd();
       t = o.lines[Math.floor(rnd() * o.lines.length)];
     }
-    setText(ctx.root, t ? (o.prefix || '') + t + (o.suffix || '') : '');
+    setText(out, t ? (o.prefix || '') + t + (o.suffix || '') : '');
   };
   ctx.refresh(render, entity ? [entity] : [], 30000);
 }
@@ -538,9 +493,10 @@ function weather(ctx) {
     }
     render();
   };
-  let last = null;
+  let last = null, gen = 0;
   const render = async () => {
     if (!entity) { clear(ctx.root); return; }
+    const mine = ++gen;
     last = await ctx.data.state(entity);
     const cur = okState(last) ? last.state : null;
     const temp = last && last.attributes && last.attributes.temperature != null ? Math.round(last.attributes.temperature) + '°' : null;
@@ -559,6 +515,7 @@ function weather(ctx) {
         d.style.fontSize = small + 'px';
         ctx.root.appendChild(d);
       });
+      chibi(mine, offset ? fc.cond : cur);
       return;
     }
     const bits = [];
@@ -567,7 +524,10 @@ function weather(ctx) {
     if (show.has('high_low') && hiLo) bits.push(hiLo);
     setText(ctx.root, bits.join('  ·  '));
     ctx.root.classList.add('gp-ellip');
+    chibi(mine, offset ? fc.cond : cur);
   };
+  // icon: chibi puts a little drawn icon with a face in front (fun.js, loaded only for this)
+  const chibi = (mine, c) => { if (o.icon === 'chibi') (funModule = funModule || import('./fun.js')).then((m) => { if (mine === gen) m.chibiWeather(ctx, c, S, o.layout === 'stacked'); }); };
   ctx.refresh(render, [entity], 0);
   ctx.every(30 * 60000, loadForecast);
 }
@@ -856,7 +816,8 @@ function lightsSummary(ctx) {
   ctx.refresh(render, ids, 0);
 }
 
-// "Only tell me when something is wrong." Each check is {entity, name, text?, bad?, ok?, below?, above?}.
+// "Only tell me when something is wrong." Each check is {entity, name, text?, bad?, ok?, below?, above?, from?, to?}; with
+// from/to it only warns inside that window of the day (display timezone, through midnight when from is later than to).
 // A check or a feed may be a plain entity id (as the builder and agents bind them) or a rule object.
 const asRules = (list) => asList(list).map((k) => (typeof k === 'string' ? { entity: k } : k)).filter((k) => k && k.entity);
 
@@ -865,9 +826,11 @@ function statusSummary(ctx) {
   const staleMs = (o.stale_days != null ? o.stale_days : 30) * 86400000 || Infinity;
   const render = async () => {
     const list = await Promise.all(checks.map((k) => ctx.data.state(k.entity)));
+    const minutes = clockOf(ctx.time).minutes;
     const issues = [];
     list.forEach((s, i) => {
       const k = checks[i];
+      if (!checkInWindow(k, minutes)) return;  // outside its time of day: this check is quiet
       let why = checkProblem(k, s);          // the same rules the warnings editor describes (conditions.js)
       // offline for a long time is deliberate, not a surprise: stop mentioning it
       if (why === 'offline' && s && s.last_changed && Date.now() - Date.parse(s.last_changed) > staleMs) why = null;
@@ -890,6 +853,8 @@ function statusSummary(ctx) {
     });
   };
   ctx.refresh(render, checks.map((k) => k.entity), 0);
+  // a window opens and closes with the clock, not with the entity: look again every 30 s (only when some check has one)
+  if (checks.some((k) => checkWindow(k))) ctx.every(30000, render);
 }
 
 function progressRing(ctx) {
@@ -937,12 +902,12 @@ function parseGame(s, time, dayOnly) {
   else if (!dayOnly && s.state === 'PRE' && t - now < 7 * 24 * h && t > now) kind = 'next';                                   // dayOnly: never announce a later game
   if (!kind) return null;
   return {
-    kind, name: a.team_name, opp: a.opponent_name, logo: a.team_logo, ologo: a.opponent_logo, ts: a.team_score, os: a.opponent_score,
+    kind, name: a.team_name, opp: a.opponent_name, logo: a.team_logo, ologo: a.opponent_logo, ts: a.team_score, os: a.opponent_score, abbr: a.team_abbr, oabbr: a.opponent_abbr, ocolor: (a.opponent_colors || [])[0],
     win: a.team_winner, color: (a.team_colors || [])[0], tv: a.tv_network, t: new Date(t), clock: a.clock, period: a.quarter != null ? a.quarter : a.period, home: a.team_homeaway === 'home',
   };
 }
 
-export { parseGame, todayWord, quick };   // exported so the game-picking rules can be tested on their own
+export { parseGame, todayWord, quick, cleanTitle };   // exported so the game-picking rules can be tested on their own
 
 // "3rd", "OT", "Halftime"... from the period number if the sensor gives one, else out of the clock text. Never the running clock.
 function periodText(g) {
@@ -957,13 +922,17 @@ const liveText = (g) => { const p = periodText(g); return p ? 'Live · ' + p : '
 
 function sports(ctx) {
   const o = ctx.opts, teams = asList(ctx.slots.teams), S = ctx.style.size || 32, T = ctx.time;
+  if (o.layout === 'bug') { import('./bugs/kit.js').then(async (m) => m.sportsBug(ctx, await m.bugDefaults())).catch(() => {}); return; }
   const vs = (g) => (g.home ? 'vs' : '@');
   const showLogos = o.show_logos !== false;
-  const logo = (u) => {
+  // no logo, or one that fails: a badge with the team's letters in its colour
+  const badge = (ab, c) => 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 99 99"><circle cx="50" cy="50" r="48" fill="' +
+    (/^#\w{3,6}$/.test(c) ? c : '#555') + '"/><text x="50" y="62" text-anchor="middle" font-family="sans-serif" font-weight="700" font-size="30" fill="#fff">' + String(ab || '?').replace(/\W/g, '').slice(0, 4) + '</text></svg>');
+  const logo = (u, ab, c) => {
     if (!showLogos) return document.createDocumentFragment();           // logos switched off: draw nothing
     const im = el('img'); im.alt = '';
-    if (u) im.src = u; else im.style.visibility = 'hidden';
-    im.onerror = () => { im.style.visibility = 'hidden'; };
+    im.src = u || badge(ab, c);
+    im.onerror = () => { im.onerror = null; im.src = badge(ab, c); };
     return im;
   };
   const render = async () => {
@@ -1000,7 +969,7 @@ function sports(ctx) {
         const box = el('div', 'gp-box'), played = g.kind === 'final' || g.kind === 'live';
         if (!showLogos) box.style.gridTemplateColumns = '1fr auto';
         [[g.logo, g.name, g.ts, g.kind !== 'final' || g.win], [g.ologo, g.opp, g.os, g.kind !== 'final' || !g.win]].forEach((r, k) => {
-          box.appendChild(logo(r[0]));
+          box.appendChild(logo(r[0], k ? g.oabbr : g.abbr, k ? g.ocolor : g.color));
           box.appendChild(el('span', r[3] ? '' : 'gp-dim', r[1]));
           box.appendChild(el('span', 'gp-score' + (r[3] ? '' : ' gp-dim'),
             played ? String(r[2]) : k === 0 ? (T.sameDay(g.t, new Date()) ? todayWord(T, g.t) : T.parts(g.t).wd.slice(0, 3)) : T.ampm(g.t)));
@@ -1024,9 +993,9 @@ function sports(ctx) {
         mid.appendChild(el('span', 'gp-dash', '–'));
         mid.appendChild(el('span', 'gp-sc' + (g.kind === 'final' && g.win ? ' gp-dim' : ''), String(g.os)));
       }
-      row.appendChild(logo(g.logo));
+      row.appendChild(logo(g.logo, g.abbr, g.color));
       row.appendChild(mid);
-      row.appendChild(logo(g.ologo));
+      row.appendChild(logo(g.ologo, g.oabbr, g.ocolor));
       const gi = el('div', 'gp-gi'), head = el('b');
       if (g.kind === 'live') head.appendChild(el('span', 'gp-live', '● '));
       if (o.head_top) head.className = 'gp-headtop';   // option head_top: the headline (Live, Final, Tonight ...) goes ABOVE the logos, for narrow columns
@@ -1089,10 +1058,15 @@ function quick(t, max) {
   return c.length <= max;
 }
 
+/** Where the shown group starts in a list of `count` stories, `per` at a time, moving on every `minutes` (0: always the first). */
+export function newsPage(count, per, minutes, now) {
+  return minutes ? (Math.floor(now / (minutes * 60000)) % Math.max(1, Math.ceil(count / per))) * per : 0;
+}
+
 function news(ctx) {
   const o = ctx.opts, feeds = asRules(ctx.slots.feeds), S = ctx.style.size || 32;
   const key = 'glass_panes_news_' + ctx.paneId + '_' + ctx.widgetId;
-  let pile = [];
+  let pile = [], cands = [], loaded = false;
   try { pile = JSON.parse(localStorage.getItem(key) || '[]') || []; } catch (e) { pile = []; }
   const kws = (o.keywords || []).map((w) => new RegExp('[^a-z]' + w.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[^a-z]'));
   const counts = (n) => n.all || !kws.length || kws.some((re) => re.test((' ' + n.title + ' ' + n.text + ' ').toLowerCase()));
@@ -1109,12 +1083,20 @@ function news(ctx) {
     try { localStorage.setItem(key, JSON.stringify(pile)); } catch (e) { /* storage may be unavailable */ }
     const big = pile.filter((n) => counts(n) && quick(n.title, o.max_headline_chars || 110));
     const fresh = big.filter((n) => Date.now() - n.t < (o.max_age_hours || 36) * 3600000);
-    const pick = fresh.concat(big.filter((n) => fresh.indexOf(n) < 0)).slice(0, o.max_stories || 1);
+    cands = fresh.concat(big.filter((n) => fresh.indexOf(n) < 0)).slice(0, 12);
+    loaded = true;
+    show();
+  };
+  // max_stories at a time; with rotate_minutes, the next group every that many minutes, round and round the list
+  const show = () => {
+    if (!loaded) return;
+    const per = o.max_stories || 1;
+    const at = newsPage(cands.length, per, o.rotate_minutes, Date.now()), pick = cands.slice(at, at + per);
     clear(ctx.root);
     pick.forEach((n, i) => {
       const d = el('div', 'gp-story');
       const h = el('div', 'gp-headline', cleanTitle(n.title));
-      if (i > 0) h.style.fontSize = Math.round(S * 0.8) + 'px';
+      if (i > 0 && !o.same_size) h.style.fontSize = Math.round(S * 0.8) + 'px';
       d.appendChild(h);
       if (o.show_source && n.src) d.appendChild(el('div', 'gp-label', n.src));
       ctx.root.appendChild(d);
@@ -1122,10 +1104,18 @@ function news(ctx) {
     if (!pick.length) ctx.root.appendChild(el('div', 'gp-dim', 'Slow news day.'));
   };
   ctx.refresh(render, feeds.map((f) => f.entity), 0);
+  if (o.rotate_minutes) ctx.every(o.rotate_minutes * 60000, show);
+}
+
+// rss: the code is in rss.js, downloaded only when a pane has one.
+function rss(ctx) {
+  import('./rss.js').then((m) => { if (ctx.alive()) m.rss(ctx); }).catch((e) => ctx.fail(e));
 }
 
 export const widgets = {
   clock, date, text, image, slideshow, video, divider, icon: iconWidget, table, message,
   entity_value: entityValue, weather, calendar_agenda: calendarAgenda, todo_list: todoList, now_playing: nowPlaying,
-  people, lights_summary: lightsSummary, status_summary: statusSummary, progress_ring: progressRing, sports, news,
+  people, lights_summary: lightsSummary, status_summary: statusSummary, progress_ring: progressRing, sports, news, rss,
 };
+FUN.forEach((t) => { widgets[t] = fun(t); });
+Object.entries(LAZY).forEach(([t, f]) => { widgets[t] = (ctx) => ctx.refresh(() => (lazyMods[f] = lazyMods[f] || import(f)).then((m) => { if (ctx.root.parentNode) m[t](ctx); }), [], 0); });

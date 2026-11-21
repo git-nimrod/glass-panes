@@ -149,6 +149,14 @@ export const DEFAULTS = {
   progress_ring: { w: 160, h: 160, style: { size: 39, weight: 300 }, options: {} },
   sports: { w: 960, h: 260, auto_height: true, style: { size: 28 }, options: { layout: 'rows', max_games: 3 } },
   news: { w: 760, h: 160, auto_height: true, style: { size: 26 }, options: { max_stories: 2 } },
+  sparkles: { w: 240, h: 600, options: { count: 10 } },
+  radar: { w: 560, h: 560, style: { size: 22 }, options: {} },
+  ascii_art: { w: 480, h: 320, options: { art: 'coffee', look: 'green', scanlines: true } },
+  petals: { w: 1000, h: 800, options: { count: 14 } },
+  moon: { w: 360, h: 440, options: {} },
+  flights: { w: 1000, h: 240, options: {} },
+  art_pond: { w: 1000, h: 320, options: {} },
+  rss: { w: 760, h: 200, auto_height: true, style: { size: 26 }, options: { max_stories: 3 } },
 };
 
 /** Where a new widget goes: the first free grid spot from the top, so it never lands exactly on another one. */
@@ -199,6 +207,16 @@ export function looksPercent(state) {
   const a = (state && state.attributes) || {};
   return looksNumeric(state) && (a.unit_of_measurement === '%' || ['battery', 'humidity', 'moisture'].includes(a.device_class));
 }
+const MOON_PHASES = ['new_moon', 'waxing_crescent', 'first_quarter', 'waxing_gibbous', 'full_moon', 'waning_gibbous', 'last_quarter', 'waning_crescent'];
+/** Is this a flight-tracking sensor (FlightRadar24's area sensor, or Flights Above's count or per-plane sensors)? */
+export function looksLikeFlights(state) {
+  const a = (state && state.attributes) || {};
+  return (Array.isArray(a.flights) && a.bounds !== undefined) || Array.isArray(a.radar) || a.in_range !== undefined;
+}
+/** Is this a moon phase sensor (the Moon integration, Lunar Phase)? Only then is the moon widget offered for it. */
+export function looksLikeMoon(state) {
+  return !!state && MOON_PHASES.includes(String(state.state).toLowerCase().replace(/\s+/g, '_'));
+}
 /** Does this look like a Feedreader event entity (what the news widget reads)? */
 export function looksLikeNews(state) {
   const a = (state && state.attributes) || {};
@@ -222,6 +240,8 @@ export function candidatesFor(entityId, state, registry) {
     if (!generic && !def.domains.includes(domain)) continue;
     if (type === 'sports' && !looksLikeSports(state)) continue;
     if (type === 'news' && !looksLikeNews(state)) continue;
+    if (type === 'moon' && !looksLikeMoon(state)) continue;
+    if (type === 'flights' && !looksLikeFlights(state)) continue;
     if (type === 'progress_ring' && !looksNumeric(state)) continue;
     out.push({ type, label: spec.label, slot, kind: def.kind === 'feeds' ? 'entities' : def.kind, generic });
   }
@@ -603,4 +623,62 @@ export function groupDrop(group, existing, grid = GRID) {
   const bindings = {};
   Object.entries(group.bindings || {}).forEach(([id, slots]) => { if (map.has(id)) bindings[map.get(id)] = copy(slots); });
   return { widgets, bindings, ids: widgets.map((w) => w.id) };
+}
+
+// ---------------------------------------------------------------- art pond pieces (the person's own cut-outs)
+
+export const POND_ROLES = ['base', 'accent', 'edge'];
+/** The art pond's pieces with `media` moved on to its next role: not used -> base -> accent -> edge -> not used. Returns a new list. */
+export function cyclePiece(pieces, media) {
+  const list = (Array.isArray(pieces) ? pieces : []).filter((p) => p && p.media);
+  const at = list.findIndex((p) => p.media === media);
+  if (at < 0) return list.concat([{ media, role: 'base' }]);
+  const next = POND_ROLES[POND_ROLES.indexOf(list[at].role || 'base') + 1];
+  return next ? list.map((p, i) => (i === at ? { media, role: next } : p)) : list.filter((p, i) => i !== at);
+}
+
+// ---------------------------------------------------------------- looks: named presets from the widget registry (schema/widgets.json `looks`)
+// A look sets a few options and style keys together (Digital, Thin, Clock face...). Nothing new is stored on the widget: picking a look just
+// writes those options and style keys, so a pane stays plain schema and an agent can do the same with update_widget.
+
+/** Every option and style key that some look of this type sets (so switching looks can clear the previous look's keys). */
+function lookKeys(looks) {
+  const opt = new Set(), sty = new Set();
+  (looks || []).forEach((l) => { Object.keys(l.options || {}).forEach((k) => opt.add(k)); Object.keys(l.style || {}).forEach((k) => sty.add(k)); });
+  return { opt, sty };
+}
+
+/**
+ * The id of the look a widget is wearing, or null when its settings match none of them ("custom"). A look matches when every option and
+ * style key it sets has that value (`defaults` maps option keys to their schema defaults); when several match, the one that sets the most wins
+ * (a plain digital clock is Digital, one with Thin's weight and spacing is Thin).
+ */
+export function lookOf(widget, looks, defaults = {}) {
+  const o = widget.options || {}, s = widget.style || {};
+  const size = (l) => Object.keys(l.options || {}).length + Object.keys(l.style || {}).length;
+  const hits = (looks || []).filter((l) => Object.entries(l.options || {}).every(([k, v]) => (o[k] !== undefined ? o[k] : defaults[k]) === v)
+    && Object.entries(l.style || {}).every(([k, v]) => s[k] === v));
+  hits.sort((x, y) => size(y) - size(x));
+  return hits.length ? hits[0].id : null;
+}
+
+/**
+ * A copy of the widget wearing look `id`: the look's options and style set, options equal to their default dropped, and a style value
+ * another look put there removed (so Thin back to Digital loses Thin's weight; a weight the person chose by hand stays).
+ */
+export function withLook(widget, looks, id, defaults = {}) {
+  const look = (looks || []).find((l) => l.id === id);
+  if (!look) return widget;
+  const { opt } = lookKeys(looks);
+  const options = { ...(widget.options || {}) }, style = { ...(widget.style || {}) };
+  opt.forEach((k) => {
+    const v = (look.options || {})[k];
+    if (v === undefined || v === defaults[k]) delete options[k]; else options[k] = v;
+  });
+  (looks || []).forEach((l) => Object.entries(l.style || {}).forEach(([k, v]) => { if (style[k] === v) delete style[k]; }));
+  Object.assign(style, look.style || {});
+  const out = { ...widget, options, style };
+  if (!Object.keys(options).length) delete out.options;
+  if (!Object.keys(style).length) delete out.style;
+  return out;
 }

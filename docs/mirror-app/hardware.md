@@ -2,7 +2,7 @@
 
 Glass Panes is built for the **Lululemon Studio mirror** ("Model One", formerly Mirror.co). The Mirror Kiosk app runs on a mirror that already has the replacement Android 6.0.1 from [part 1](install-android-lululemon-studio.md).
 
-This page says what the app was tested on and how to tell which board you have. For the list of boards and firmware versions people have tried, see [Which mirrors work](../compatibility.md#which-mirrors-work).
+This page says what the app was tested on and how to tell which board you have. Each tested board revision also has its own page with what works and the exact commands: [RevP21](board-revp21.md). For the list of boards and firmware versions people have tried, see [Which mirrors work](../compatibility.md#which-mirrors-work).
 
 ## What it was built and tested on
 

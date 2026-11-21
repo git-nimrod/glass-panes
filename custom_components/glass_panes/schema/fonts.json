@@ -1,0 +1,699 @@
+{
+  "schema_version": 1,
+  "about": "Lookalike fonts: free, open-licence fonts that give the feel of famous paid or company-only fonts and screen looks. Each is in player/fonts/looks/ with its licence, and downloads only when a pane uses it. In a pane: style.font = the id.",
+  "fonts": [
+    {
+      "id": "arimo",
+      "family": "Arimo",
+      "label": "Arimo",
+      "group": "Classic",
+      "looks_like": "Helvetica / Arial",
+      "weights": [
+        "100 900"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/arimo (@fontsource-variable/arimo@5.3.0, Latin subset)"
+    },
+    {
+      "id": "gfs-didot",
+      "family": "GFS Didot",
+      "label": "GFS Didot",
+      "group": "Classic",
+      "looks_like": "Didot",
+      "weights": [
+        "400"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/gfs-didot (@fontsource/gfs-didot@5.3.0, Latin subset)"
+    },
+    {
+      "id": "bodoni-moda",
+      "family": "Bodoni Moda",
+      "label": "Bodoni Moda",
+      "group": "Classic",
+      "looks_like": "Bodoni",
+      "weights": [
+        "100 900"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/bodoni-moda (@fontsource-variable/bodoni-moda@5.3.0, Latin subset)"
+    },
+    {
+      "id": "libre-baskerville",
+      "family": "Libre Baskerville",
+      "label": "Libre Baskerville",
+      "group": "Classic",
+      "looks_like": "Baskerville",
+      "weights": [
+        "100 900"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/libre-baskerville (@fontsource-variable/libre-baskerville@5.3.0, Latin subset)"
+    },
+    {
+      "id": "eb-garamond",
+      "family": "EB Garamond",
+      "label": "EB Garamond",
+      "group": "Classic",
+      "looks_like": "Garamond",
+      "weights": [
+        "100 900"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/eb-garamond (@fontsource-variable/eb-garamond@5.3.0, Latin subset)"
+    },
+    {
+      "id": "tinos",
+      "family": "Tinos",
+      "label": "Tinos",
+      "group": "Classic",
+      "looks_like": "Times New Roman",
+      "weights": [
+        "400",
+        "700"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/tinos (@fontsource/tinos@5.3.0, Latin subset)"
+    },
+    {
+      "id": "gelasio",
+      "family": "Gelasio",
+      "label": "Gelasio",
+      "group": "Classic",
+      "looks_like": "Georgia",
+      "weights": [
+        "100 900"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/gelasio (@fontsource-variable/gelasio@5.3.0, Latin subset)"
+    },
+    {
+      "id": "crimson-pro",
+      "family": "Crimson Pro",
+      "label": "Crimson Pro",
+      "group": "Classic",
+      "looks_like": "Minion",
+      "weights": [
+        "100 900"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/crimson-pro (@fontsource-variable/crimson-pro@5.3.0, Latin subset)"
+    },
+    {
+      "id": "source-serif-4",
+      "family": "Source Serif 4",
+      "label": "Source Serif",
+      "group": "Classic",
+      "looks_like": "New York",
+      "weights": [
+        "100 900"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/source-serif-4 (@fontsource-variable/source-serif-4@5.3.1, Latin subset)"
+    },
+    {
+      "id": "libre-franklin",
+      "family": "Libre Franklin",
+      "label": "Libre Franklin",
+      "group": "Classic",
+      "looks_like": "Franklin Gothic",
+      "weights": [
+        "100 900"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/libre-franklin (@fontsource-variable/libre-franklin@5.3.0, Latin subset)"
+    },
+    {
+      "id": "news-cycle",
+      "family": "News Cycle",
+      "label": "News Cycle",
+      "group": "Classic",
+      "looks_like": "News Gothic",
+      "weights": [
+        "400",
+        "700"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/news-cycle (@fontsource/news-cycle@5.3.0, Latin subset)"
+    },
+    {
+      "id": "nunito-sans",
+      "family": "Nunito Sans",
+      "label": "Nunito Sans",
+      "group": "Classic",
+      "looks_like": "Avenir",
+      "weights": [
+        "100 900"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/nunito-sans (@fontsource-variable/nunito-sans@5.3.0, Latin subset)"
+    },
+    {
+      "id": "hind",
+      "family": "Hind",
+      "label": "Hind",
+      "group": "Classic",
+      "looks_like": "Frutiger (loose)",
+      "weights": [
+        "400",
+        "700"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/hind (@fontsource/hind@5.3.0, Latin subset)"
+    },
+    {
+      "id": "hanken-grotesk",
+      "family": "Hanken Grotesk",
+      "label": "Hanken Grotesk",
+      "group": "Classic",
+      "looks_like": "Univers (loose)",
+      "weights": [
+        "100 900"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/hanken-grotesk (@fontsource-variable/hanken-grotesk@5.3.0, Latin subset)"
+    },
+    {
+      "id": "cinzel",
+      "family": "Cinzel",
+      "label": "Cinzel",
+      "group": "Classic",
+      "looks_like": "Trajan",
+      "weights": [
+        "100 900"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/cinzel (@fontsource-variable/cinzel@5.3.0, Latin subset)"
+    },
+    {
+      "id": "source-sans-3",
+      "family": "Source Sans 3",
+      "label": "Source Sans",
+      "group": "Classic",
+      "looks_like": "Myriad",
+      "weights": [
+        "100 900"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/source-sans-3 (@fontsource-variable/source-sans-3@5.3.1, Latin subset)"
+    },
+    {
+      "id": "fira-sans",
+      "family": "Fira Sans",
+      "label": "Fira Sans",
+      "group": "Classic",
+      "looks_like": "Officina / Meta",
+      "weights": [
+        "400",
+        "700"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/fira-sans (@fontsource/fira-sans@5.3.0, Latin subset)"
+    },
+    {
+      "id": "arvo",
+      "family": "Arvo",
+      "label": "Arvo",
+      "group": "Classic",
+      "looks_like": "Lubalin Graph",
+      "weights": [
+        "400",
+        "700"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/arvo (@fontsource/arvo@5.3.0, Latin subset)"
+    },
+    {
+      "id": "stardos-stencil",
+      "family": "Stardos Stencil",
+      "label": "Stardos Stencil",
+      "group": "Classic",
+      "looks_like": "stencil",
+      "weights": [
+        "400",
+        "700"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/stardos-stencil (@fontsource/stardos-stencil@5.3.0, Latin subset)"
+    },
+    {
+      "id": "dm-sans",
+      "family": "DM Sans",
+      "label": "DM Sans",
+      "group": "Classic",
+      "looks_like": "Circular",
+      "weights": [
+        "100 900"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/dm-sans (@fontsource-variable/dm-sans@5.3.0, Latin subset)"
+    },
+    {
+      "id": "poppins",
+      "family": "Poppins",
+      "label": "Poppins",
+      "group": "Classic",
+      "looks_like": "Product Sans",
+      "weights": [
+        "400",
+        "700"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/poppins (@fontsource/poppins@5.3.0, Latin subset)"
+    },
+    {
+      "id": "bebas-neue",
+      "family": "Bebas Neue",
+      "label": "Bebas Neue",
+      "group": "Classic",
+      "looks_like": "tall condensed caps",
+      "weights": [
+        "400"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/bebas-neue (@fontsource/bebas-neue@5.3.0, Latin subset)"
+    },
+    {
+      "id": "anton",
+      "family": "Anton",
+      "label": "Anton",
+      "group": "Classic",
+      "looks_like": "Impact",
+      "weights": [
+        "400"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/anton (@fontsource/anton@5.3.0, Latin subset)"
+    },
+    {
+      "id": "oswald",
+      "family": "Oswald",
+      "label": "Oswald",
+      "group": "Classic",
+      "looks_like": "Knockout",
+      "weights": [
+        "100 900"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/oswald (@fontsource-variable/oswald@5.3.0, Latin subset)"
+    },
+    {
+      "id": "pinyon-script",
+      "family": "Pinyon Script",
+      "label": "Pinyon Script",
+      "group": "Script",
+      "looks_like": "Spencerian pen script",
+      "weights": [
+        "400"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/pinyon-script (@fontsource/pinyon-script@5.3.0, Latin subset)"
+    },
+    {
+      "id": "antonio",
+      "family": "Antonio",
+      "label": "Antonio",
+      "group": "Screen",
+      "looks_like": "starship console",
+      "weights": [
+        "100 900"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/antonio (@fontsource-variable/antonio@5.3.0, Latin subset)"
+    },
+    {
+      "id": "michroma",
+      "family": "Michroma",
+      "label": "Michroma",
+      "group": "Screen",
+      "looks_like": "Microgramma / Eurostile",
+      "weights": [
+        "400"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/michroma (@fontsource/michroma@5.3.0, Latin subset)"
+    },
+    {
+      "id": "orbitron",
+      "family": "Orbitron",
+      "label": "Orbitron",
+      "group": "Screen",
+      "looks_like": "space age",
+      "weights": [
+        "100 900"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/orbitron (@fontsource-variable/orbitron@5.3.0, Latin subset)"
+    },
+    {
+      "id": "monoton",
+      "family": "Monoton",
+      "label": "Monoton",
+      "group": "Screen",
+      "looks_like": "80s neon",
+      "weights": [
+        "400"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/monoton (@fontsource/monoton@5.3.0, Latin subset)"
+    },
+    {
+      "id": "audiowide",
+      "family": "Audiowide",
+      "label": "Audiowide",
+      "group": "Screen",
+      "looks_like": "retro future",
+      "weights": [
+        "400"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/audiowide (@fontsource/audiowide@5.3.0, Latin subset)"
+    },
+    {
+      "id": "press-start-2p",
+      "family": "Press Start 2P",
+      "label": "Press Start 2P",
+      "group": "Screen",
+      "looks_like": "arcade pixels",
+      "weights": [
+        "400"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/press-start-2p (@fontsource/press-start-2p@5.3.0, Latin subset)"
+    },
+    {
+      "id": "vt323",
+      "family": "VT323",
+      "label": "VT323",
+      "group": "Screen",
+      "looks_like": "CRT terminal",
+      "weights": [
+        "400"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/vt323 (@fontsource/vt323@5.3.0, Latin subset)"
+    },
+    {
+      "id": "share-tech-mono",
+      "family": "Share Tech Mono",
+      "label": "Share Tech Mono",
+      "group": "Screen",
+      "looks_like": "hacker monospace",
+      "weights": [
+        "400"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/share-tech-mono (@fontsource/share-tech-mono@5.3.0, Latin subset)"
+    },
+    {
+      "id": "cinzel-decorative",
+      "family": "Cinzel Decorative",
+      "label": "Cinzel Decorative",
+      "group": "Screen",
+      "looks_like": "fantasy title",
+      "weights": [
+        "400",
+        "700"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/cinzel-decorative (@fontsource/cinzel-decorative@5.3.0, Latin subset)"
+    },
+    {
+      "id": "lobster",
+      "family": "Lobster",
+      "label": "Lobster",
+      "group": "Script",
+      "looks_like": "diner sign",
+      "weights": [
+        "400"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/lobster (@fontsource/lobster@5.3.0, Latin subset)"
+    },
+    {
+      "id": "pacifico",
+      "family": "Pacifico",
+      "label": "Pacifico",
+      "group": "Script",
+      "looks_like": "surf shop",
+      "weights": [
+        "400"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/pacifico (@fontsource/pacifico@5.3.0, Latin subset)"
+    },
+    {
+      "id": "yellowtail",
+      "family": "Yellowtail",
+      "label": "Yellowtail",
+      "group": "Script",
+      "looks_like": "retro script",
+      "weights": [
+        "400"
+      ],
+      "licence": "Apache License 2.0",
+      "source": "https://fontsource.org/fonts/yellowtail (@fontsource/yellowtail@5.3.0, Latin subset)"
+    },
+    {
+      "id": "allura",
+      "family": "Allura",
+      "label": "Allura",
+      "group": "Script",
+      "looks_like": "wedding script",
+      "weights": [
+        "400"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/allura (@fontsource/allura@5.3.0, Latin subset)"
+    },
+    {
+      "id": "alex-brush",
+      "family": "Alex Brush",
+      "label": "Alex Brush",
+      "group": "Script",
+      "looks_like": "brush script",
+      "weights": [
+        "400"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/alex-brush (@fontsource/alex-brush@5.3.0, Latin subset)"
+    },
+    {
+      "id": "great-vibes",
+      "family": "Great Vibes",
+      "label": "Great Vibes",
+      "group": "Script",
+      "looks_like": "formal script",
+      "weights": [
+        "400"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/great-vibes (@fontsource/great-vibes@5.3.0, Latin subset)"
+    },
+    {
+      "id": "rock-salt",
+      "family": "Rock Salt",
+      "label": "Rock Salt",
+      "group": "Script",
+      "looks_like": "marker hand",
+      "weights": [
+        "400"
+      ],
+      "licence": "Apache License 2.0",
+      "source": "https://fontsource.org/fonts/rock-salt (@fontsource/rock-salt@5.3.0, Latin subset)"
+    },
+    {
+      "id": "cookie",
+      "family": "Cookie",
+      "label": "Cookie",
+      "group": "Script",
+      "looks_like": "bakery script",
+      "weights": [
+        "400"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/cookie (@fontsource/cookie@5.3.0, Latin subset)"
+    },
+    {
+      "id": "grape-nuts",
+      "family": "Grape Nuts",
+      "label": "Grape Nuts",
+      "group": "Script",
+      "looks_like": "handwriting",
+      "weights": [
+        "400"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/grape-nuts (@fontsource/grape-nuts@5.3.0, Latin subset)"
+    },
+    {
+      "id": "croissant-one",
+      "family": "Croissant One",
+      "label": "Croissant One",
+      "group": "Display",
+      "looks_like": "cafe",
+      "weights": [
+        "400"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/croissant-one (@fontsource/croissant-one@5.3.0, Latin subset)"
+    },
+    {
+      "id": "amita",
+      "family": "Amita",
+      "label": "Amita",
+      "group": "Script",
+      "looks_like": "calligraphic",
+      "weights": [
+        "400",
+        "700"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/amita (@fontsource/amita@5.3.0, Latin subset)"
+    },
+    {
+      "id": "league-spartan",
+      "family": "League Spartan",
+      "label": "League Spartan",
+      "group": "Display",
+      "looks_like": "heavy geometric",
+      "weights": [
+        "100 900"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/league-spartan (@fontsource-variable/league-spartan@5.3.0, Latin subset)"
+    },
+    {
+      "id": "josefin-sans",
+      "family": "Josefin Sans",
+      "label": "Josefin Sans",
+      "group": "Display",
+      "looks_like": "vintage geometric",
+      "weights": [
+        "100 900"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/josefin-sans (@fontsource-variable/josefin-sans@5.3.0, Latin subset)"
+    },
+    {
+      "id": "shrikhand",
+      "family": "Shrikhand",
+      "label": "Shrikhand",
+      "group": "Display",
+      "looks_like": "fat retro",
+      "weights": [
+        "400"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/shrikhand (@fontsource/shrikhand@5.3.0, Latin subset)"
+    },
+    {
+      "id": "megrim",
+      "family": "Megrim",
+      "label": "Megrim",
+      "group": "Display",
+      "looks_like": "thin tech",
+      "weights": [
+        "400"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/megrim (@fontsource/megrim@5.3.0, Latin subset)"
+    },
+    {
+      "id": "racing-sans-one",
+      "family": "Racing Sans One",
+      "label": "Racing Sans One",
+      "group": "Display",
+      "looks_like": "speed",
+      "weights": [
+        "400"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/racing-sans-one (@fontsource/racing-sans-one@5.3.0, Latin subset)"
+    },
+    {
+      "id": "fredoka",
+      "family": "Fredoka",
+      "label": "Fredoka",
+      "group": "Display",
+      "looks_like": "rounded, friendly",
+      "weights": [
+        "100 900"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/fredoka (@fontsource-variable/fredoka@5.3.0, Latin subset)"
+    },
+    {
+      "id": "abril-fatface",
+      "family": "Abril Fatface",
+      "label": "Abril Fatface",
+      "group": "Display",
+      "looks_like": "magazine headline",
+      "weights": [
+        "400"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/abril-fatface (@fontsource/abril-fatface@5.3.0, Latin subset)"
+    },
+    {
+      "id": "vast-shadow",
+      "family": "Vast Shadow",
+      "label": "Vast Shadow",
+      "group": "Display",
+      "looks_like": "wild-west slab",
+      "weights": [
+        "400"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/vast-shadow (@fontsource/vast-shadow@5.3.0, Latin subset)"
+    },
+    {
+      "id": "limelight",
+      "family": "Limelight",
+      "label": "Limelight",
+      "group": "Display",
+      "looks_like": "art deco",
+      "weights": [
+        "400"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/limelight (@fontsource/limelight@5.3.0, Latin subset)"
+    },
+    {
+      "id": "chango",
+      "family": "Chango",
+      "label": "Chango",
+      "group": "Display",
+      "looks_like": "chunky",
+      "weights": [
+        "400"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/chango (@fontsource/chango@5.3.0, Latin subset)"
+    },
+    {
+      "id": "raleway",
+      "family": "Raleway",
+      "label": "Raleway",
+      "group": "Display",
+      "looks_like": "elegant sans",
+      "weights": [
+        "100 900"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/raleway (@fontsource-variable/raleway@5.3.0, Latin subset)"
+    },
+    {
+      "id": "merriweather",
+      "family": "Merriweather",
+      "label": "Merriweather",
+      "group": "Classic",
+      "looks_like": "reading serif",
+      "weights": [
+        "100 900"
+      ],
+      "licence": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/merriweather (@fontsource-variable/merriweather@5.3.0, Latin subset)"
+    }
+  ]
+}

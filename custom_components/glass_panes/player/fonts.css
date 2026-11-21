@@ -42,3 +42,74 @@
 /* DM Serif Display only exists in one weight (regular 400), a display face for big headlines */
 @font-face { font-family: 'DM Serif Display'; font-weight: 400; font-style: normal; font-display: swap;
   src: url('fonts/dm-serif-display-latin-400-normal.woff2') format('woff2'); }
+/* Galactic: an alien alphabet for fun looks (a fan-made font, SIL Open Font License 1.1; the author's file, unmodified; see fonts/README.md).
+   Declared here, downloaded only when a pane uses it. */
+@font-face { font-family: 'GP Galactic'; font-weight: 100 900; font-style: normal; font-display: swap;
+  src: url('fonts/Aurebesh.ttf') format('truetype'); }
+/* Lookalike fonts (schema/fonts.json): each family is named gp-<id>; see fonts/README.md for licences. */
+@font-face { font-family: 'gp-arimo'; font-weight: 100 900; font-style: normal; font-display: swap; src: url('fonts/looks/arimo-latin-wght.woff2') format('woff2'); }
+@font-face { font-family: 'gp-gfs-didot'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/gfs-didot-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-bodoni-moda'; font-weight: 100 900; font-style: normal; font-display: swap; src: url('fonts/looks/bodoni-moda-latin-wght.woff2') format('woff2'); }
+@font-face { font-family: 'gp-libre-baskerville'; font-weight: 100 900; font-style: normal; font-display: swap; src: url('fonts/looks/libre-baskerville-latin-wght.woff2') format('woff2'); }
+@font-face { font-family: 'gp-eb-garamond'; font-weight: 100 900; font-style: normal; font-display: swap; src: url('fonts/looks/eb-garamond-latin-wght.woff2') format('woff2'); }
+@font-face { font-family: 'gp-tinos'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/tinos-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-tinos'; font-weight: 700; font-style: normal; font-display: swap; src: url('fonts/looks/tinos-latin-700.woff2') format('woff2'); }
+@font-face { font-family: 'gp-gelasio'; font-weight: 100 900; font-style: normal; font-display: swap; src: url('fonts/looks/gelasio-latin-wght.woff2') format('woff2'); }
+@font-face { font-family: 'gp-crimson-pro'; font-weight: 100 900; font-style: normal; font-display: swap; src: url('fonts/looks/crimson-pro-latin-wght.woff2') format('woff2'); }
+@font-face { font-family: 'gp-source-serif-4'; font-weight: 100 900; font-style: normal; font-display: swap; src: url('fonts/looks/source-serif-4-latin-wght.woff2') format('woff2'); }
+@font-face { font-family: 'gp-libre-franklin'; font-weight: 100 900; font-style: normal; font-display: swap; src: url('fonts/looks/libre-franklin-latin-wght.woff2') format('woff2'); }
+@font-face { font-family: 'gp-news-cycle'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/news-cycle-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-news-cycle'; font-weight: 700; font-style: normal; font-display: swap; src: url('fonts/looks/news-cycle-latin-700.woff2') format('woff2'); }
+@font-face { font-family: 'gp-nunito-sans'; font-weight: 100 900; font-style: normal; font-display: swap; src: url('fonts/looks/nunito-sans-latin-wght.woff2') format('woff2'); }
+@font-face { font-family: 'gp-hind'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/hind-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-hind'; font-weight: 700; font-style: normal; font-display: swap; src: url('fonts/looks/hind-latin-700.woff2') format('woff2'); }
+@font-face { font-family: 'gp-hanken-grotesk'; font-weight: 100 900; font-style: normal; font-display: swap; src: url('fonts/looks/hanken-grotesk-latin-wght.woff2') format('woff2'); }
+@font-face { font-family: 'gp-cinzel'; font-weight: 100 900; font-style: normal; font-display: swap; src: url('fonts/looks/cinzel-latin-wght.woff2') format('woff2'); }
+@font-face { font-family: 'gp-source-sans-3'; font-weight: 100 900; font-style: normal; font-display: swap; src: url('fonts/looks/source-sans-3-latin-wght.woff2') format('woff2'); }
+@font-face { font-family: 'gp-fira-sans'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/fira-sans-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-fira-sans'; font-weight: 700; font-style: normal; font-display: swap; src: url('fonts/looks/fira-sans-latin-700.woff2') format('woff2'); }
+@font-face { font-family: 'gp-arvo'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/arvo-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-arvo'; font-weight: 700; font-style: normal; font-display: swap; src: url('fonts/looks/arvo-latin-700.woff2') format('woff2'); }
+@font-face { font-family: 'gp-stardos-stencil'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/stardos-stencil-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-stardos-stencil'; font-weight: 700; font-style: normal; font-display: swap; src: url('fonts/looks/stardos-stencil-latin-700.woff2') format('woff2'); }
+@font-face { font-family: 'gp-dm-sans'; font-weight: 100 900; font-style: normal; font-display: swap; src: url('fonts/looks/dm-sans-latin-wght.woff2') format('woff2'); }
+@font-face { font-family: 'gp-poppins'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/poppins-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-poppins'; font-weight: 700; font-style: normal; font-display: swap; src: url('fonts/looks/poppins-latin-700.woff2') format('woff2'); }
+@font-face { font-family: 'gp-bebas-neue'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/bebas-neue-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-anton'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/anton-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-oswald'; font-weight: 100 900; font-style: normal; font-display: swap; src: url('fonts/looks/oswald-latin-wght.woff2') format('woff2'); }
+@font-face { font-family: 'gp-pinyon-script'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/pinyon-script-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-antonio'; font-weight: 100 900; font-style: normal; font-display: swap; src: url('fonts/looks/antonio-latin-wght.woff2') format('woff2'); }
+@font-face { font-family: 'gp-michroma'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/michroma-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-orbitron'; font-weight: 100 900; font-style: normal; font-display: swap; src: url('fonts/looks/orbitron-latin-wght.woff2') format('woff2'); }
+@font-face { font-family: 'gp-monoton'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/monoton-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-audiowide'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/audiowide-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-press-start-2p'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/press-start-2p-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-vt323'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/vt323-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-share-tech-mono'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/share-tech-mono-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-cinzel-decorative'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/cinzel-decorative-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-cinzel-decorative'; font-weight: 700; font-style: normal; font-display: swap; src: url('fonts/looks/cinzel-decorative-latin-700.woff2') format('woff2'); }
+@font-face { font-family: 'gp-lobster'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/lobster-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-pacifico'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/pacifico-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-yellowtail'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/yellowtail-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-allura'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/allura-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-alex-brush'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/alex-brush-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-great-vibes'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/great-vibes-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-rock-salt'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/rock-salt-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-cookie'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/cookie-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-grape-nuts'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/grape-nuts-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-croissant-one'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/croissant-one-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-amita'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/amita-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-amita'; font-weight: 700; font-style: normal; font-display: swap; src: url('fonts/looks/amita-latin-700.woff2') format('woff2'); }
+@font-face { font-family: 'gp-league-spartan'; font-weight: 100 900; font-style: normal; font-display: swap; src: url('fonts/looks/league-spartan-latin-wght.woff2') format('woff2'); }
+@font-face { font-family: 'gp-josefin-sans'; font-weight: 100 900; font-style: normal; font-display: swap; src: url('fonts/looks/josefin-sans-latin-wght.woff2') format('woff2'); }
+@font-face { font-family: 'gp-shrikhand'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/shrikhand-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-megrim'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/megrim-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-racing-sans-one'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/racing-sans-one-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-fredoka'; font-weight: 100 900; font-style: normal; font-display: swap; src: url('fonts/looks/fredoka-latin-wght.woff2') format('woff2'); }
+@font-face { font-family: 'gp-abril-fatface'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/abril-fatface-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-vast-shadow'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/vast-shadow-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-limelight'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/limelight-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-chango'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/looks/chango-latin-400.woff2') format('woff2'); }
+@font-face { font-family: 'gp-raleway'; font-weight: 100 900; font-style: normal; font-display: swap; src: url('fonts/looks/raleway-latin-wght.woff2') format('woff2'); }
+@font-face { font-family: 'gp-merriweather'; font-weight: 100 900; font-style: normal; font-display: swap; src: url('fonts/looks/merriweather-latin-wght.woff2') format('woff2'); }

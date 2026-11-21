@@ -48,10 +48,19 @@ export class HassClient {
     return url ? (this.hass.hassUrl ? this.hass.hassUrl(url) : url) : null;
   }
 
-  /** The photos in a media folder as addresses of copies shrunk to w by h. */
-  async slideshowItems(folder, w, h) {
+  /** A news feed widget's stories. The builder sends the address too, so a feed not saved yet can be previewed (administrators only). */
+  async feed(pane, widget, url) {
     try {
-      const reply = await this.hass.callWS({ type: 'glass_panes/slideshow/list', folder, w, h });
+      return await this.hass.callWS(url ? { type: 'glass_panes/feed/get', pane: pane || '', widget: widget || '', url } : { type: 'glass_panes/feed/get', pane, widget });
+    } catch (e) {
+      return { items: [], hash: '', problem: 'unavailable' };
+    }
+  }
+
+  /** The photos in a media folder as addresses of copies shrunk to w by h. */
+  async slideshowItems(folder, w, h, name) {
+    try {
+      const reply = await this.hass.callWS(name ? { type: 'glass_panes/slideshow/list', folder, w, h, name } : { type: 'glass_panes/slideshow/list', folder, w, h });
       const abs = (u) => (this.hass.hassUrl ? this.hass.hassUrl(u) : u);
       return { items: (reply.items || []).map(abs), problem: reply.problem || null };
     } catch (e) {

@@ -15,7 +15,7 @@ export const FONTS = {
   'space-grotesk': "'Space Grotesk', system-ui, sans-serif", 'jetbrains-mono': "'JetBrains Mono', ui-monospace, monospace",
   'cormorant-garamond': "'Cormorant Garamond', Georgia, serif", 'playfair-display': "'Playfair Display', Georgia, serif",
   montserrat: "'Montserrat', system-ui, sans-serif", lora: "'Lora', Georgia, serif", 'dm-serif-display': "'DM Serif Display', Georgia, serif",
-  'system-sans': 'system-ui, sans-serif', 'system-serif': "Georgia, 'Times New Roman', serif", 'system-mono': 'ui-monospace, Menlo, Consolas, monospace',
+  galactic: "'GP Galactic', monospace", 'system-sans': 'system-ui, sans-serif', 'system-serif': "Georgia, 'Times New Roman', serif", 'system-mono': 'ui-monospace, Menlo, Consolas, monospace',
 };
 const LINE_HEIGHT = { clock: 1, date: 1.2, message: 1.25, entity_value: 1.1, text: 1.15 };
 
@@ -69,6 +69,7 @@ export class PaneRenderer {
     // pane.burn_in_saver: the whole pane wanders 6 px over 40 minutes (player.css). `translate`, so the stage's own scale transform is kept.
     this.stage.classList.toggle('gp-pane-drift', pane.burn_in_saver === true);
     this.slotsFor = slotsFor;
+    this.backdrop = this._mountBackdrop(pane);
     (pane.widgets || []).forEach((w) => this.mounted.push(this._mount(pane, w, slotsFor[w.id] || {})));
     this._startRules(pane);
     this.resizer = new ResizeObserver(() => this.scheduleLayout());
@@ -79,7 +80,7 @@ export class PaneRenderer {
 
   /** Remove everything that is drawn and stop every timer and watcher. */
   clear() {
-    this.mounted.forEach((inst) => {
+    (this.backdrop ? [this.backdrop, ...this.mounted] : this.mounted).forEach((inst) => {
       inst.alive = false;
       inst.timers.forEach(clearInterval);
       inst.fns.forEach(([id, fn]) => { const set = this.watchers.get(id); if (set) set.delete(fn); });
@@ -87,6 +88,7 @@ export class PaneRenderer {
       inst.root.remove();
     });
     this.mounted = [];
+    this.backdrop = null;
     if (this.resizer) { this.resizer.disconnect(); this.resizer = null; }
     this.generation++;
     clearTimeout(this.ruleTimer);
@@ -105,7 +107,7 @@ export class PaneRenderer {
 
   _applyStyle(node, type, st) {
     const s = node.style;
-    s.fontFamily = FONTS[st.font] || '';
+    s.fontFamily = FONTS[st.font] || (st.font ? "'gp-" + st.font + "', system-ui, sans-serif" : '');   // lookalike fonts: gp-<id> (fonts.css)
     s.fontSize = st.size ? st.size + 'px' : '';             // cleared when absent, so a style rule that stops matching puts the old look back
     s.fontWeight = st.weight || '';
     s.color = st.color ? (COLORS[st.color] || st.color) : '';
@@ -143,7 +145,7 @@ export class PaneRenderer {
       return () => { clearTimeout(t); t = setTimeout(fn, 250); };
     };
     const ctx = {
-      root, data: this.pick ? this.pick(w, slots) : this.client, time: this.time, slots, opts: w.options || {}, style: w.style || {}, w: w.w, h: w.h,
+      root, data: this.pick ? this.pick(w, slots) : this.client, time: this.time, slots, opts: w.options || {}, style: w.style || {}, x: w.x, y: w.y, w: w.w, h: w.h,
       paneId: pane.id, widgetId: w.id, assetBase: this.assetBase, kiosk: this.kiosk, appUrl: this.appUrl,
       onDestroy: (fn) => inst.destroy.push(fn),
       onStyle: (fn) => inst.styleFns.push(fn),          // called with the style the widget wears now (its own plus a matching style rule)
@@ -155,10 +157,33 @@ export class PaneRenderer {
         if (ms) inst.timers.push(setInterval(run, ms));
       },
       every(ms, fn) { ctx.refresh(fn, [], ms); },
+      alive: () => inst.alive,                          // false once the pane is cleared (a widget whose code loads later checks it)
+      fail: (e) => self.onError(w.type + '/' + w.id, e),
     };
     const render = widgets[w.type];
     if (!render) { this.onError('unknown widget type', w.type); return inst; }
     try { render(ctx); } catch (e) { this.onError(w.type + '/' + w.id, e); }
+    return inst;
+  }
+
+  /** pane.photo_background: one photo or a slideshow behind every widget. It is the slideshow widget filling the stage (so the photos come
+   *  already shrunk to 1080x1920 and only two are ever held), drawn first so every widget sits on top, plus an optional dark veil. It is
+   *  not one of the pane's widgets: nothing lays it out, selects it or checks it for overflow. Nothing is loaded when the pane has none. */
+  _mountBackdrop(pane) {
+    const bg = pane.photo_background;
+    if (!bg || typeof bg !== 'object' || !bg.folder) return null;
+    const spec = { id: '', type: 'slideshow', x: 0, y: 0, w: 1080, h: 1920,
+      options: { folder: bg.folder, photo: bg.photo || null, interval_s: bg.interval_s || 300, shuffle: bg.shuffle !== false, fade: bg.fade !== false, fit: 'cover' } };
+    const inst = this._mount(pane, spec, {});
+    inst.root.className = 'gp-backdrop';
+    delete inst.root.dataset.widget;
+    const dim = Math.min(Math.max(Number(bg.dim) || 0, 0), 0.8);
+    if (dim) {
+      const veil = document.createElement('div');
+      veil.className = 'gp-backdrop-veil';
+      veil.style.background = 'rgba(0,0,0,' + dim + ')';
+      inst.root.appendChild(veil);
+    }
     return inst;
   }
 

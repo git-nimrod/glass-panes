@@ -3,7 +3,7 @@
 // The checks live in the widget's bindings (they hold entity ids), as a list of plain entities or small rules; the stored form is the
 // one the widget has always read, converted by checkTest() / withTest() in conditions.js.
 
-import { checkTest, withTest, describeCheck } from '../player/conditions.js';
+import { checkTest, checkWindow, withTest, describeCheck } from '../player/conditions.js';
 
 const TESTS = [['is', 'is'], ['is_not', 'is not'], ['above', 'is above'], ['below', 'is below'], ['unavailable', 'is unavailable or unknown']];
 
@@ -45,6 +45,22 @@ export function warningsEditor(ctx) {
     } else if (t.test === 'is' || t.test === 'is_not') {
       card.append(h('input', { class: 'field', 'data-field': 'value', type: 'text', maxlength: 200, value: [].concat(t.value).join(', '),
         placeholder: 'a state, like on or open (several: separate with commas)', onChange: (ev) => retest(t.test, ev.target.value) }));
+    }
+    // only at certain times of day: off = any time; on = a window (later "from" than "to" runs through midnight)
+    const w = checkWindow(k);
+    card.append(h('label', { class: 'check' },
+      h('input', { type: 'checkbox', 'data-field': 'timed', checked: !!w, onChange: (ev) => ctx.edit((rows) => {
+        const r = { ...rows[i] };
+        if (ev.target.checked) { r.from = '22:00'; r.to = '06:00'; } else { delete r.from; delete r.to; }
+        rows[i] = tidyCheck(r);
+      }) }), 'Only at certain times'));
+    if (w) {
+      const at = (key, other) => h('input', { class: 'field', type: 'time', style: 'width:auto', 'data-field': key, value: w[key],
+        onChange: (ev) => {
+          const v = String(ev.target.value).slice(0, 5);
+          if (/^([01]\d|2[0-3]):[0-5]\d$/.test(v) && v !== w[other]) set({ [key]: v }); else ev.target.value = w[key];     // two different real times only
+        } });
+      card.append(h('div', { class: 'row' }, h('span', { class: 'hint', text: 'between' }), at('from', 'to'), h('span', { class: 'hint', text: 'and' }), at('to', 'from')));
     }
     card.append(h('input', { class: 'field', 'data-field': 'text', type: 'text', maxlength: 80, placeholder: 'Words after the name, like “is open” (default: what it is)', value: k.text || '', onChange: (ev) => set({ text: ev.target.value }) }));
     card.append(h('div', { class: 'sentence', text: describeCheck(k) }));

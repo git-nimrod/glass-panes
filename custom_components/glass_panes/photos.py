@@ -114,7 +114,7 @@ def cache_name(path: Path, w: int, h: int) -> str:
     """The cache file for this photo at this size. Includes the modified time and size, so an edited photo is made again."""
     st = path.stat()
     key = f"{path}|{st.st_mtime_ns}|{st.st_size}|{w}x{h}"
-    return hashlib.sha1(key.encode("utf-8", "surrogatepass")).hexdigest() + ".jpg"
+    return hashlib.sha1(key.encode("utf-8", "surrogatepass"), usedforsecurity=False).hexdigest() + ".jpg"
 
 
 def shrink(data: bytes | Path, w: int, h: int) -> bytes:

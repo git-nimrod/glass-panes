@@ -18,6 +18,8 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; cursor
   font-family: system-ui, sans-serif; font-size: 32px;
 }
 #stage { position: absolute; left: 50%; top: 50%; }
+.gp-backdrop { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; overflow: hidden; pointer-events: none; z-index: 0; }   /* pane.photo_background */
+.gp-backdrop-veil { position: absolute; inset: 0; z-index: 1; }
 .gp-widget { position: absolute; box-sizing: border-box; display: flow-root; overflow: visible; overflow-wrap: break-word; }
 .gp-widget.gp-hidden { visibility: hidden; pointer-events: none; }   /* switched off (by a rule, or a divider with nothing around it): keeps its box so it can still be measured */
 .gp-widget.gp-overflow { outline: 2px dashed #ff3b30; }

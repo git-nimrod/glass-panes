@@ -36,12 +36,16 @@ jobs:
           echo "498495120a03b9a6ab5d155f5de3c8f0d986a449153702fb80fc80e134484f17  gradle/wrapper/gradle-wrapper.jar" | sha256sum -c -
       - run: chmod +x gradlew
       - run: ./gradlew testDebugUnitTest assembleDebug --no-daemon
-      - name: Keep the APK for two weeks (a debug build, for testing)
+      - name: Keep the APK for one day (a debug build, for testing)
+        # One day, not two weeks: each copy is ~90 MB and the free plan's artifact space (~500 MB) filled up in Nov 2026,
+        # which blocked the signed build from being saved. Optional: the build and tests above are the check, so a full
+        # storage space does not turn the run red.
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: mirror-kiosk-debug
           path: mirror-app/app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 14
+          retention-days: 1
 
   release-apk:
     # The mirror app has its OWN releases, separate from the Home Assistant integration: a release whose tag starts with "app-v"
@@ -96,13 +100,22 @@ jobs:
         run: |
           APK=app/build/outputs/apk/release/app-release.apk
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK"
-      - name: Dry run only - keep the signed APK for three days (not published)
+      - name: Dry run only - put the signed APK on a DRAFT release (not published)
+        # A draft, not an Actions artifact: artifacts share the free plan's small storage space (it filled up in Nov 2026),
+        # release files do not. A draft is visible only to people who can push here, makes no tag, and HACS never sees it.
+        # The tag name deliberately does not start with "app-v". Delete the draft once the APK is downloaded.
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
-        with:
-          name: mirror-kiosk-signed-dry-run
-          path: mirror-app/app/build/outputs/apk/release/app-release.apk
-          retention-days: 3
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: dry-run-${{ github.run_id }}
+        run: |
+          VERSION=$(grep -oE 'versionName = "[^"]+"' app/build.gradle.kts | head -1 | sed -E 's/.*"([^"]+)"/\1/')
+          NAME="mirror-kiosk-v${VERSION}-dry-run.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$NAME"
+          sha256sum "$NAME"
+          gh release create "$TAG" "$NAME" --repo "${{ github.repository }}" --draft --target "$GITHUB_SHA" \
+            --title "Dry run: Mirror Kiosk $VERSION (${GITHUB_REF_NAME})" \
+            --notes "Signed test build from ${GITHUB_REF_NAME} at ${GITHUB_SHA}. Draft only, never publish; delete it after downloading."
       - name: Attach it to the release
         if: github.event_name == 'release'
         env:

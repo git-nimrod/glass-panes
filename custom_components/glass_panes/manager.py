@@ -21,17 +21,20 @@ from homeassistant.auth.models import TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN
 from homeassistant.components.http.auth import async_sign_path
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.util import dt as dt_util
 
 from . import bindings as bindings_lib
 from . import displays as displays_lib
-from . import mirror, mirror_lib
+from . import app_update_lib, mirror, mirror_lib
+from .app_updates import AppUpdater
 from . import panes as panes_lib
 from .const import (
     DEFAULT_PANE,
     DOMAIN,
     LOGGER,
+    PREVIEW_PANE_PREFIX,
     SIGNAL_DISPLAY_ADDED,
     SIGNAL_DISPLAY_REMOVED,
     SIGNAL_DISPLAY_UPDATED,
@@ -56,6 +59,16 @@ async def remove_login_user(hass: HomeAssistant, record: dict[str, Any]) -> None
 
     Safe to call when the user is already gone or the record has no login. Never touches an owner or an administrator."""
     await remove_user_by_id(hass, record.pop("login_user_id", None))
+
+
+def widget_media(widget: dict[str, Any]) -> set[str]:
+    """Every media-library id a widget uses: its own picture or video (`options.media`) and an art pond's cut-outs (`options.pieces`)."""
+    options = widget.get("options") or {}
+    found = {options["media"]} if isinstance(options.get("media"), str) else set()
+    pieces = options.get("pieces")
+    if isinstance(pieces, list):
+        found.update(p["media"] for p in pieces if isinstance(p, dict) and isinstance(p.get("media"), str))
+    return found
 
 
 class Manager:
@@ -83,9 +96,14 @@ class Manager:
         self.group_store = GroupStore(hass)                    # loaded the first time a group is asked for
         self._status_reads: dict[str, asyncio.Task] = {}      # the /status read under way for each display, so the controls of one display share it
         self._photo_lock = asyncio.Lock()                    # one picture is shrunk at a time, so a big folder cannot starve Home Assistant
+        self.feed_cache: Any = None                           # feed_cache.FeedCache, made the first time an rss widget asks
+        self.screen_schedule: Any = None                      # screen_schedule.ScreenSchedule, set up in __init__.py
         self.pane_schema: dict[str, Any] = {}                 # the pane JSON Schema, kept so tools and agents can be handed it
         self._mirror_locks: dict[str, asyncio.Lock] = {}     # one per display: a measurement and a presence switch must not overlap
+        self._update_locks: dict[str, asyncio.Lock] = {}     # one per display: one app update at a time
+        self.app_updater = AppUpdater(hass)                   # Mirror Kiosk releases from GitHub, shared by every display's update entity
         self._lock = asyncio.Lock()        # one change at a time, so two requests cannot interleave their saves
+        self._previews: dict[str, dict[str, Any]] = {}   # display_id -> {pane, bindings, prev (the pane to go back to), unsub}
 
     # ------------------------------------------------------------------ panes
 
@@ -114,8 +132,69 @@ class Manager:
         """Every pane a display can show: the shipped ones, then any saved ones with new ids."""
         return sorted(self.shipped) + sorted(i for i in self.pane_store.panes if i not in self.shipped)
 
+    # ------------------------------------------------------------------ "Show on the mirror for N minutes": a draft shown live, then undone
+    def is_preview_id(self, pane_id: Any) -> bool:
+        return isinstance(pane_id, str) and pane_id.startswith(PREVIEW_PANE_PREFIX)
+
+    def preview_pane_id(self, display_id: str) -> str | None:
+        """The reserved pane id a display is previewing right now, or None."""
+        return f"{PREVIEW_PANE_PREFIX}{display_id}" if display_id in self._previews else None
+
+    def bindings_data(self) -> dict[str, Any]:
+        """The bindings served to players, with any live preview's bindings merged under its reserved pane id."""
+        if not self._previews:
+            return self.bindings.data
+        data = dict(self.bindings.data)
+        merged = dict(data.get("bindings") or {})
+        for preview in self._previews.values():
+            merged[preview["pane"]["id"]] = preview.get("bindings") or {}
+        data["bindings"] = merged
+        return data
+
+    async def start_preview(self, display_id: str, pane: Any, bindings: Any, seconds: Any = 120) -> str | None:
+        """Show a draft on a display for a while, then put its own pane back. Returns the reason it cannot, or None."""
+        if display_id not in self.display_store.displays:
+            return f"there is no display '{display_id}'"
+        errors = self._checker.check(pane)
+        if errors:
+            return "the pane is not valid: " + "; ".join(errors[:8])
+        try:
+            seconds = max(10, min(600, int(seconds)))
+        except (TypeError, ValueError):
+            seconds = 120
+        reserved = f"{PREVIEW_PANE_PREFIX}{display_id}"
+        existing = self._previews.get(display_id)
+        prev = existing["prev"] if existing else self.display_store.displays[display_id]["pane"]
+        if existing and existing.get("unsub"):
+            existing["unsub"]()                             # replace an in-flight preview on the same display
+        draft = copy.deepcopy(pane)
+        draft["id"] = reserved
+        unsub = async_call_later(self.hass, seconds, lambda _now: self.hass.async_create_task(self._end_preview(display_id)))
+        self._previews[display_id] = {"pane": draft, "bindings": copy.deepcopy(bindings) if isinstance(bindings, dict) else {}, "prev": prev, "unsub": unsub}
+        async_dispatcher_send(self.hass, SIGNAL_DISPLAY_UPDATED, display_id)   # the select flips to the reserved id; the player follows
+        return None
+
+    async def _end_preview(self, display_id: str) -> None:
+        preview = self._previews.pop(display_id, None)
+        if not preview:
+            return
+        if preview.get("unsub"):
+            preview["unsub"]()
+        async_dispatcher_send(self.hass, SIGNAL_DISPLAY_UPDATED, display_id)   # the select goes back to the display's own pane
+
+    async def stop_preview(self, display_id: str) -> bool:
+        """End a preview now (its own pane comes back). True if one was running."""
+        running = display_id in self._previews
+        await self._end_preview(display_id)
+        return running
+
     def get_pane(self, pane_id: str) -> tuple[dict[str, Any], str] | None:
         """A pane and where it came from ('user' when a saved pane exists, replacing a shipped one of the same id)."""
+        if self.is_preview_id(pane_id):
+            for preview in self._previews.values():
+                if preview["pane"]["id"] == pane_id:
+                    return preview["pane"], "preview"
+            return None
         if pane_id in self.pane_store.panes:
             return self.pane_store.panes[pane_id], "user"
         if pane_id in self.shipped:
@@ -448,7 +527,7 @@ class Manager:
     def media_users(self, media_id: str) -> list[str]:
         """Names of the saved panes that use this file."""
         return [p["name"] for p in self.pane_store.panes.values()
-                if any((w.get("options") or {}).get("media") == media_id for w in p.get("widgets", []))]
+                if any(media_id in widget_media(w) for w in p.get("widgets", []))]
 
     # ------------------------------------------------------------------ photos (slideshow) and entity pictures
 
@@ -476,14 +555,19 @@ class Manager:
         query = urlencode({"folder": str(folder or ""), "name": name, "w": w, "h": h})
         return async_sign_path(self.hass, f"/api/{DOMAIN}/photo?{query}", timedelta(days=7), use_content_user=True)
 
-    async def list_slideshow(self, folder: Any, w: Any, h: Any) -> dict[str, Any]:
-        """The photos in a folder as signed addresses sized for a widget of w by h. {"items": [...]} or a "problem"."""
+    async def list_slideshow(self, folder: Any, w: Any, h: Any, name: Any = None) -> dict[str, Any]:
+        """The photos in a folder as signed addresses sized for a widget of w by h. {"items": [...]} or a "problem".
+        With `name`, only that one photo (a pane's single background photo): "photo_not_found" when the folder has no such photo."""
         root, rel = self.photo_location(folder)
         names = await self.hass.async_add_executor_job(photos_lib.list_photos, root, rel)
         if names is None:
             return {"items": [], "count": 0, "problem": "folder_not_found"}
+        if name:
+            names = [n for n in names if n == name]
+            if not names:
+                return {"items": [], "count": 0, "problem": "photo_not_found"}
         w, h = photos_lib.bucket(w), photos_lib.bucket(h)
-        return {"items": [self.photo_url(folder, name, w, h) for name in names], "count": len(names)}
+        return {"items": [self.photo_url(folder, n, w, h) for n in names], "names": names, "count": len(names)}
 
     async def photo_file(self, folder: Any, name: Any, w: Any, h: Any) -> Path | None:
         """The shrunk copy of one photo (made now when it is not cached yet). None when there is no such photo.
@@ -504,6 +588,52 @@ class Manager:
 
         async with self._photo_lock:
             return await self.hass.async_add_executor_job(work)
+
+    # ------------------------------------------------------------------ entities an agent may look up (entity_lookup.py)
+
+    def entity_rows(self) -> list[dict[str, Any]]:
+        """Every visible entity as {entity_id, name, area_id, area, device_class}: no states. Hidden and disabled entities are left out."""
+        from homeassistant.helpers import area_registry as ar
+        from homeassistant.helpers import device_registry as dr
+
+        entities, devices, areas = er.async_get(self.hass), dr.async_get(self.hass), ar.async_get(self.hass)
+        rows = []
+        for state in self.hass.states.async_all():
+            entry = entities.async_get(state.entity_id)
+            if entry is not None and (entry.hidden_by or entry.disabled_by):
+                continue
+            area_id = entry.area_id if entry is not None else None
+            if area_id is None and entry is not None and entry.device_id:
+                device = devices.async_get(entry.device_id)
+                area_id = device.area_id if device is not None else None
+            area = areas.async_get_area(area_id) if area_id else None
+            rows.append({"entity_id": state.entity_id, "name": state.name, "area_id": area_id, "area": area.name if area else None,
+                         "device_class": state.attributes.get("device_class")})
+        return rows
+
+    # ------------------------------------------------------------------ news feeds (the rss widget), fetched here, never by a display
+
+    async def widget_feed(self, pane_id: Any, widget_id: Any, url: Any = None, may_use_url: bool = False) -> tuple[str | None, dict[str, Any] | None]:
+        """The stories for one `rss` widget of a saved (or shipped, or previewed) pane: (problem, {title, items, hash, fetched, problem}).
+        The feed address is the widget's own `url` option. Only an administrator (the builder, for a widget not saved yet) may pass `url`."""
+        if url and may_use_url:
+            options = {"url": url}
+            if isinstance(pane_id, str) and isinstance(widget_id, str) and (found := self.get_pane(pane_id)):
+                widget = next((w for w in found[0].get("widgets", []) if w.get("id") == widget_id), None)
+                options = {**((widget or {}).get("options") or {}), "url": url}
+        else:
+            found = self.get_pane(pane_id) if isinstance(pane_id, str) else None
+            if found is None:
+                return f"there is no pane '{pane_id}'", None
+            widget = next((w for w in found[0].get("widgets", []) if w.get("id") == widget_id), None)
+            if widget is None or widget.get("type") != "rss":
+                return f"pane '{pane_id}' has no news feed widget '{widget_id}'", None
+            options = widget.get("options") or {}
+        if self.feed_cache is None:
+            from .feed_cache import FeedCache
+
+            self.feed_cache = FeedCache(self.hass)
+        return None, await self.feed_cache.get(options.get("url"), options.get("refresh_minutes"))
 
     def picture_url(self, entity_id: str, w: Any, h: Any) -> str:
         query = urlencode({"entity": entity_id, "w": photos_lib.bucket(w), "h": photos_lib.bucket(h)})
@@ -890,6 +1020,85 @@ class Manager:
                 return {"ok": False, "error": "A measurement is running on this mirror; wait for it to finish (about half a minute)."}
             await mirror.call(self.hass, endpoint, key, "/presence/on" if enabled else "/presence/off")
             return {"ok": True, "presence": "on" if enabled else "off"}
+        return await self._mirror_run(display_id, work)
+
+    async def mirror_set_screen(self, display_id: Any, on: Any) -> tuple[str | None, dict[str, Any] | None]:
+        """Switch the mirror's screen on or off (app 0.13.0+). Off uses Android's sleep, which mirror-android-2 and later make fully
+        black; it needs the one-time device-admin step on the mirror, and the mirror says so in plain words if that was skipped."""
+        if not isinstance(on, bool):
+            return "on must be true or false", None
+
+        async def work(endpoint, key):
+            await mirror.call(self.hass, endpoint, key, "/screen/on" if on else "/screen/off")
+            return {"ok": True, "screen": "on" if on else "off"}
+        return await self._mirror_run(display_id, work)
+
+    ESPHOME_FEATURES = {"bluetooth_proxy": "bt", "voice": "voice", "wake_word": "wake"}
+
+    async def mirror_set_esphome(self, display_id: Any, feature: Any, on: Any) -> tuple[str | None, dict[str, Any] | None]:
+        """Switch a mirror's Bluetooth proxy, voice or wake word on or off (app 0.13.0+; switch.py). All three start off, and the
+        mirror runs nothing for them until one is switched on. Home Assistant's own ESPHome integration then adds the mirror (it is
+        found on the network) and hands it an encryption key by itself; voice works only once that is done."""
+        path = self.ESPHOME_FEATURES.get(feature) if isinstance(feature, str) else None
+        if path is None:
+            return f"unknown feature '{feature}'", None
+        if not isinstance(on, bool):
+            return "on must be true or false", None
+
+        async def work(endpoint, key):
+            data = await mirror.call(self.hass, endpoint, key, f"/esphome/{path}/{'on' if on else 'off'}")
+            return {"ok": True, "esphome": mirror_lib.shape_esphome((data or {}).get("esphome"))}
+        return await self._mirror_run(display_id, work)
+
+    # ------------------------------------------------------------------ app updates (update.py, app_updates.py, app_update_lib.py)
+
+    INSTALL_WAIT_S = 5          # between looks while the mirror restarts as the new version (tests set it to 0)
+    INSTALL_LOOKS = 36          # 36 x 5 s = 3 minutes
+
+    async def mirror_install_app(self, display_id: Any, progress: Any = None) -> tuple[str | None, dict[str, Any] | None]:
+        """Update a display's Mirror Kiosk app to the newest release: check the mirror can install by itself, fetch and check the APK
+        (app_updates.AppUpdater), send it, and wait until the mirror is back as the new version. `progress(percent)` is told how far it got.
+
+        Only ever runs when someone presses Install (or calls update.install): nothing is installed on its own."""
+        def say(percent: int) -> None:
+            if progress is not None:
+                progress(percent)
+
+        async def work(endpoint, key):
+            lock = self._update_locks.setdefault(display_id, asyncio.Lock())
+            if lock.locked():
+                return {"ok": False, "error": "An update is already on its way to this mirror."}
+            async with lock:
+                status = await mirror.read_status(self.hass, endpoint, key, self._now())
+                if not mirror_lib.can(status, "app_update"):
+                    return {"ok": False, "error": "This mirror cannot install updates by itself yet: that needs the app built into the mirror's Android image (mirror-android-3 or later). Install it with adb instead."}
+                if not key:
+                    return {"ok": False, "error": "This mirror has no control key in Home Assistant. Pair it again (Mirrors, Pair with a code), then try again."}
+                release = await self.app_updater.latest()
+                if release is None:
+                    return {"ok": False, "error": self.app_updater.last_problem or "There is no mirror app release to install."}
+                if not app_update_lib.is_newer(release["version"], status.get("version")):
+                    return {"ok": False, "error": f"This mirror already has app {status.get('version')}, which is not older than {release['version']}."}
+                say(5)
+                problem, path = await self.app_updater.fetch_apk(release)
+                if problem:
+                    return {"ok": False, "error": problem}
+                say(40)
+                await mirror.upload(self.hass, endpoint, key, "/update/install", path, {"sha256": release["sha256"]})
+                say(80)
+                for _ in range(self.INSTALL_LOOKS):
+                    await asyncio.sleep(self.INSTALL_WAIT_S)
+                    try:
+                        after = await mirror.read_status(self.hass, endpoint, key, self._now())
+                    except mirror.MirrorError:
+                        continue                          # restarting: not answering for a few seconds is expected
+                    if after.get("version") == release["version"]:
+                        say(100)
+                        return {"ok": True, "version": release["version"]}
+                    if (after.get("update") or {}).get("state") == "failed":
+                        detail = (after.get("update") or {}).get("detail") or "no reason given"
+                        return {"ok": False, "error": f"The mirror could not install it: {detail}."}
+                return {"ok": False, "error": f"The mirror took the update but did not come back as {release['version']} within 3 minutes. Its diary (/log) says what happened."}
         return await self._mirror_run(display_id, work)
 
     async def mirror_tune(self, display_id: Any, values: Any) -> tuple[str | None, dict[str, Any] | None]:

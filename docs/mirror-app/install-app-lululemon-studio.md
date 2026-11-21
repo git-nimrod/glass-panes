@@ -112,9 +112,9 @@ Skip it if you don't want presence detection. The rest of the app works without 
 If your app is 0.12.0 or newer, skip steps 6 and 7 below. You don't make a login or run a long command.
 
 1. Start the app on the mirror (restart the mirror, or run `adb shell am start -n com.nimrod.mirrorkiosk/.MainActivity`). A mirror that is not set up shows **a six-digit code and its own address** on the screen.
-2. In Home Assistant open **Glass Panes**, then **Displays**, and on your display press **Pair a mirror…**.
-3. Type the six digits and the mirror's address (shown under the code), check the Home Assistant address (it must be the one **the mirror** can reach, such as `http://homeassistant.local:8123`, not `localhost`), and press **Pair**.
-4. **Expected:** a message that the mirror is set up, and a moment later your pane on the mirror. Nothing was copied or pasted: Home Assistant made the display's login and sent it straight to the mirror.
+2. In Home Assistant open **Glass Panes**, then **Mirrors**, and press **Add mirror** (the first time, the form is already open). A mirror you already added has **Pair with a code…** on its card instead.
+3. Type the six digits and the mirror's address (shown under the code, with or without `:8099`), and give it a name. The Home Assistant address is under **Advanced**: it is filled in for you, and only needs a look if it starts with `https` (then type the local `http` one, such as `http://homeassistant.local:8123`; never `localhost`). Press **Add and pair**.
+4. **Expected:** "Paired. Waiting for it to load its page…", and within a minute the mirror's card says it loaded its page, and your pane is on the mirror. Nothing was copied or pasted: Home Assistant made the display's login and sent it straight to the mirror. If the card says it has its login but has not loaded its page, the mirror cannot reach the Home Assistant address: fix it under **Advanced** and press **Pair again**.
 
 If the code is refused, check the digits on the screen. After five wrong tries the mirror waits a minute and shows a new code. To pair a mirror that is already set up (for example after moving to a new Home Assistant), run `adb shell "am start -n com.nimrod.mirrorkiosk/.MainActivity --es pair 1"`, which shows a code again.
 

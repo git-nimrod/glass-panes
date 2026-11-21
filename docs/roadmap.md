@@ -10,7 +10,7 @@ Each item says where it stands now:
 
 ## What v0.12.0 already does
 
-Icons, tiles and chips, a Table widget, colours and sizes that follow a value, a widget catalogue, an editable warnings list, reusable widget groups, a snap grid and zoom, a time zone per display, pairing a mirror with a six-digit code, a Brightness number and a Presence detection switch per mirror with a blueprint that uses them, and a mirror app that starts up cleanly after a power cut. The full list is in the [v0.12.0 release notes](release-notes/v0.12.0.md).
+Icons, tiles and chips, a Table widget, colours and sizes that follow a value, an editable warnings list, reusable widget groups, a snap grid and zoom, a time zone per display, pairing a mirror with a six-digit code, a Brightness number and a Presence detection switch per mirror with a blueprint that uses them, and a mirror app that starts up cleanly after a power cut. The full list is in the [v0.12.0 release notes](release-notes/v0.12.0.md).
 
 Before that, v0.11.0 added a photo slideshow, pictures from image and camera entities, the mirror's own speaker as a Home Assistant media player (Music Assistant works), a printed-CD look for Now playing, clock looks and time zones, and a Settings page ([v0.11.0 release notes](release-notes/v0.11.0.md)).
 
@@ -54,13 +54,13 @@ What could stop it: the speaker next to the microphone makes echo, and how well 
 
 The two boards. The regulatory sticker near the power input tells you which mirror you have. FCC ID `2AOSD-RLSYM1R0` is the Qualcomm board this project is built and tested on. A sticker that says "Contains: FCC ID `VPYLBEE5HY1MW`" is the newer NXP (i.MX8M Mini) board. The Android images and the Mirror Kiosk app here do not work on it.
 
-Where it stands: not started, and we need people with the hardware. The community already has Linux running on that board, with display, speakers, microphone and camera working. Nobody has yet put a web kiosk on it that shows a Glass Panes pane. The write-ups and projects are on the [compatibility page](compatibility.md#other-boards-and-write-ups).
+The plan: the two kinds of mirror take **different paths to the same place**. The Qualcomm mirror runs the Android Mirror Kiosk app; the NXP mirror runs **Linux** (the community already has it running, with display, speakers, microphone and camera working) with Glass Panes as a web kiosk on top. Both answer the **same control calls**, so Home Assistant, the builder and the player don't need to know which mirror you have. Nobody has yet put the Glass Panes kiosk on the Linux board — that's the piece we're building, and we need people with the hardware. The write-ups and projects are on the [compatibility page](compatibility.md#other-boards-and-write-ups).
 
 How we'd approach it, one step at a time:
 1. Show a pane. A kiosk browser on the community Linux image opens the display's player page, signed in with the display login.
-2. Match the Android app's control calls. A small service on the mirror offers the same control calls (`/status`, brightness, reload, audio), so Display settings, the Settings page and the speaker work unchanged.
+2. Match the control calls. A small service on the Linux mirror offers the same control calls the Android app does (`/status`, brightness, reload, audio), so Display settings, the Settings page and the speaker work unchanged. `/status` says which kind of mirror it is, so Home Assistant can hide what a board can't do (for example, this board has no touch and can't play video smoothly).
 3. Camera and sound. Presence, the speaker and the microphone, as far as the hardware allows.
-4. Documentation for this board. What works, which files, and which commands, kept apart from the Qualcomm guides.
+4. Documentation for this board. How to put the Glass Panes kiosk on the Linux image, kept apart from the Qualcomm guides.
 
 How you can help:
 - If you have this board, tell us its FCC ID, what firmware it started on, and what you get when you try step 1.
@@ -72,6 +72,7 @@ We don't publish instructions for building or modifying system images. We link t
 
 These are ideas with no order:
 
+- A widget catalogue inside the edit area: every kind of widget with a clear preview and what to bind to it, added to the pane from there. A first version shipped in v0.12.0 as a separate screen and was taken out in v0.12.1 until it is rebuilt properly.
 - A screen on/off switch, and brightness driven by light sensors. This waits on a backlight test on the mirror. (Brightness and presence as Home Assistant entities arrived in v0.12.0.)
 - A direct player in the app (DLNA or Sendspin) so Music Assistant sees the mirror without Home Assistant in between.
 - A game scores card and a few experiments with video.

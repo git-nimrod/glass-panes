@@ -107,6 +107,26 @@ async def ws_panes_delete(hass: HomeAssistant, connection, msg: dict[str, Any]) 
     connection.send_result(msg["id"], {"panes": _manager(hass).list_panes()})
 
 
+@websocket_api.require_admin
+@websocket_api.websocket_command({
+    Required("type"): f"{DOMAIN}/preview_pane", Required("display_id"): str, Required("pane"): dict,
+    schema_lib.Optional("bindings"): dict, schema_lib.Optional("seconds"): int,
+})
+@websocket_api.async_response
+async def ws_preview_pane(hass: HomeAssistant, connection, msg: dict[str, Any]) -> None:
+    """Show an unsaved draft on a display for a short while (default 120 s), then put the display's own pane back."""
+    seconds = msg.get("seconds", 120)
+    problem = await _manager(hass).start_preview(msg["display_id"], msg["pane"], msg.get("bindings"), seconds)
+    if problem:
+        _fail(connection, msg, websocket_api.ERR_INVALID_FORMAT, problem)
+        return
+    try:
+        seconds = max(10, min(600, int(seconds)))
+    except (TypeError, ValueError):
+        seconds = 120
+    connection.send_result(msg["id"], {"ok": True, "seconds": seconds})
+
+
 # ---------------------------------------------------------------- displays
 
 @callback
@@ -268,7 +288,7 @@ async def ws_mirror_audio(hass: HomeAssistant, connection, msg: dict[str, Any]) 
 @callback
 @websocket_api.websocket_command({Required("type"): f"{DOMAIN}/bindings/get"})
 def ws_bindings_get(hass: HomeAssistant, connection, msg: dict[str, Any]) -> None:
-    connection.send_result(msg["id"], _manager(hass).bindings.data)
+    connection.send_result(msg["id"], _manager(hass).bindings_data())
 
 
 @websocket_api.require_admin
@@ -279,7 +299,7 @@ async def ws_bindings_set(hass: HomeAssistant, connection, msg: dict[str, Any]) 
     if problems:
         _fail(connection, msg, websocket_api.ERR_INVALID_FORMAT, problems)
         return
-    connection.send_result(msg["id"], _manager(hass).bindings.data)
+    connection.send_result(msg["id"], _manager(hass).bindings_data())
 
 
 @callback
@@ -320,10 +340,11 @@ async def ws_media_delete(hass: HomeAssistant, connection, msg: dict[str, Any]) 
     connection.send_result(msg["id"], {"all": _manager(hass).list_media()})
 
 
-@websocket_api.websocket_command({Required("type"): f"{DOMAIN}/slideshow/list", Required("folder"): str, schema_lib.Optional("w"): int, schema_lib.Optional("h"): int})
+@websocket_api.websocket_command({Required("type"): f"{DOMAIN}/slideshow/list", Required("folder"): str, schema_lib.Optional("w"): int, schema_lib.Optional("h"): int,
+                                   schema_lib.Optional("name"): str})
 @websocket_api.async_response
 async def ws_slideshow_list(hass: HomeAssistant, connection, msg: dict[str, Any]) -> None:
-    connection.send_result(msg["id"], await _manager(hass).list_slideshow(msg["folder"], msg.get("w"), msg.get("h")))
+    connection.send_result(msg["id"], await _manager(hass).list_slideshow(msg["folder"], msg.get("w"), msg.get("h"), msg.get("name") or None))
 
 
 @websocket_api.websocket_command({Required("type"): f"{DOMAIN}/picture/url", Required("entity"): str, schema_lib.Optional("w"): int, schema_lib.Optional("h"): int})
@@ -366,9 +387,23 @@ async def ws_groups_delete(hass: HomeAssistant, connection, msg: dict[str, Any])
     connection.send_result(msg["id"], {"groups": await _manager(hass).list_groups()})
 
 
+@websocket_api.websocket_command({Required("type"): f"{DOMAIN}/feed/get", Required("pane"): str, Required("widget"): str, schema_lib.Optional("url"): str})
+@websocket_api.async_response
+async def ws_feed_get(hass: HomeAssistant, connection, msg: dict[str, Any]) -> None:
+    """A news feed widget's stories. `url` (the builder, for an address not saved yet) is for administrators only."""
+    if msg.get("url") and not connection.user.is_admin:
+        _fail(connection, msg, websocket_api.ERR_UNAUTHORIZED, "only an administrator can try a feed address that is not saved in a pane")
+        return
+    problem, result = await _manager(hass).widget_feed(msg["pane"], msg["widget"], msg.get("url"), may_use_url=True)
+    if problem:
+        _fail(connection, msg, websocket_api.ERR_NOT_FOUND, problem)
+        return
+    connection.send_result(msg["id"], result)
+
+
 COMMANDS = (
-    ws_media_list, ws_media_add, ws_media_delete, ws_slideshow_list, ws_picture_url,
-    ws_panes_list, ws_panes_get, ws_panes_save, ws_panes_create, ws_panes_update, ws_panes_delete,
+    ws_feed_get, ws_media_list, ws_media_add, ws_media_delete, ws_slideshow_list, ws_picture_url,
+    ws_panes_list, ws_panes_get, ws_panes_save, ws_panes_create, ws_panes_update, ws_panes_delete, ws_preview_pane,
     ws_displays_list, ws_displays_save, ws_displays_delete, ws_login_create, ws_login_revoke,
     ws_bindings_get, ws_bindings_set, ws_widgets_list, ws_groups_list, ws_groups_save, ws_groups_delete,
     ws_mirror_connect, ws_mirror_pair, ws_mirror_status, ws_mirror_presence, ws_mirror_tune, ws_mirror_brightness, ws_mirror_measure, ws_mirror_audio,

@@ -21,6 +21,9 @@ The app is for the Lululemon Studio mirror. Any other screen with a browser (a t
 - **Control server on port 8099** (local network), so Home Assistant and the player can talk to it (below).
 - **Native video**: Android's own player draws a looping video above the page (the browser engine cannot start a video decoder on this device).
 - **Camera presence**: motion from changes in light, no faces. See `docs/mirror-app/install-app-lululemon-studio.md` ("What the camera does and does not do").
+- **Bluetooth proxy, voice and wake word** (0.13.0, all off by default): an ESPHome-style server on port 6053 that Home Assistant's
+  ESPHome integration adds, encrypted with a key Home Assistant hands over. The wake word is heard on the mirror. See
+  [`docs/mirror-app/api.md`](../docs/mirror-app/api.md) section 3.
 - **Display fix**: turns off Qualcomm's adaptive backlight and post-processing, which otherwise stripe thin text on a mostly black screen (`DisplayPostProc.kt`; the method is credited in that file).
 
 ## Control server
@@ -37,8 +40,10 @@ The app is for the Lululemon Studio mirror. Any other screen with a browser (a t
 | `/display/fix` | Run the display clean-up again |
 | `/presence` | Presence numbers and its settings |
 | `/presence/on`, `/presence/off` | Switch camera presence on or off (remembered) |
+| `/screen/on`, `/screen/off` | Screen on or off (0.13.0; off needs `adb shell dpm set-active-admin com.nimrod.mirrorkiosk/.ScreenAdmin` once) |
 | `/presence/tune?scans=&vscans=&hold=&thr=&fps=&report=` | Presence settings (any can be left out; table in the install guide) |
 | `/presence/size?w=<160-1920>` | Camera picture width |
+| `/esphome`, `/esphome/<bt\|voice\|wake>/<on\|off>` | The Bluetooth proxy, voice and wake-word switches and their state (0.13.0) |
 
 ### `/status` fields
 
@@ -52,10 +57,12 @@ These fields are unchanged: `ok`, `app`, `page_ok`, `seconds_since_page_load`, `
 | `blocked_loads` (0.10.7+) | Page loads the app refused because they were not the Home Assistant address it was given (the navigation lock). Normally `0` |
 | `engine_restarts` (0.10.7+) | How often the browser engine crashed or was stopped and was rebuilt. A number that keeps rising means a pane is too heavy for the mirror |
 | `seconds_since_heartbeat` (0.10.6+) | Seconds since the player page last said "I'm alive", `-1` if it never has |
+| `platform`, `board`, `kiosk_api`, `capabilities` (0.13.0+) | The kiosk API contract ([docs/mirror-app/api.md](../docs/mirror-app/api.md)): `android`, Android's board name (`msm8916` on the tested mirror), the contract version (`1`) and the calls this app has. Home Assistant reads what a kiosk can do from these |
 | `boot` (0.10.8+) | How the start is going: `fully_booted`, `percent`, the step it `waiting_for`, `stuck`, and the seconds each step took. The launch screen's loading bar shows the same |
 | `recovery` (0.10.8+) | The settings for getting unstuck (`/recovery/tune`) |
 | `alive_report` (0.10.8+) | The result of the last "still alive" message to Home Assistant (`not set up` until an alive webhook is given) |
 | `presence.settings` | `enabled`, `scans_per_min`, `video_scans_per_min`, `hold_s`, `threshold`, `preview_w`, `preview_fps` (`0` = slowest), `report_interval_s`, `webhook_set` (true or false; the id itself is never shown) |
+| `esphome` (0.13.0+) | The Bluetooth proxy, voice and wake word: switches, encryption, counts, and `java_heap_kb` / `native_heap_kb` / `wake.model_ms_per_s` for the memory and CPU budget (same as `GET /esphome`) |
 | `memory` | **Real measurements taken on the device at the moment of the request** (nothing is estimated), below |
 
 ### `memory` fields (megabytes unless noted)
@@ -103,6 +110,10 @@ The result is `app/build/outputs/apk/debug/app-debug.apk` (about 90 MB, mostly t
 | `.../Presence.kt` | Camera presence (motion from light, settings, report to Home Assistant) |
 | `.../Kiosk.kt` | Shared state, version string, memory measurements |
 | `.../DisplayPostProc.kt` | The Qualcomm display clean-up |
+| `.../EspServer.kt`, `EspConnection.kt`, `EspNoise.kt`, `EspProto.kt`, `EspLogic.kt` | The ESPHome-style server: Bluetooth proxy, voice turns, Noise encryption, the messages and the rules |
+| `.../WakeWord.kt`, `WakeLogic.kt`, `MicroFrontend.kt`, `ListenSign.kt` | The wake word (TensorFlow Lite, the audio front end) and the on-screen mic sign |
+| `app/src/main/assets/wakeword/` | The bundled wake-word models, their licence and where they came from |
+| `tools/esp_e2e.py`, `tools/make_frontend_vectors.py`, `tools/make_wake_vectors.py` | Checks against ESPHome's Python client, and the reference data for the wake-word tests |
 | `app/src/main/res/drawable-nodpi/boot_00.png` .. `boot_20.png` | The launch-screen animation frames, made from `brand/boot-animation.gif` by `tools/make_boot_frames.py` on a black background |
 | `app/src/main/res/values/strings.xml` | The launch-screen messages |
 
@@ -110,4 +121,5 @@ The result is `app/build/outputs/apk/debug/app-debug.apk` (about 90 MB, mostly t
 
 The source contains **no** addresses, webhook ids or tokens, and none are defaults. Everything personal is entered on the mirror (`adb ... --es url / token / key / webhook`, see the install guide) and kept in the app's private storage on the device. Before you commit a change here, search your diff for `192.168.`, `webhook`, `token` and your own addresses.
 
-Licences: GeckoView is Mozilla's (MPL 2.0). The display clean-up approach comes from the community repurposing project credited in `DisplayPostProc.kt` (Apache-2.0). The rest follows this repository's licence.
+Licences: GeckoView is Mozilla's (MPL 2.0). noise-java (Signal's build) is MIT. TensorFlow Lite and the microWakeWord models are
+Apache-2.0; `MicroFrontend.kt` is a port of TensorFlow Lite Micro's audio front end (Apache-2.0) with kissfft's FFT (BSD-3-Clause). The display clean-up approach comes from the community repurposing project credited in `DisplayPostProc.kt` (Apache-2.0). The rest follows this repository's licence.

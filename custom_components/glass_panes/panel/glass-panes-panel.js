@@ -21,6 +21,7 @@ import { iconField } from '/glass_panes/panel/icon-picker.js';
 import { warningsEditor, asCheck } from '/glass_panes/panel/warnings-ui.js';
 import { ruleSection, styleRulesSection, RULES_CSS, forceControl } from '/glass_panes/panel/rules-ui.js';          // "Show when" and the preview on/off controls
 import { findRuleLoops, foldShowIf, usesRules } from '/glass_panes/player/conditions.js';
+import { LOOK_FONTS } from '/glass_panes/panel/font-list.js';            // the lookalike fonts for the font menu
 
 const PLAYER = '/glass_panes/player/index.html';
 const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -76,7 +77,7 @@ const whenSlots = (b) => Object.fromEntries(Object.entries(b || {}).filter(([k])
 const DOMAIN_ORDER = ['calendar', 'weather', 'media_player', 'todo', 'person', 'light', 'sensor', 'event', 'input_number', 'number', 'binary_sensor', 'switch', 'climate', 'cover'];
 const ELEMENT_INFO = {
   clock: 'The time', date: 'Today’s date', text: 'Any words you type', image: 'A picture from your device, or an image or camera entity', slideshow: 'Photos from a media folder, one after another', video: 'A looping video from your device',
-  divider: 'A thin line between sections', icon: 'A symbol from the icon library', message: 'Friendly lines that rotate',
+  divider: 'A thin line between sections', icon: 'A symbol from the icon library', message: 'Friendly lines that rotate', rss: 'Headlines from any news feed address',
 };
 // How the display sits in the mirror in Mirror view. Estimated from two photos of a real Lululemon Studio Mirror, so approximate, not measured:
 // a very thin frame, the display close to the edges at the top and sides, a longer strip of plain glass below it (the display is roughly
@@ -89,7 +90,7 @@ const HEX6 = /^#[0-9a-fA-F]{6}$/;                 // a colour the browser's pick
 // the fonts a text item can use: [value in the pane file, name shown]. Same list as the schema's style.font and engine.js FONTS.
 const FONT_CHOICES = [['inter', 'Inter'], ['outfit', 'Outfit'], ['jost', 'Jost'], ['space-grotesk', 'Space Grotesk'], ['jetbrains-mono', 'JetBrains Mono'],
   ['cormorant-garamond', 'Cormorant Garamond (formal serif)'], ['playfair-display', 'Playfair Display (formal serif)'], ['lora', 'Lora (book serif)'],
-  ['dm-serif-display', 'DM Serif Display (headlines)'], ['montserrat', 'Montserrat'], ['system-sans', 'System sans'], ['system-serif', 'System serif'], ['system-mono', 'System mono']];
+  ['dm-serif-display', 'DM Serif Display (headlines)'], ['montserrat', 'Montserrat'], ['galactic', 'Galactic (alien alphabet)'], ['system-sans', 'System sans'], ['system-serif', 'System serif'], ['system-mono', 'System mono']];
 // on/off choices per widget type: [option, label, default]
 const TOGGLES = {
   clock: [['show_seconds', 'Show seconds', false]],
@@ -99,15 +100,105 @@ const TOGGLES = {
   lights_summary: [['show_dots', 'Colour dots', true]],
   sports: [['show_logos', 'Team logos', true], ['show_next', 'Upcoming games', true], ['game_day_only', 'Only on game day', false], ['verbose_text', 'Spell out wins and losses', false], ['head_top', 'Headline above the logos (narrow columns)', false]],
   news: [['show_source', 'Source name', false]],
+  rss: [['show_source', 'Feed name', false], ['show_time', 'How long ago', false], ['show_summary', 'A line of the story', false]],
   entity_value: [['show_label', 'Name label', true]],
 };
 
 // pick-one choices per widget type: [option, label, [[value, words], ...], default]
 const CHOICES = {
   clock: [['style', 'Look', [['digital', 'Digital numbers'], ['analog', 'Traditional clock face'], ['alarm', 'Alarm clock']], 'digital'],
-    ['face', 'Clock face', [['light', 'Light face'], ['dark', 'Dark face']], 'light', (o) => o.style === 'analog' || o.style === 'alarm']],
+    ['face', 'Clock face', [['light', 'Light face'], ['dark', 'Dark face']], 'light', (o) => o.style === 'analog' || o.style === 'alarm'],
+    ['orientation', 'Direction', [['horizontal', 'In a line'], ['stacked', 'Stacked (hours over minutes)'], ['sideways', 'Sideways (reads top to bottom)']], 'horizontal', (o) => !o.style || o.style === 'digital']],
   now_playing: [['style', 'Look', [['card', 'Card (album art and words)'], ['vinyl', 'Vinyl record with tonearm'], ['cd', 'CD']], 'card']],
 };
+
+// colour swatches in "The basics": [token, name]; '' is the widget's default colour
+const SWATCHES = [['', 'Default'], ['dim', 'Dim'], ['accent', 'Accent'], ['good', 'Good'], ['warn', 'Warm']];
+// the token colours of the original look (player.css), for the swatches when the pane has no theme
+const BASE_TONES = { fg: '#f2f2f2', dim: '#8a8a8a', faint: '#5f5f5f', accent: '#6fb4ff', warn: '#ffb347', good: '#5fd38d', bad: '#ff6b6b' };
+
+// the Add panel's Widgets tab: [id, chip label]; widgetGroup() puts each widget type in one
+const WIDGET_GROUPS = [['all', 'All'], ['words', 'Time & words'], ['home', 'Your home'], ['media', 'Pictures & music'], ['fun', 'Sports & news'], ['sky', 'Sky & stars'], ['decorations', 'Decorations']];
+const GROUP_OF = { clock: 'words', date: 'words', text: 'words', message: 'words', divider: 'words', icon: 'words',
+  image: 'media', slideshow: 'media', video: 'media', now_playing: 'media', sports: 'fun', news: 'fun', rss: 'fun' };
+const widgetGroup = (type, reg) => (reg && reg.group) || GROUP_OF[type] || 'home';
+
+/** A small picture of a look for its card in the inspector (drawn with plain elements; no pane rendering). */
+function lookThumb(type, look) {
+  const o = look.options || {}, st = look.style || {};
+  const box = h('span', { class: 'thumb' });
+  if (type === 'clock') {
+    if (o.style === 'analog') {
+      box.innerHTML = '<svg viewBox="0 0 44 44" width="38" height="38" aria-hidden="true"><circle cx="22" cy="22" r="19" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="22" y1="22" x2="22" y2="9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="22" y1="22" x2="31" y2="22" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+    } else if (o.style === 'alarm') {
+      box.append(h('span', { class: 'alarm', text: '09:02' }));
+    } else if (o.orientation === 'stacked') {
+      box.append(h('span', { class: 'stack', style: 'display:flex;flex-direction:column;line-height:.95;font-size:13px' }, h('span', { text: '09' }), h('span', { text: '02' })));
+    } else if (o.orientation === 'sideways') {
+      box.append(h('span', { text: '9:02', style: 'writing-mode:vertical-rl;font-size:13px' }));
+    } else {
+      box.append(h('span', { text: '9:02', style: `font-weight:${st.weight || 300};letter-spacing:${(st.letter_spacing || 0) / 2}px` }));
+    }
+  } else if (type === 'now_playing') {
+    if (o.style === 'vinyl') box.append(h('span', { class: 'disc vinyl' }));
+    else if (o.style === 'cd') box.append(h('span', { class: 'disc cd' }));
+    else box.append(h('span', { class: 'card' }, h('span', { class: 'art' }), h('span', { class: 'lines' })));
+  } else if (type === 'sports') {
+    if (o.layout === 'line') box.append(h('span', { style: 'font-size:10px;white-space:nowrap', text: 'W 3–1' }));
+    else if (o.layout === 'box') box.append(h('span', { style: 'display:grid;grid-template-columns:auto auto;gap:0 5px;font-size:10px;line-height:1.15' }, h('span', { text: 'LIO' }), h('b', { text: '3' }), h('span', { text: 'BEA' }), h('b', { text: '1' })));
+    else {
+      const big = !!o.head_top;
+      box.append(h('span', { style: 'display:flex;flex-direction:column;align-items:center;line-height:1' },
+        big ? h('span', { style: 'font-size:7px;letter-spacing:.5px', text: 'FINAL' }) : null,
+        h('span', { style: 'display:flex;align-items:center;gap:3px;font-size:' + (big ? 15 : 11) + 'px' },
+          h('span', { style: 'width:7px;height:7px;border-radius:50%;background:#d9453d' }), h('b', { text: '3–1' }), h('span', { style: 'width:7px;height:7px;border-radius:50%;background:#4d96ff' }))));
+    }
+  } else if (type === 'flights') {
+    const plane = '<path d="M12 2c.8 0 1.3.7 1.3 1.6v5.6l7.7 4.4v2l-7.7-2.3v4.8l2.2 1.6v1.6L12 20.4l-3.5.9v-1.6l2.2-1.6v-4.8L3 15.6v-2l7.7-4.4V3.6C10.7 2.7 11.2 2 12 2z" fill="currentColor"/>';
+    if (o.look === 'radar') box.innerHTML = '<svg viewBox="0 0 44 44" width="38" height="38" aria-hidden="true"><circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" stroke-opacity=".4"/><circle cx="22" cy="22" r="9" fill="none" stroke="currentColor" stroke-opacity=".4"/><g transform="translate(27 11) rotate(40) scale(.4) translate(-12 -12)">' + plane + '</g><g transform="translate(13 28) rotate(-70) scale(.4) translate(-12 -12)">' + plane + '</g></svg>';
+    else if (o.look === 'board') box.append(h('span', { style: 'font-family:monospace;font-size:9px;line-height:1.3;text-align:left;white-space:pre', text: 'BA1484 LHR→GLA' + String.fromCharCode(10) + 'RYR24 STN→DUB' }));
+    else box.innerHTML = '<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true" style="transform:rotate(45deg)">' + plane + '</svg>';
+  } else if (type === 'moon') {
+    const ink = o.look === 'line' ? 'currentColor' : '#f1ecdc';
+    box.innerHTML = '<svg viewBox="0 0 44 44" width="38" height="38" aria-hidden="true">' + (o.look === 'glow' ? '' : '<circle cx="22" cy="22" r="17" fill="' + (o.look === 'line' ? 'none' : '#22252b') + '" stroke="' + (o.look === 'line' ? 'currentColor' : 'none') + '" stroke-width="1.4"/>') +
+      '<path d="M22 5A17 17 0 0 1 22 39A8 17 0 0 1 22 5Z" fill="' + ink + '"' + (o.look === 'glow' ? ' style="filter:drop-shadow(0 0 3px #fff)"' : '') + '/></svg>';
+    if (o.layout === 'side') box.append(h('span', { style: 'font-size:9px;margin-left:2px', text: '73%' }));
+  } else if (type === 'art_pond') {
+    const pad = (x, y, r, c) => '<ellipse cx="' + x + '" cy="' + y + '" rx="' + r + '" ry="' + (r * 0.45) + '" fill="' + c + '"/>';
+    if (o.set === 'own') { box.append(h('span', { style: 'font-size:18px', text: '\u2702' })); return box; }
+    box.innerHTML = '<svg viewBox="0 0 44 44" width="38" height="38" aria-hidden="true">' + (o.depth === false
+      ? pad(9, 30, 7, '#4f7a63') + pad(22, 30, 7, '#5f8f6f') + pad(35, 30, 7, '#4f7a63')
+      : pad(12, 16, 5, '#5f8f6f') + pad(30, 20, 6, '#4f7a63') + pad(18, 33, 10, '#3f6b55') + '<circle cx="18" cy="30" r="3" fill="#f2a7c3"/>') + '</svg>';
+  } else if (type === 'petals') {
+    const tones = { white: ['#ffffff', '#f6f1f3'], autumn: ['#ff9f43', '#d9453d'] }[o.palette] || ['#ffc4d6', '#f9a8c0'];
+    const petal = 'M12 23C7 19 4.4 13 7.3 7.2C8.4 5 10 3.7 11 3.2L12 5.2L13 3.2C14 3.7 15.6 5 16.7 7.2C19.6 13 17 19 12 23Z';
+    box.innerHTML = '<svg viewBox="0 0 44 44" width="38" height="38" aria-hidden="true">' + [[4, 3, 0.6, -20], [22, 12, 0.5, 35], [9, 24, 0.7, 70]].map(([x, y, k, a], i) =>
+      '<path transform="translate(' + x + ' ' + y + ') scale(' + k + ') rotate(' + a + ' 12 12)" d="' + petal + '" fill="' + tones[i % 2] + '"/>').join('') + '</svg>';
+  } else if (type === 'message') {
+    const shapes = { bubble: 'border-radius:9px', thought: 'border-radius:12px' };
+    box.append(h('span', { style: 'font-size:10px;padding:2px 6px;white-space:nowrap;' + (shapes[o.look] ? 'background:#fff;color:#151515;border:1.5px solid #151515;' + shapes[o.look] : 'font-style:italic'), text: 'Hi!' }));
+  } else if (type === 'weather') {
+    if (o.icon === 'chibi') box.append(h('span', { style: 'display:flex;align-items:center;gap:2px;font-size:10px' + (o.layout === 'stacked' ? ';flex-direction:column' : '') },
+      h('span', { style: 'width:14px;height:14px;border-radius:50%;background:#ffd166;display:inline-block' }), h('span', { text: '61\u00b0' })));
+    else box.append(h('span', { style: 'font-size:10px;line-height:1.1;text-align:center;white-space:pre', text: o.layout === 'stacked' ? '61\u00b0\nSunny' : '61\u00b0 Sunny' }));
+  } else if (type === 'ascii_art') {
+    const ink = { green: '#3dff7a', amber: '#ffb000' }[o.look];
+    box.append(h('span', { style: "display:block;padding:2px 4px;border-radius:4px;background:#050805;font:9px/1.1 'JetBrains Mono',monospace;white-space:pre;color:" + (ink || '#ddd') +
+      (o.scanlines ? ';background-image:repeating-linear-gradient(to bottom,transparent 0 2px,rgba(0,0,0,.45) 2px 3px)' : ''), text: ' ( (\n|   |]\n`---\'' }));
+  } else if (type === 'radar') {
+    const r = o.frame === 'circle' ? '50%' : o.frame === 'none' ? '0' : '7px';
+    box.append(h('span', { style: 'display:block;width:36px;height:36px;border-radius:' + r + ';background:radial-gradient(circle at 35% 40%, #6bcb77 0 18%, #ffd93d 19% 26%, transparent 27%),radial-gradient(circle at 68% 66%, #4d96ff 0 16%, transparent 17%),#1d2a38' + (o.frame === 'none' ? '' : ';box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)') }));
+  } else if (type === 'sparkles') {
+    const tones = { pastel: ['#ffb3d1', '#bfe8ff', '#ffe3b3'], gold: ['#ffd76a', '#f5c542', '#fff3c4'], ice: ['#bfe8ff', '#9fd6ff', '#e0f4ff'] }[o.palette] || ['#ffb3d1', '#bfe8ff', '#ffe3b3'];
+    const star = 'M12 0C13 7 17 11 24 12C17 13 13 17 12 24C11 17 7 13 0 12C7 11 11 7 12 0Z', five = 'M12 1.2L14.9 8.6L22.8 9L16.6 13.9L18.7 21.6L12 17.3L5.3 21.6L7.4 13.9L1.2 9L9.1 8.6Z';
+    const at = [[4, 4, 12], [24, 10, 9], [12, 24, 14]];
+    box.innerHTML = '<svg viewBox="0 0 44 44" width="38" height="38" aria-hidden="true">' + at.map(([x, y, s], i) =>
+      '<path transform="translate(' + x + ' ' + y + ') scale(' + (s / 24) + ')" d="' + (o.stars && i === 2 ? five : star) + '" fill="' + tones[i] + '"/>').join('') + '</svg>';
+  } else {
+    box.append(h('span', { text: look.label }));
+  }
+  return box;
+}
 
 class GlassPanesPanel extends HTMLElement {
   constructor() {
@@ -154,10 +245,10 @@ class GlassPanesPanel extends HTMLElement {
       <style>${PANEL_CSS}${RULES_CSS}${CATALOGUE_CSS}</style>
       <link rel="stylesheet" href="/glass_panes/player/player.css">
       <div class="app">
-        <header class="top"><span id="menu"></span><div class="brand"><img class="logo-img" src="/glass_panes/player/logo-mark.png" alt=""><span class="brandname">Glass Panes</span></div><div class="showing" id="showing"></div><span class="spacer"></span><span id="status"></span><button class="btn sm" id="catalogbtn" title="See every kind of widget, with a preview and what to bind to it">Widgets</button><button class="btn sm" id="settingsbtn" title="Settings for your mirror: presence, brightness, speaker volume"></button><button class="btn sm" id="themebtn" title="Switch between the cream and dark look"></button></header>
+        <header class="top"><span id="menu"></span><div class="brand"><img class="logo-img" src="/glass_panes/player/logo-mark.png" alt=""><span class="brandname">Glass Panes</span></div><div class="showing" id="showing"></div><span class="spacer"></span><span id="status"></span><button class="btn sm" id="settingsbtn" title="Settings for your mirror: presence, brightness, speaker volume"></button><button class="btn sm" id="themebtn" title="Switch between the cream and dark look"></button></header>
         <div class="layout" id="layout">
           <aside class="rail">
-            <div class="tabs"><button class="tab on" data-tab="panes">Panes</button><button class="tab" data-tab="displays">Displays</button></div>
+            <div class="tabs"><button class="tab on" data-tab="panes">Panes</button><button class="tab" data-tab="displays">Mirrors</button></div>
             <div class="railbody" id="railbody"></div>
           </aside>
           <main>
@@ -196,7 +287,7 @@ class GlassPanesPanel extends HTMLElement {
     const settingsBtn = $('settingsbtn');
     settingsBtn.append(icon('gear'), h('span', { class: 'btntext', text: 'Settings' }));
     settingsBtn.setAttribute('aria-pressed', 'false');
-    $('catalogbtn').addEventListener('click', () => this._openCatalogue());
+    // The Widgets catalogue button is off until the catalogue is rebuilt inside the edit area (roadmap); _openCatalogue() is kept.
     settingsBtn.addEventListener('click', () => { if (this.state.view === 'settings') this._closeSettings(); else this._openSettings(); });
     this.shadowRoot.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => { this.state.tab = t.dataset.tab; this._renderRail(true); }));
     $('dcancel').addEventListener('click', () => { $('details').style.display = 'none'; });
@@ -313,7 +404,7 @@ class GlassPanesPanel extends HTMLElement {
     this._showSig = ops.showingSignature(showing);
     box.textContent = '';
     if (!showing.length) {
-      box.append(h('button', { class: 'chip addchip', title: 'A display is any screen that shows panes', onClick: () => { this.state.tab = 'displays'; this._renderRail(true); } }, icon('plus'), 'Add a display'));
+      box.append(h('button', { class: 'chip addchip', title: 'Pair a mirror with the code on its screen', onClick: () => { this.state.tab = 'displays'; this._renderRail(true); } }, icon('plus'), 'Add a mirror'));
       return;
     }
     showing.forEach((s) => {
@@ -381,15 +472,14 @@ class GlassPanesPanel extends HTMLElement {
   }
 
   _renderDisplaysTab(body) {
+    // One front door, mirror first (UX review + owner, Nov 19: Glass Panes is for taken-over mirrors). "Add mirror" is the pairing form
+    // (the code on the mirror's screen); a sign-in link is only a fallback for a mirror whose app is too old to show a code.
+    const adding = this.state.newDisplay === true || this.state.newDisplay === 'choose' ? 'code' : this.state.newDisplay;
     if (!this.state.displays.length) {
       body.append(h('div', { class: 'card', id: 'welcome' },
-        h('h3', { style: 'margin:0 0 6px', text: 'Add your first display' }),
-        h('div', { class: 'hint', text: 'A display is any screen that shows panes: a smart mirror, a tablet, a wall panel, even a laptop browser.' }),
-        h('ol', { class: 'steps' },
-          h('li', { text: 'Give it a name below and press Add display.' }),
-          h('li', { text: 'Press Set up login on its card. You get a link, shown once.' }),
-          h('li', { text: 'Open that link on the display. It signs itself in and shows a pane.' }),
-          h('li', { text: 'Choose what it shows here, or switch it from an automation.' }))));
+        h('h3', { style: 'margin:0 0 6px', text: 'Add your mirror' }),
+        h('div', { class: 'hint', text: 'A mirror running the Glass Panes app shows a six-digit code and its address when it is new. Type them here and Home Assistant sets it up.' }),
+        this._addDisplayBody(adding || 'code')));
     }
     this.state.displays.forEach((d) => {
       // what the display is showing right now comes from its select entity when there is one (automations change it)
@@ -397,9 +487,12 @@ class GlassPanesPanel extends HTMLElement {
       const showing = live && live.state && live.state !== 'unknown' ? live.state : d.pane;
       const sel = h('select', { class: 'field', onChange: () => this._setDisplayPane(d.id, sel.value) },
         this.state.panes.map((p) => h('option', { value: p.id, selected: p.id === showing, text: p.name })));
+      const note = (this.state.pairNote || {})[d.id];
       body.append(h('div', { class: 'card', 'data-display': d.id },
         h('div', { class: 'row' }, h('div', { class: 'grow' }, h('div', { class: 'name', text: d.name }), h('div', { class: 'sub', text: d.entity_id || d.id })),
           h('button', { class: 'btn sm ghost danger', title: 'Remove this display', onClick: () => this._removeDisplay(d) }, icon('trash'))),
+        this._displayStatus(d),
+        note ? h('div', { class: 'hint', 'data-pair-note': d.id, style: 'margin-top:6px', text: note }) : null,
         h('label', { class: 'lbl', text: 'Showing' }), sel,
         this._displayZoneField(d),
         this._pairBox(d),
@@ -408,24 +501,114 @@ class GlassPanesPanel extends HTMLElement {
           ? h('div', { class: 'row' }, h('span', { class: 'pill good' }, h('span', { class: 'dot' }), 'Login set up'),
               h('button', { class: 'btn sm', onClick: () => this._makeLogin(d, true) }, 'Replace…'),
               h('button', { class: 'btn sm danger', onClick: () => this._revokeLogin(d) }, 'Revoke'))
-          : h('div', {}, h('button', { class: 'btn sm primary', onClick: () => this._makeLogin(d, false) }, 'Set up login…'),
-              h('div', { class: 'hint', style: 'margin-top:6px', text: 'Lets this display read your data without you pasting a token.' })),
+          : h('div', {}, h('button', { class: 'btn sm', onClick: () => this._makeLogin(d, false) }, 'Set up a sign-in link…'),
+              h('div', { class: 'hint', style: 'margin-top:6px', text: 'Only if pairing is not possible (a mirror app older than 0.12): a link with its login, shown once. A paired mirror has one already.' })),
         h('div', { style: 'margin-top:12px' },
-          h('button', { class: 'btn sm', 'data-settings': 'open', onClick: () => this._openSettings(d.id) }, icon('gear'), 'Mirror settings…'),
-          h('div', { class: 'hint', style: 'margin-top:6px', text: 'Presence, brightness, speaker volume and memory live on the Settings page now (the gear at the top).' })),
+          h('button', { class: 'btn sm', 'data-settings': 'open', onClick: () => this._openSettings(d.id) }, icon('gear'), 'Settings…'),
+          h('div', { class: 'hint', style: 'margin-top:6px', text: 'Presence, brightness, speaker volume and memory are on the Settings page (the gear at the top).' })),
         h('div', { style: 'margin-top:10px' }, h('a', { href: PLAYER + '?display=' + encodeURIComponent(d.id), target: '_blank', rel: 'noopener', text: 'Open this display’s player' }))));
     });
-    if (!this.state.newDisplay && this.state.displays.length) {
-      body.append(h('button', { class: 'btn newpane', onClick: () => { this.state.newDisplay = true; this._renderRail(true); } }, icon('plus'), 'Add display'));
+    if (!this.state.displays.length) return;
+    if (!adding) {
+      body.append(h('button', { class: 'btn newpane', 'data-add': 'open', onClick: () => { this.state.newDisplay = 'code'; this._renderRail(true); } }, icon('plus'), 'Add mirror'));
       return;
     }
-    const name = h('input', { class: 'field', placeholder: 'Display name, e.g. Kitchen tablet', maxlength: 80, required: true });
-    const tz = h('input', { class: 'field', placeholder: 'Time zone (optional: empty follows Home Assistant' + (this._hass.config && this._hass.config.time_zone ? ', ' + this._hass.config.time_zone : '') + ')' });
-    body.append(h('form', { class: 'card newpane', onSubmit: (e) => { e.preventDefault(); this._addDisplay(name.value, tz.value); } },
-      name, h('div', { style: 'height:8px' }), tz, h('div', { style: 'height:10px' }),
-      h('div', { class: 'row' }, h('button', { class: 'btn primary', type: 'submit', text: 'Add display' }),
-        h('button', { class: 'btn', type: 'button', text: 'Cancel', onClick: () => { this.state.newDisplay = false; this._renderRail(true); } }))));
-    setTimeout(() => name.focus(), 0);
+    body.append(h('div', { class: 'card newpane', id: 'adddisplay' }, h('h3', { style: 'margin:0 0 6px', text: 'Add a mirror' }), this._addDisplayBody(adding)));
+  }
+
+  /** One line at the top of a mirror's card: how it is connected, and what to do if it is not. */
+  _displayStatus(d) {
+    if (d.has_mirror) return h('div', { 'data-status': 'mirror' }, h('span', { class: 'pill good' }, h('span', { class: 'dot' }), 'Connected'));
+    if (d.has_login) return h('div', { 'data-status': 'link' }, h('span', { class: 'pill on' }, h('span', { class: 'dot' }), 'Signed in with a link'));
+    return h('div', { 'data-status': 'none' }, h('span', { class: 'pill warn' }, h('span', { class: 'dot' }), 'Not connected yet'),
+      h('div', { class: 'hint', style: 'margin-top:4px', text: 'Pair it with the code on its screen (Pair with a code, below).' }));
+  }
+
+  /** The inside of Add mirror: the pairing form, or (the fallback for an app too old to show a code) a name and a sign-in link. */
+  _addDisplayBody(mode) {
+    const cancel = this.state.displays.length
+      ? h('button', { class: 'btn', type: 'button', text: 'Cancel', onClick: () => { this.state.newDisplay = false; this.state.addForm = null; this._renderRail(true); } })
+      : null;
+    const switchTo = (kind, text) => h('button', { class: 'btn ghost sm', type: 'button', 'data-add': kind, style: 'margin-top:8px;padding-left:0;height:auto;white-space:normal;text-align:left',
+      onClick: () => { this.state.newDisplay = kind; this._renderRail(true); } }, text);
+    if (mode === 'link') {
+      const name = h('input', { class: 'field', placeholder: 'Name, e.g. Hall mirror', maxlength: 80, required: true });
+      const tz = h('input', { class: 'field', placeholder: 'Time zone (optional: empty follows Home Assistant' + (this._hass.config && this._hass.config.time_zone ? ', ' + this._hass.config.time_zone : '') + ')' });
+      setTimeout(() => name.focus(), 0);
+      return h('form', { 'data-add-form': 'link', onSubmit: (e) => { e.preventDefault(); this._addDisplay(name.value, tz.value, true); } },
+        h('div', { class: 'hint', style: 'margin-bottom:8px', text: 'For a mirror app older than 0.12 (it shows no code): you get a link with its login, shown once, to send to the mirror with adb.' }),
+        name, h('div', { style: 'height:8px' }), tz, h('div', { style: 'height:10px' }),
+        h('div', { class: 'row' }, h('button', { class: 'btn primary', type: 'submit', text: 'Add and make the link' }), cancel),
+        switchTo('code', '← Back to pairing with a code'));
+    }
+    // mode === 'code': make the display and pair it in one go. What was typed is kept in state.addForm, so a wrong code can be tried again.
+    const f = this.state.addForm || (this.state.addForm = { code: '', mirror: '', name: this._freeDisplayName('Mirror'), base: (this._hass.config || {}).internal_url || location.origin });
+    const keep = (k) => (ev) => { f[k] = ev.target.value; };
+    const code = h('input', { class: 'field', 'data-field': 'add-code', type: 'text', inputmode: 'numeric', maxlength: 7, placeholder: '482 913', autocomplete: 'off', value: f.code, onInput: keep('code') });
+    const mirror = h('input', { class: 'field', 'data-field': 'add-mirror', type: 'text', maxlength: 100, placeholder: 'As shown, e.g. mirror.local', autocomplete: 'off', spellcheck: 'false', value: f.mirror, onInput: keep('mirror') });
+    const name = h('input', { class: 'field', 'data-field': 'add-name', type: 'text', maxlength: 80, value: f.name, disabled: !!f.created, onInput: keep('name') });
+    const go = h('button', { class: 'btn primary', type: 'submit', 'data-field': 'add-pair-go', text: f.created ? 'Pair' : 'Add and pair' });
+    setTimeout(() => { if (!f.code) code.focus(); }, 0);
+    return h('form', { 'data-add-form': 'code', onSubmit: async (e) => { e.preventDefault(); go.disabled = true; await this._addAndPair(f); go.disabled = false; } },
+      h('label', { class: 'lbl', text: 'The code on the mirror' }), code,
+      h('label', { class: 'lbl', text: 'The address under the code' }), mirror,
+      h('label', { class: 'lbl', text: 'Name' }), name,
+      this._haAddressField(f.base, keep('base'), 'add-base'),
+      h('div', { class: 'row', style: 'margin-top:10px' }, go, cancel),
+      h('div', { class: 'hint', style: 'margin-top:6px', text: 'Home Assistant makes the mirror’s login and sends it to the mirror over your home network. You never see or copy it.' }),
+      f.created ? null : switchTo('link', 'No code on the mirror? (app older than 0.12)'));
+  }
+
+  /** "Home Assistant address, as the display reaches it": folded under Advanced unless it needs a look (an https address, or none). */
+  _haAddressField(value, onInput, field) {
+    const https = /^https:/i.test(value || '');
+    return h('details', { class: 'fold', open: !value || https },
+      h('summary', { text: 'Advanced: Home Assistant’s address' }),
+      h('label', { class: 'lbl', text: 'Home Assistant address, as the display reaches it' }),
+      h('input', { class: 'field', 'data-field': field, type: 'text', maxlength: 200, value: value || '', autocomplete: 'off', spellcheck: 'false', onInput }),
+      https ? h('div', { class: 'warnbox poor', text: 'This is an https address. Older mirrors cannot use one: type your local http address, like http://homeassistant.local:8123.' }) : null);
+  }
+
+  _freeDisplayName(base) {
+    const taken = new Set(this.state.displays.map((d) => d.name.toLowerCase()));
+    if (!taken.has(base.toLowerCase())) return base;
+    for (let n = 2; ; n++) if (!taken.has((base + ' ' + n).toLowerCase())) return base + ' ' + n;
+  }
+
+  /** Add display > It shows a code: make the display (once, even if the code has to be tried again), then pair it. */
+  async _addAndPair(f) {
+    try {
+      if (!f.created) {
+        const r = await this.ws({ type: 'glass_panes/displays/save', display: { name: (f.name || '').trim() || this._freeDisplayName('Mirror') } });
+        f.created = r.display.id;
+      }
+      await this.ws({ type: 'glass_panes/mirror/pair', display_id: f.created, endpoint: f.mirror.trim(), code: f.code.trim(), base_url: (f.base || '').trim() });
+      const id = f.created;
+      this.state.newDisplay = false;
+      this.state.addForm = null;
+      this.toast('Paired. Waiting for it to load its page…');
+      await this._reload();
+      this._watchPairing(id);
+    } catch (e) {
+      this.fail(e);
+      if (f.created) { this.state.newDisplay = 'code'; await this._reload(); }     // the display exists now; the form stays to try again
+    }
+  }
+
+  /** After pairing: ask the display (through Home Assistant) for up to a minute whether its page loaded, and say so on its card. */
+  async _watchPairing(id) {
+    const notes = this.state.pairNote || (this.state.pairNote = {});
+    const say = (text) => { notes[id] = text; if (this.state.tab === 'displays') this._renderRail(true); };
+    say('Waiting for it to load its page…');
+    for (let i = 0; i < 12; i++) {
+      await new Promise((r) => setTimeout(r, 5000));
+      if (!this.state.displays.some((d) => d.id === id)) return;
+      try {
+        const r = await this.ws({ type: 'glass_panes/mirror/status', display_id: id });
+        if (r && r.ok && r.page_ok) { say('It loaded its page and is showing its pane.'); setTimeout(() => { delete notes[id]; }, 60000); return; }
+      } catch (e) { /* not answering yet: keep waiting */ }
+    }
+    say('It has its login but has not loaded its page yet. Check that it can reach Home Assistant’s address (Advanced), then press Pair again.');
   }
 
   // ---------------------------------------------------------------- Display settings (a display that has a mirror app behind it)
@@ -499,8 +682,8 @@ class GlassPanesPanel extends HTMLElement {
     const box = h('div', { class: 'mirrorbox', 'data-display': d.id }, h('label', { class: 'lbl', text: 'Display settings' }));
     if (!d.has_mirror || st.connecting) {
       if (!d.has_mirror && !st.connecting) {
-        box.append(h('div', { class: 'hint', text: 'If a Mirror Kiosk app runs behind this display, connect it to see its status, switch presence on or off, and see what it costs in memory.' }),
-          h('div', { style: 'margin-top:8px' }, h('button', { class: 'btn sm', onClick: () => { st.connecting = true; this._renderRail(true); } }, 'Connect a mirror…')));
+        box.append(h('div', { class: 'hint', text: 'Not connected to a kiosk app yet. The easy way: Displays, then Pair with a code on this display’s card. If you already know the app’s address and key, connect it by hand here.' }),
+          h('div', { style: 'margin-top:8px' }, h('button', { class: 'btn sm', onClick: () => { st.connecting = true; this._renderRail(true); } }, 'Connect by address and key (advanced)…')));
       } else box.append(this._mirrorForm(d, st));
       return box;
     }
@@ -765,7 +948,7 @@ class GlassPanesPanel extends HTMLElement {
       h('div', { class: 'row settingshead' }, h('h2', { text: 'Settings' }), h('span', { class: 'spacer' }),
         h('button', { class: 'btn sm', 'data-settings': 'close', onClick: () => this._closeSettings() }, 'Back to panes')));
     if (!d) {
-      inner.append(h('div', { class: 'card' }, h('div', { class: 'hint', text: 'Add a display first (the Displays tab). Settings belong to a display with a Mirror Kiosk app behind it.' })), this._futureCard());
+      inner.append(h('div', { class: 'card' }, h('div', { class: 'hint', text: 'Add a mirror first (the Mirrors tab). Settings belong to a paired mirror.' })), this._futureCard());
       page.append(inner);
       return;
     }
@@ -811,30 +994,29 @@ class GlassPanesPanel extends HTMLElement {
     const open = this.state.pairing === d.id;
     if (!open) {
       return h('div', { style: 'margin-top:10px' },
-        h('button', { class: 'btn sm', 'data-field': 'pair-open', onClick: () => { this.state.pairing = d.id; this._renderRail(true); } }, d.has_login && d.has_mirror ? 'Pair again…' : 'Pair a mirror…'),
-        h('div', { class: 'hint', style: 'margin-top:6px', text: 'A mirror that is not set up shows a six-digit code on its screen. Enter it here and Home Assistant sets the mirror up for you.' }));
+        h('button', { class: 'btn sm', 'data-field': 'pair-open', onClick: () => { this.state.pairing = d.id; this._renderRail(true); } }, d.has_mirror ? 'Pair again…' : 'Pair with a code…'),
+        h('div', { class: 'hint', style: 'margin-top:6px', text: 'A mirror that is not set up shows a six-digit code and its address on its screen.' }));
     }
     const cfg = this._hass.config || {};
-    const base = cfg.internal_url || location.origin;
-    const code = h('input', { class: 'field', 'data-field': 'pair-code', type: 'text', inputmode: 'numeric', maxlength: 7, placeholder: 'Code on the mirror, like 482 913', autocomplete: 'off' });
-    const mirror = h('input', { class: 'field', 'data-field': 'pair-mirror', type: 'text', maxlength: 100, placeholder: 'Mirror address shown under the code, like mirror.local', value: d.has_mirror ? '' : '', autocomplete: 'off', spellcheck: 'false' });
-    const ha = h('input', { class: 'field', 'data-field': 'pair-base', type: 'text', maxlength: 200, value: base, autocomplete: 'off', spellcheck: 'false' });
+    let base = cfg.internal_url || location.origin;
+    const code = h('input', { class: 'field', 'data-field': 'pair-code', type: 'text', inputmode: 'numeric', maxlength: 7, placeholder: '482 913', autocomplete: 'off' });
+    const mirror = h('input', { class: 'field', 'data-field': 'pair-mirror', type: 'text', maxlength: 100, placeholder: 'As shown, e.g. mirror.local', autocomplete: 'off', spellcheck: 'false' });
     const go = h('button', { class: 'btn sm primary', 'data-field': 'pair-go', onClick: async () => {
       go.disabled = true;
       try {
-        await this.ws({ type: 'glass_panes/mirror/pair', display_id: d.id, endpoint: mirror.value.trim(), code: code.value.trim(), base_url: ha.value.trim() });
+        await this.ws({ type: 'glass_panes/mirror/pair', display_id: d.id, endpoint: mirror.value.trim(), code: code.value.trim(), base_url: base.trim() });
         this.state.pairing = null;
-        this.toast('The mirror is set up. Its pane should appear in a moment.');
+        this.toast('Paired. Waiting for it to load its page…');
         await this._reload();
+        this._watchPairing(d.id);
       } catch (e) { this.fail(e); go.disabled = false; }
     } }, 'Pair');
     return h('div', { class: 'rulecard', style: 'margin-top:10px', 'data-pair': d.id },
-      h('label', { class: 'lbl', text: 'Code' }), code,
-      h('label', { class: 'lbl', text: 'Mirror address' }), mirror,
-      h('label', { class: 'lbl', text: 'Home Assistant address, as the mirror reaches it' }), ha,
-      base.startsWith('https') ? h('div', { class: 'warnbox poor', text: 'This is an https address. Older mirrors cannot use one: type your local http address, like http://homeassistant.local:8123.' }) : null,
+      h('label', { class: 'lbl', text: 'The code on its screen' }), code,
+      h('label', { class: 'lbl', text: 'The address under the code' }), mirror,
+      this._haAddressField(base, (ev) => { base = ev.target.value; }, 'pair-base'),
       h('div', { class: 'row', style: 'margin-top:8px' }, go, h('button', { class: 'btn sm ghost', onClick: () => { this.state.pairing = null; this._renderRail(true); } }, 'Cancel')),
-      h('div', { class: 'hint', text: 'The login goes from Home Assistant to the mirror over your home network. You never see or copy it.' }));
+      h('div', { class: 'hint', text: 'The login goes from Home Assistant to the screen over your home network. You never see or copy it.' }));
   }
 
   /** The time zone of one display: type a place, or leave it empty to follow Home Assistant's own zone (so a daylight-saving change just works). */
@@ -858,13 +1040,15 @@ class GlassPanesPanel extends HTMLElement {
     await this._reload();
   }
 
-  async _addDisplay(name, tz) {
+  async _addDisplay(name, tz, withLink = false) {
     name = name.trim();
     if (!name) return;
     const display = { name };
     if (tz.trim()) display.timezone = tz.trim();
-    try { const r = await this.ws({ type: 'glass_panes/displays/save', display }); this.toast('Added ' + r.display.name); this.state.newDisplay = false; } catch (e) { this.fail(e); }
+    let made = null;
+    try { const r = await this.ws({ type: 'glass_panes/displays/save', display }); made = r.display; this.toast('Added ' + r.display.name); this.state.newDisplay = false; } catch (e) { this.fail(e); }
     await this._reload();
+    if (made && withLink) await this._makeLogin(made, false);          // Add display > A tablet or a browser: the link comes next
   }
 
   // A display signs in as its own limited user with its own long-lived token. The token is made here, shown once, and kept nowhere.
@@ -910,7 +1094,10 @@ class GlassPanesPanel extends HTMLElement {
   _exportPane() {
     if (!this.state.pane) return;
     const pane = clone(this.state.pane);
-    pane.widgets.forEach((w) => { if (w.options && w.options.media) { w.options = { ...w.options }; delete w.options.media; } });
+    pane.widgets.forEach((w) => {
+      if (w.options && w.options.media) { w.options = { ...w.options }; delete w.options.media; }
+      if (w.options && w.options.pieces) { w.options = { ...w.options }; delete w.options.pieces; }      // an art pond's own cut-outs stay home too
+    });
     const blob = new Blob([JSON.stringify({ glass_panes_pane: 1, pane }, null, 2)], { type: 'application/json' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -1094,44 +1281,46 @@ class GlassPanesPanel extends HTMLElement {
         h('button', { class: 'btn sm ghost', title: 'Save this pane as a file you can share', onClick: () => this._exportPane() }, 'Export'));
       if (cur && cur.source === 'user') actions.append(h('button', { class: 'btn sm ghost danger', onClick: () => this._deletePane() }, icon('trash'), cur.customized ? 'Reset to built-in' : 'Delete'));
     } else if (editing) {
-      // the pane's colour theme: choosing one repaints the preview straight away; "Original" removes the theme (the plain background)
-      const themeSel = h('select', { id: 'themepick', class: 'field', style: 'width:auto;padding:5px 9px', title: 'Colours for this whole pane',
-        onChange: (ev) => this._setTheme(ev.target.value) },
-      h('option', { value: '', text: 'Original' }), Object.entries(THEMES).map(([id, t]) => h('option', { value: id, selected: pane.theme === id, text: t.label })));
-      // background: used with no theme, or with a dark theme whose own background is switched off (true black stays behind the theme's colours).
-      // Pure black is see-through on a mirror; the theme's own background is lit, so it shows up as a visible rectangle there.
-      const lightTheme = !!pane.theme && !themeIsDark(pane.theme);
-      const useThemeBg = !!pane.theme && (pane.own_background !== true || lightTheme);
-      const themeBgBox = pane.theme ? h('label', { class: 'check', style: 'margin:0 0 0 8px', title: lightTheme ? 'A light theme needs its own light background (its text is dark)' : 'Tick to use the theme\'s own lit background. Untick for your own, true black by default: black is see-through on a mirror.' },
-        h('input', { type: 'checkbox', id: 'themebgpick', checked: useThemeBg, disabled: lightTheme, onChange: (ev) => this._setPaneField('own_background', ev.target.checked ? null : true) }), 'Theme background') : null;
-      const bg = h('input', { type: 'color', class: 'swatch', id: 'bgpick', value: HEX6.test(pane.background || '') ? pane.background : '#000000', disabled: useThemeBg,
-        title: useThemeBg ? 'The theme sets the background. Untick Theme background to pick your own.' : 'Background. Pure black is see-through on a two-way mirror.',
-        onChange: (ev) => this._setPaneField('background', ev.target.value.toLowerCase() === '#000000' ? null : ev.target.value.toLowerCase()) });
-      // brightness: what the display's backlight is asked for while this pane shows ("As is" leaves it alone)
-      const bright = h('select', { id: 'brightpick', class: 'field', style: 'width:auto;padding:5px 9px', title: 'Backlight while this pane shows',
-        onChange: (ev) => this._setPaneField('brightness', ev.target.value === '' ? null : parseInt(ev.target.value, 10)) },
-      h('option', { value: '', text: 'As is' }), [10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((n) => h('option', { value: n, selected: pane.brightness === n, text: n + '%' })),
-      pane.brightness != null && pane.brightness % 10 ? h('option', { value: pane.brightness, selected: true, text: pane.brightness + '%' }) : null);
+      // the pane's own settings (theme, background, brightness, grid, fade, burn-in) live in the panel on the right when nothing is selected
+      // (_renderPaneSettings); the bar keeps only the view controls
       const ctl = (...kids) => h('span', { class: 'ctl' }, ...kids);         // a label and its control never wrap apart
       actions.classList.add('panebar');
-      actions.append(ctl(h('label', { class: 'lbl', text: 'Theme' }), themeSel, ...(themeBgBox ? [themeBgBox] : [])),
-        ctl(h('label', { class: 'lbl', text: 'Background' }), bg, h('span', { class: 'hint', text: 'Black is see-through on a mirror.' })),
-        ctl(h('label', { class: 'lbl', text: 'Brightness' }), bright),
-        ctl(h('label', { class: 'lbl', text: 'Grid' }), h('select', { id: 'gridpick', class: 'field', style: 'width:auto;padding:5px 9px', title: 'Snap size while you drag (kept in this browser)',
-          onChange: (ev) => { try { localStorage.setItem('glass_panes_grid', ev.target.value); } catch (e) { /* ignore */ } this._renderInspector(); } },
-        ops.GRID_CHOICES.map((n) => h('option', { value: n, selected: this._grid() === n, text: n ? n + ' px' : 'Off' })))),
-        ctl(h('label', { class: 'lbl', text: 'Zoom' }),
-          h('button', { class: 'btn sm ghost', id: 'zoomout', title: 'Zoom out', onClick: () => this._setZoom((this._zoom || 1) / 1.25) }, '−'),
-          h('button', { class: 'btn sm ghost', id: 'zoomlbl', title: 'Fit to screen', onClick: () => this._setZoom(1) }, this._zoom > 1 ? Math.round(this._zoom * 100) + '%' : 'Fit'),
-          h('button', { class: 'btn sm ghost', id: 'zoomin', title: 'Zoom in (or Ctrl + mouse wheel)', onClick: () => this._setZoom((this._zoom || 1) * 1.25) }, '+')),
-        // fade: widgets switched by "show when" rules fade in and out instead of popping
-        h('label', { class: 'check', title: 'Widgets switched by "Show when" rules fade in and out' },
-          h('input', { type: 'checkbox', id: 'fadepick', checked: !!(pane.motion && pane.motion.widgets === 'fade'), onChange: (ev) => this._setPaneField('motion', ev.target.checked ? { widgets: 'fade' } : null) }), 'Fade'),
-        h('label', { class: 'check', title: 'The whole pane drifts a few pixels over 40 minutes, so a screen left on never holds the same pixels' },
-          h('input', { type: 'checkbox', id: 'driftpick', checked: pane.burn_in_saver === true, onChange: (ev) => this._setPaneField('burn_in_saver', ev.target.checked ? true : null) }), 'Burn-in drift'));
+      actions.append(ctl(h('label', { class: 'lbl', text: 'Zoom' }),
+        h('button', { class: 'btn sm ghost', id: 'zoomout', title: 'Zoom out', onClick: () => this._setZoom((this._zoom || 1) / 1.25) }, '−'),
+        h('button', { class: 'btn sm ghost', id: 'zoomlbl', title: 'Fit to screen', onClick: () => this._setZoom(1) }, this._zoom > 1 ? Math.round(this._zoom * 100) + '%' : 'Fit'),
+        h('button', { class: 'btn sm ghost', id: 'zoomin', title: 'Zoom in (or Ctrl + mouse wheel)', onClick: () => this._setZoom((this._zoom || 1) * 1.25) }, '+')));
+      actions.append(this._showOnMirrorButton());
     }
     this._renderDock();
     this._renderInspector();
+  }
+
+  /** The displays showing the pane being edited right now (so "Show on the mirror" knows where to send it). */
+  _displaysShowing() {
+    const id = this.edit && this.edit.pane.id;
+    return (this._showingNow() || []).filter((s) => s.pane === id).map((s) => this.state.displays.find((d) => d.id === s.id)).filter(Boolean);
+  }
+
+  /** "Show on <mirror> for 2 minutes": send the unsaved draft to a display live, then it goes back on its own. */
+  _showOnMirrorButton() {
+    const targets = this._displaysShowing();
+    if (!targets.length) {
+      return h('button', { class: 'btn sm ghost', disabled: true, title: 'Open this pane on a display first (set its pane in Displays), then you can try a draft on it.' }, icon('eye'), 'Show on a mirror');
+    }
+    if (targets.length === 1) {
+      return h('button', { class: 'btn sm ghost', title: 'Show this unsaved draft on ' + targets[0].name + ' for 2 minutes, then it returns to the saved pane', onClick: () => this._showOnMirror(targets[0]) }, icon('eye'), 'Show on ' + targets[0].name + ' for 2 min');
+    }
+    const menu = h('div', { class: 'rulemenu', id: 'showmenu' }, targets.map((d) => h('div', { class: 'item' }, h('button', { class: 'btn sm ghost', onClick: () => { menu.classList.remove('open'); this._showOnMirror(d); } }, d.name))));
+    return h('div', { class: 'menuwrap' }, h('button', { class: 'btn sm ghost', title: 'Show this unsaved draft on a mirror for 2 minutes', onClick: () => menu.classList.toggle('open') }, icon('eye'), 'Show on a mirror for 2 min'), menu);
+  }
+
+  async _showOnMirror(display) {
+    try {
+      const r = await this.ws({ type: 'glass_panes/preview_pane', display_id: display.id, pane: this.edit.pane, bindings: this.edit.bindings, seconds: 120 });
+      this.toast('Showing your draft on ' + display.name + ' for ' + Math.round((r.seconds || 120) / 60) + ' min. It goes back on its own.');
+    } catch (e) {
+      this.toast('Could not show it on ' + display.name + ': ' + (e && e.message ? e.message : 'try again'), true);
+    }
   }
 
   /** Set (or clear, with an empty value) the pane's colour theme. It goes through _commit, so it can be undone and shows at once. */
@@ -1263,6 +1452,8 @@ class GlassPanesPanel extends HTMLElement {
   _startEdit() {
     if (!this.state.pane) return;
     this.edit = { pane: clone(this.state.pane), bindings: clone(this._boundSlots()), undo: [], redo: [], selected: [], dirty: false, edgeOk: new Set(), sample: new Set() };
+    // with nothing selected the panel on the right shows this pane's settings, or the Add panel: an empty pane starts on Add
+    this._paneView = (this.edit.pane.widgets || []).length ? 'pane' : 'add';
     this._draw();
     clearInterval(this._syncTimer);
     this._syncTimer = setInterval(() => this._syncOverlay(), 450);
@@ -1382,8 +1573,10 @@ class GlassPanesPanel extends HTMLElement {
     this._restore(e.redo.pop());
   }
 
-  _selectWidgets(ids) {
+  _selectWidgets(ids, view) {
     this.edit.selected = ids;
+    if (view) this._paneView = view;                    // 'add' from "+ Add" and the back link; otherwise letting go shows the pane's settings
+    else if (ids.length) this._paneView = 'pane';
     this._syncOverlay();
     this._renderChrome();
   }
@@ -1417,9 +1610,30 @@ class GlassPanesPanel extends HTMLElement {
         h('span', { class: 'why' }),
         h('button', { class: 'x', title: 'Remove' }, icon('x')),
         h('button', { class: 'eye', title: 'Preview this widget on or off (Auto, then Hidden, then Shown). Only changes the preview; nothing is saved.' }, icon('eye')),
-        ['nw', 'ne', 'sw', 'se'].map((c) => h('span', { class: 'handle', 'data-h': c }))));
+        ['nw', 'ne', 'sw', 'se'].map((c) => h('span', { class: 'handle', 'data-h': c })),
+        this._widgetToolbar(w)));
     });
     this._syncOverlay();
+  }
+
+  /** The small toolbar on the selected widget (shown by CSS on a lone selection): its look, copy, forward/back, remove. */
+  _widgetToolbar(w) {
+    const looks = ((this.state.registry || {})[w.type] || {}).looks || [];
+    const dflts = this._optDefaults(w.type);
+    const bar = h('span', { class: 'wtool', role: 'toolbar', 'aria-label': 'Widget actions' });
+    if (looks.length) {
+      const cur = ops.lookOf(w, looks, dflts);
+      bar.append(h('select', { class: 'wlook', title: 'Look', 'aria-label': 'Look',
+        onChange: (ev) => this._patch(w.id, (x) => { const y = ops.withLook(x, looks, ev.target.value, dflts); Object.keys(x).forEach((k) => delete x[k]); Object.assign(x, y); }) },
+      cur ? null : h('option', { value: '', text: 'Custom', selected: true, disabled: true }),
+      looks.map((l) => h('option', { value: l.id, selected: l.id === cur, text: l.label }))));
+    }
+    bar.append(
+      h('button', { title: 'Duplicate', 'aria-label': 'Duplicate', onClick: () => this._duplicateWidgets([w.id]) }, icon('copy')),
+      h('button', { title: 'Bring forward', 'aria-label': 'Bring forward', onClick: () => this._restack(w.id, 'up') }, icon('front')),
+      h('button', { title: 'Send back', 'aria-label': 'Send back', onClick: () => this._restack(w.id, 'down') }, icon('back')),
+      h('button', { class: 'danger', title: 'Remove', 'aria-label': 'Remove', onClick: () => this._removeWidgets([w.id]) }, icon('trash')));
+    return bar;
   }
 
   _syncOverlay() {
@@ -1435,6 +1649,7 @@ class GlassPanesPanel extends HTMLElement {
       box.classList.toggle('ghost', r.ghost);
       this._syncEye(box, w);
       box.classList.toggle('sel', this.edit.selected.includes(w.id));
+      box.classList.toggle('toolbelow', r.y < 120);
       this.$('overlay').classList.toggle('multi', this.edit.selected.length > 1);
       const entityIds = this._boundIds(w.id);
       const explain = r.ghost && entityIds.length > 0 && !this.edit.sample.has(w.id);
@@ -1458,11 +1673,15 @@ class GlassPanesPanel extends HTMLElement {
   // ---------------------------------------------------------------- dragging
   _pointerDown(e) {
     if (!this.edit || e.button > 0) return;
+    // an inline text editor open elsewhere: this press commits it (and nothing else), so clicking away saves
+    const openEdit = this.shadowRoot.querySelector('.inlineedit');
+    if (openEdit && !openEdit.contains(e.target)) { e.preventDefault(); if (openEdit.__finish) openEdit.__finish(true); return; }
     const box = e.target.closest('.box');
     if (!box) { this._selectWidgets([]); return; }
     const id = box.dataset.id;
     if (e.target.closest('.x')) { this._removeWidgets([id]); e.preventDefault(); return; }
     if (e.target.closest('.eye')) { this._cycleForce(id); e.preventDefault(); return; }
+    if (e.target.closest('.wtool') || e.target.closest('.inlineedit')) return;
     const additive = e.shiftKey || e.ctrlKey || e.metaKey;
     let sel = this.edit.selected;
     // Widgets can sit on top of each other (an empty one, like Now playing with nothing playing, is easily covered by the one that slid up
@@ -1471,6 +1690,14 @@ class GlassPanesPanel extends HTMLElement {
     const under = this.shadowRoot.elementsFromPoint(e.clientX, e.clientY)
       .filter((n) => n.classList && n.classList.contains('box')).map((n) => n.dataset.id).sort((a, b) => order.get(a) - order.get(b));
     const stacked = under.length > 1 && !additive ? under : null;
+    // a second press on the same lone widget within 350 ms is a double-click: edit Text/Message in place (stacked widgets keep click-to-cycle)
+    const now = Date.now();
+    const dbl = this._lastDown && this._lastDown.id === id && now - this._lastDown.t < 350 && !e.target.closest('.handle') && !stacked;
+    this._lastDown = { id, t: now };
+    if (dbl) {
+      const dw = this._widget(id);
+      if (dw && ['text', 'message'].includes(dw.type)) { this._lastDown = null; this._selectWidgets([id]); this._editTextInline(dw, box); e.preventDefault(); return; }
+    }
     if (e.altKey && stacked) {                                           // Alt-click: straight to the next one underneath
       const at = sel.length === 1 ? stacked.indexOf(sel[0]) : -1;
       this._selectWidgets([stacked[(at + 1) % stacked.length]]);
@@ -1489,6 +1716,10 @@ class GlassPanesPanel extends HTMLElement {
     try { this.$('overlay').setPointerCapture(e.pointerId); } catch (err) { /* the drag still works without capture */ }
     e.preventDefault();
   }
+
+  // a widget whose main text has an explicit size (text, message, a sized clock...) scales that size when the box is resized by its height
+  _scalesText(w) { return w && !w.auto_height && !['divider', 'image', 'video'].includes(w.type) && w.style && typeof w.style.size === 'number'; }
+  _scaledSize(w, oldH, newH) { return Math.max(8, Math.min(400, Math.round(w.style.size * (newH / Math.max(1, oldH))))); }
 
   _pointerMove(e) {
     const d = this._drag;
@@ -1510,6 +1741,11 @@ class GlassPanesPanel extends HTMLElement {
       const hh = next.auto_height ? rect.h : next.h;
       box.classList.add('dragging');
       box.style.left = next.x + 'px'; box.style.top = next.y + 'px'; box.style.width = next.w + 'px'; box.style.height = Math.max(hh, 36) + 'px';
+      // resize of a sized-text widget: grow the real text live so you can judge it (committed on drop)
+      if (d.mode === 'resize' && this._scalesText(w)) {
+        const real = this.$('stage').querySelector('[data-widget="' + id.replace(/"/g, '') + '"]');
+        if (real) { real.style.fontSize = this._scaledSize(w, rect.h, next.h) + 'px'; d.sized = real; }
+      }
       // the real widget follows a move (a transform only: nothing is saved and nothing re-renders until the drop)
       if (d.mode === 'move') {
         const real = this.$('stage').querySelector('[data-widget="' + id.replace(/"/g, '') + '"]');
@@ -1525,6 +1761,7 @@ class GlassPanesPanel extends HTMLElement {
     try { this.$('overlay').releasePointerCapture(e.pointerId); } catch (err) { /* already released */ }
     this._dragging = false;
     if (d.moved) d.moved.forEach((el) => { el.style.translate = ''; });
+    if (d.sized) d.sized.style.fontSize = '';
     if (!d.active || cancelled) {
       if (!cancelled && !d.active && d.cycle && !d.handle) this._selectWidgets([d.cycle[(d.cycle.indexOf(d.id) + 1) % d.cycle.length]]);   // clicked again, did not drag: the next one underneath
       this._buildOverlay();
@@ -1535,10 +1772,50 @@ class GlassPanesPanel extends HTMLElement {
     pane.widgets = pane.widgets.map((w) => {
       const rect = d.rects.get(w.id);
       if (!rect) return w;
-      if (d.mode === 'resize') return w.id === d.id ? ops.resized(w, rect, d.handle, dx, dy, this._grid()) : w;
+      if (d.mode === 'resize') {
+        if (w.id !== d.id) return w;
+        const next = ops.resized(w, rect, d.handle, dx, dy, this._grid());
+        if (this._scalesText(w) && next.h !== rect.h) { const size = this._scaledSize(w, rect.h, next.h); return { ...next, style: { ...w.style, size } }; }
+        return next;
+      }
       return ops.moved(w, rect, dx, dy, this._grid(), ops.followsAny(w, [...d.rects.keys()]));
     });
     this._commit(pane);
+  }
+
+  /** An editable box laid over the widget: Text edits options.text, Message edits options.lines (one per line). Enter or blur saves, Escape cancels. */
+  _editTextInline(w, box) {
+    if (box.querySelector('.inlineedit')) return;
+    const o = w.options || {};
+    const value = w.type === 'message' ? (o.lines || []).join('\n') : (o.text || '');
+    const ta = h('textarea', { class: 'inlineedit', spellcheck: 'false' });
+    ta.value = value;
+    ta.style.fontSize = ((w.style && w.style.size) || 32) + 'px';
+    ta.style.textAlign = (w.style && w.style.align) || 'left';
+    box.append(ta);
+    this.$('overlay').classList.add('editingtext');
+    let done = false;
+    const finish = (save) => {
+      if (done) return; done = true;
+      this.$('overlay').classList.remove('editingtext');
+      if (save) {
+        const v = ta.value;
+        this._patch(w.id, (x) => {
+          x.options = { ...(x.options || {}) };
+          if (w.type === 'message') x.options.lines = v.split('\n').map((s) => s.trim()).filter(Boolean);
+          else x.options.text = v;
+        });
+      } else { ta.remove(); }
+    };
+    ta.addEventListener('keydown', (ev) => {
+      ev.stopPropagation();                                              // the canvas key shortcuts (Delete, arrows) must not fire while typing
+      if (ev.key === 'Escape') { ev.preventDefault(); finish(false); }
+      else if (ev.key === 'Enter' && (w.type === 'text' || ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); finish(true); }
+    });
+    ta.__finish = finish;                                              // so a pointerdown elsewhere can commit this editor
+    ta.addEventListener('blur', () => finish(true));
+    ta.addEventListener('pointerdown', (ev) => ev.stopPropagation());   // clicking in the field must not start a drag or reselect
+    setTimeout(() => { ta.focus(); ta.select(); }, 0);
   }
 
   _keyDown(e) {
@@ -1579,10 +1856,6 @@ class GlassPanesPanel extends HTMLElement {
     this._commit(pane, bindings);
   }
 
-  /**
-   * "More options": every option of the widget's type that has no hand-made control above, built from the pane schema
-   * (ops.optionFields). The schema is fetched once; until it arrives the section is simply not there.
-   */
   /** The Time zone box of a Clock or Date widget: type a place (the browser suggests the names), or leave it empty for the display's own zone. */
   _timezoneField(box, w) {
     let zones;
@@ -1600,58 +1873,94 @@ class GlassPanesPanel extends HTMLElement {
       h('div', { class: 'hint', text: 'Empty shows the display’s own time zone. Type a place such as America/Chicago or Asia/Tokyo; the list suggests names.' }));
   }
 
-  _moreOptions(box, w) {
-    if (!this._schemaDefs) {
-      if (!this._schemaLoading) {
-        this._schemaLoading = fetch('/glass_panes/schema/pane.schema.json').then((r) => r.json())
-          .then((s) => { this._schemaDefs = s.$defs || {}; this._renderInspector(); }).catch(() => { this._schemaLoading = null; });
-      }
-      return;
+  /** The pane schema's $defs, fetched once; null until it arrives (the inspector redraws then). */
+  _ensureSchema() {
+    if (this._schemaDefs) return this._schemaDefs;
+    if (!this._schemaLoading) {
+      this._schemaLoading = fetch('/glass_panes/schema/pane.schema.json').then((r) => r.json())
+        .then((s) => { this._schemaDefs = s.$defs || {}; this._renderInspector(); }).catch(() => { this._schemaLoading = null; });
     }
-    const skip = ['text', 'lines', 'media', 'asset', 'sources', 'folder', 'icon', 'columns']
-      .concat((TOGGLES[w.type] || []).map((t) => t[0]), (CHOICES[w.type] || []).map((c) => c[0]), w.type === 'clock' || w.type === 'date' ? ['timezone'] : []);
-    const fields = ops.optionFields(this._schemaDefs['opt_' + w.type], skip);
-    if (!fields.length) return;
+    return null;
+  }
+
+  /** Each option's default for a widget type: from the schema once it is loaded, and the hand-made choices' defaults meanwhile. */
+  _optDefaults(type) {
+    const out = {};
+    (CHOICES[type] || []).forEach(([k, , , d]) => { out[k] = d; });
+    (TOGGLES[type] || []).forEach(([k, , d]) => { out[k] = d; });
+    const def = (this._schemaDefs || {})['opt_' + type];
+    Object.entries((def && def.properties) || {}).forEach(([k, p]) => { if (p.default !== undefined) out[k] = p.default; });
+    return out;
+  }
+
+  /** The opacity slider (one element list, so it can be spread into a section). */
+  _opacityRow(style, setStyle) {
+    const pct = Math.round((style.opacity == null ? 1 : style.opacity) * 100);
+    const out = h('span', { class: 'hint', text: pct + '%' });
+    return [h('label', { class: 'lbl', text: 'Opacity' }),
+      h('div', { class: 'row', style: 'gap:8px;flex-wrap:nowrap' },
+        h('input', { type: 'range', min: 10, max: 100, step: 5, value: pct, style: 'flex:1',
+          onInput: (ev) => { out.textContent = ev.target.value + '%'; },
+          onChange: (ev) => { const v = parseInt(ev.target.value, 10); setStyle('opacity', v >= 100 ? null : v / 100); } }), out)];
+  }
+
+  /** One option drawn from the schema (ops.optionFields): a checkbox, a choice (buttons when there are 2 or 3), a number, text, ticks or a list. */
+  _optionRow(w, f) {
     const opts = w.options || {};
-    const apply = (f, raw) => {
+    const apply = (raw) => {
       const v = ops.optionValue(f, raw);
       if (v === null) { this.toast(f.label + ': that does not fit. ' + f.hint); this._renderInspector(); return; }
-      this._patch(w.id, (x) => { x.options = { ...(x.options || {}) }; if (v === undefined) delete x.options[f.key]; else x.options[f.key] = v; });
+      this._patch(w.id, (x) => { x.options = { ...(x.options || {}) }; if (v === undefined || v === f.dflt) delete x.options[f.key]; else x.options[f.key] = v; });
     };
-    const shown = (f) => (opts[f.key] !== undefined ? opts[f.key] : f.dflt);
+    const shown = opts[f.key] !== undefined ? opts[f.key] : f.dflt;
     const words = (v) => String(v).replace(/_/g, ' ');
+    const row = h('div', { class: 'opt', 'data-opt': f.key });
+    if (f.kind === 'bool') {
+      row.append(h('label', { class: 'check', title: f.hint }, h('input', { type: 'checkbox', checked: !!shown, onChange: (ev) => apply(ev.target.checked) }), f.label));
+      return row;
+    }
+    row.append(h('label', { class: 'lbl', text: f.label }));
+    if (f.kind === 'enum' && f.values.length <= 3 && f.dflt !== undefined) {
+      row.append(h('div', { class: 'seg', 'data-option': f.key }, f.values.map((v, i) => h('button', { class: v === shown ? 'on' : '', 'data-value': v, onClick: () => apply(i), text: words(v) }))));
+    } else if (f.kind === 'enum') {
+      row.append(h('select', { class: 'field', onChange: (ev) => (ev.target.value === '' ? apply(undefined) : apply(ev.target.value)) },
+        f.dflt === undefined ? h('option', { value: '', text: 'Default', selected: shown === undefined }) : null,
+        f.values.map((v, i) => h('option', { value: i, selected: v === shown, text: words(v) + (v === f.dflt ? ' (default)' : '') }))));
+    } else if (f.kind === 'int' || f.kind === 'number') {
+      row.append(h('input', { class: 'field', type: 'number', min: f.min, max: f.max, step: f.kind === 'int' ? 1 : 'any', value: opts[f.key] !== undefined ? opts[f.key] : '',
+        placeholder: f.dflt !== undefined ? String(f.dflt) : 'Auto', onChange: (ev) => apply(ev.target.value) }));
+    } else if (f.kind === 'text') {
+      row.append(h('input', { class: 'field', type: 'text', maxlength: f.max, value: opts[f.key] || '', placeholder: f.dflt !== undefined ? String(f.dflt) : '', onChange: (ev) => apply(ev.target.value) }));
+    } else if (f.kind === 'multi') {
+      const cur = shown || [];
+      row.append(h('div', { class: 'grid2' }, f.values.map((v) => h('label', { class: 'check' },
+        h('input', { type: 'checkbox', checked: cur.includes(v), onChange: (ev) => apply(ev.target.checked ? cur.concat(v) : cur.filter((x) => x !== v)) }), words(v)))));
+    } else if (f.kind === 'list') {
+      row.append(h('textarea', { class: 'field', rows: 3, placeholder: 'One per line', onChange: (ev) => apply(ev.target.value) }, (opts[f.key] || []).join('\n')));
+    }
+    if (f.hint) row.append(h('div', { class: 'hint', text: f.hint }));
+    return row;
+  }
+
+  /**
+   * "More options": every option of the widget's type that has no control above (the basics, the looks, the hand-made ones),
+   * built from the pane schema (ops.optionFields). Until the schema arrives the section is simply not there.
+   */
+  _moreOptions(box, w) {
+    if (!this._ensureSchema()) return;
+    const reg = this.state.registry[w.type] || {};
+    const shownAbove = (k) => !reg.basics || reg.basics.includes(k);           // hand-made switches outside the basics are offered here instead
+    const skip = ['text', 'lines', 'media', 'asset', 'sources', 'folder', 'icon', 'columns', 'pieces', 'bug_by_league'].concat(w.type === 'rss' ? ['url'] : [])
+      .concat((TOGGLES[w.type] || []).map((t) => t[0]).filter(shownAbove), (CHOICES[w.type] || []).map((c) => c[0]).filter(shownAbove),
+        w.type === 'clock' || w.type === 'date' ? ['timezone'] : [], reg.basics || [], (reg.looks || []).flatMap((l) => Object.keys(l.options || {})));
+    const fields = ops.optionFields(this._schemaDefs['opt_' + w.type], skip);
+    if (!fields.length) return;
     // remember open/closed the moment the heading is clicked (the 'toggle' event comes a little later, and a quick edit
     // re-draws the inspector before it: the section would close under the person's hands)
     const more = h('details', { class: 'more', open: this._moreOpen === true },
       h('summary', { class: 'lbl', text: 'More options (' + fields.length + ')', onClick: () => { this._moreOpen = !more.open; } }));
     more.addEventListener('toggle', () => { if (more.isConnected) this._moreOpen = more.open; });
-    fields.forEach((f) => {
-      const row = h('div', { class: 'opt', 'data-opt': f.key });
-      if (f.kind === 'bool') {
-        row.append(h('label', { class: 'check', title: f.hint }, h('input', { type: 'checkbox', checked: !!shown(f), onChange: (ev) => apply(f, ev.target.checked) }), f.label));
-      } else {
-        row.append(h('label', { class: 'lbl', text: f.label }));
-        if (f.kind === 'enum') {
-          const cur = shown(f);
-          row.append(h('select', { class: 'field', onChange: (ev) => (ev.target.value === '' ? apply(f, undefined) : apply(f, ev.target.value)) },
-            f.dflt === undefined ? h('option', { value: '', text: 'Default', selected: cur === undefined }) : null,
-            f.values.map((v, i) => h('option', { value: i, selected: v === cur, text: words(v) + (v === f.dflt ? ' (default)' : '') }))));
-        } else if (f.kind === 'int' || f.kind === 'number') {
-          row.append(h('input', { class: 'field', type: 'number', min: f.min, max: f.max, step: f.kind === 'int' ? 1 : 'any', value: opts[f.key] !== undefined ? opts[f.key] : '',
-            placeholder: f.dflt !== undefined ? String(f.dflt) : 'Auto', onChange: (ev) => apply(f, ev.target.value) }));
-        } else if (f.kind === 'text') {
-          row.append(h('input', { class: 'field', type: 'text', maxlength: f.max, value: opts[f.key] || '', placeholder: f.dflt !== undefined ? String(f.dflt) : '', onChange: (ev) => apply(f, ev.target.value) }));
-        } else if (f.kind === 'multi') {
-          const cur = shown(f) || [];
-          row.append(h('div', { class: 'grid2' }, f.values.map((v) => h('label', { class: 'check' },
-            h('input', { type: 'checkbox', checked: cur.includes(v), onChange: (ev) => apply(f, ev.target.checked ? cur.concat(v) : cur.filter((x) => x !== v)) }), words(v)))));
-        } else if (f.kind === 'list') {
-          row.append(h('textarea', { class: 'field', rows: 3, placeholder: 'One per line', onChange: (ev) => apply(f, ev.target.value) }, (opts[f.key] || []).join('\n')));
-        }
-        if (f.hint) row.append(h('div', { class: 'hint', text: f.hint }));
-      }
-      more.append(row);
-    });
+    fields.forEach((f) => more.append(this._optionRow(w, f)));
     box.append(more);
   }
 
@@ -1739,9 +2048,10 @@ class GlassPanesPanel extends HTMLElement {
 
   _renderInspector() {
     const box = this.$('inspector');
+    this._clearCardPreviews();                     // the Widgets cards' little renderers stop with the panel they were in
     box.textContent = '';
     if (!this.edit) return;
-    if (!this.edit.selected.length) { this._renderAddPanel(box); return; }
+    if (!this.edit.selected.length) { if (this._paneView === 'add') this._renderAddPanel(box); else this._renderPaneSettings(box); return; }
     const sel = this.edit.selected.map((id) => this._widget(id)).filter(Boolean);
     if (sel.length > 1) {
       box.append(h('h3', { text: sel.length + ' items selected' }), h('div', { class: 'hint', text: 'Line them up, or press Delete to remove them.' }),
@@ -1772,7 +2082,7 @@ class GlassPanesPanel extends HTMLElement {
     const setStyle = (k, v) => this._patch(w.id, (x) => { x.style = { ...(x.style || {}) }; if (v === '' || v == null) delete x.style[k]; else x.style[k] = v; if (!Object.keys(x.style).length) delete x.style; });
     const setOpt = (k, v) => this._patch(w.id, (x) => { x.options = { ...(x.options || {}) }; x.options[k] = v; });
 
-    box.append(h('button', { class: 'btn sm ghost backlink', onClick: () => this._selectWidgets([]) }, '← Add something'));
+    box.append(h('button', { class: 'btn sm ghost backlink', onClick: () => this._selectWidgets([], 'add') }, '← Add something'));
     const shownName = this._label(w), typeName = reg.label || w.type;
     box.append(
       h('h3', { text: shownName }),
@@ -1781,8 +2091,7 @@ class GlassPanesPanel extends HTMLElement {
         h('button', { class: 'btn sm', title: 'Bring forward (over what it overlaps)', 'data-act': 'front', onClick: () => this._restack(w.id, 'up') }, icon('front'), 'Forward'),
         h('button', { class: 'btn sm', title: 'Send back (under what it overlaps)', 'data-act': 'back', onClick: () => this._restack(w.id, 'down') }, icon('back'), 'Back'),
         h('button', { class: 'btn sm', title: 'Duplicate', onClick: () => this._duplicateWidgets([w.id]) }, icon('copy'), 'Copy'),
-        h('button', { class: 'btn sm danger', title: 'Remove', onClick: () => this._removeWidgets([w.id]) }, icon('trash'), 'Remove')),
-      h('label', { class: 'lbl', text: 'Name' }), h('input', { class: 'field', value: w.name || '', maxlength: 80, onChange: (ev) => this._patch(w.id, (x) => { x.name = ev.target.value; }) }));
+        h('button', { class: 'btn sm danger', title: 'Remove', onClick: () => this._removeWidgets([w.id]) }, icon('trash'), 'Remove')));
 
     if (w.type === 'text') {
       box.append(h('label', { class: 'lbl', text: 'Text' }), h('textarea', { class: 'field', rows: 3, onChange: (ev) => setOpt('text', ev.target.value) }, (w.options || {}).text || ''));
@@ -1801,12 +2110,31 @@ class GlassPanesPanel extends HTMLElement {
     }
 
     if (w.type === 'image' || w.type === 'video') box.append(this._mediaPicker(w));
+    if (w.type === 'art_pond' && (w.options || {}).set === 'own') box.append(this._pondPicker(w));
+    if (w.type === 'ascii_art' && ((w.options || {}).art === 'custom' || (!(w.options || {}).art && (w.options || {}).text))) {
+      box.append(h('label', { class: 'lbl', text: 'Your ASCII art' }),
+        h('textarea', { class: 'field', rows: 7, spellcheck: false, 'data-option': 'text', style: "font-family:'JetBrains Mono',ui-monospace,monospace;white-space:pre;overflow-wrap:normal;overflow-x:auto",
+          onChange: (ev) => setOpt('text', ev.target.value.replace(/\s+$/, '')) }, (w.options || {}).text || ''),
+        h('div', { class: 'hint', text: 'Plain keyboard characters work best; each line is a row. The box sizes the characters.' }));
+    }
     if (w.type === 'slideshow') {
       const folder = (w.options || {}).folder || '';
       const input = h('input', { class: 'field', type: 'text', value: folder, placeholder: 'photos/family', maxlength: 240, spellcheck: false,
         onChange: (ev) => { const v = ev.target.value.trim(); this._patch(w.id, (x) => { x.options = { ...(x.options || {}) }; if (v) x.options.folder = v; else delete x.options.folder; }); } });
       box.append(h('label', { class: 'lbl', text: 'Photo folder' }), input,
         h('div', { class: 'hint', text: 'A folder inside a Home Assistant media folder (Settings, System, Storage shows your network storage; it appears under /media). Photos are shrunk to this widget’s size before the mirror gets them, so full-size photos are fine.' }));
+    }
+    if (w.type === 'rss') {
+      const url = (w.options || {}).url || '';
+      const input = h('input', { class: 'field', type: 'url', id: 'feedurl', value: url, placeholder: 'https://example.com/news/rss.xml', maxlength: 500, spellcheck: false,
+        onChange: (ev) => {
+          const v = ev.target.value.trim();
+          if (v && !/^https?:\/\//i.test(v)) { ev.target.setCustomValidity('A feed address starts with http:// or https://'); ev.target.reportValidity(); return; }
+          ev.target.setCustomValidity('');
+          this._patch(w.id, (x) => { x.options = { ...(x.options || {}) }; if (v) x.options.url = v; else delete x.options.url; });
+        } });
+      box.append(h('label', { class: 'lbl', text: 'Feed address' }), input,
+        h('div', { class: 'hint', text: 'An RSS or Atom feed (news sites list theirs, often as "RSS"). Home Assistant fetches it and keeps a copy; the display only asks Home Assistant.' }));
     }
 
     // what feeds this widget
@@ -1834,73 +2162,103 @@ class GlassPanesPanel extends HTMLElement {
       box.append(h('button', { class: 'btn sm', onClick: () => this._openDrawer('bind', { id: w.id, slot, def }) }, icon('plus'), def.kind === 'entity' ? (list.length ? 'Change' : 'Choose entity') : 'Add entity'));
     });
 
-    const toggles = TOGGLES[w.type];
-    if (toggles) {
-      box.append(h('label', { class: 'lbl', text: 'Show' }));
-      toggles.forEach(([key, label, dflt]) => {
-        const on = (w.options || {})[key] === undefined ? dflt : !!(w.options || {})[key];
-        const input = h('input', { type: 'checkbox', onChange: () => setOpt(key, input.checked) });
-        input.checked = on;
-        box.append(h('label', { class: 'check' }, input, label));
-      });
+    // ---- Look: named presets from the registry (schema/widgets.json `looks`), shown as picture cards
+    const looks = reg.looks || [];
+    const dflts = this._optDefaults(w.type);
+    const lookSet = new Set(looks.flatMap((l) => Object.keys(l.options || {})));       // options a look decides get no control of their own
+    if (looks.length) {
+      const cur = ops.lookOf(w, looks, dflts);
+      box.append(h('label', { class: 'lbl', text: 'Look' }),
+        h('div', { class: 'looks' }, looks.map((l) => h('button', { class: 'look' + (l.id === cur ? ' on' : ''), 'data-look': l.id, title: l.label,
+          onClick: () => this._patch(w.id, (x) => { const y = ops.withLook(x, looks, l.id, dflts); Object.keys(x).forEach((k) => delete x[k]); Object.assign(x, y); }) },
+        lookThumb(w.type, l), h('span', { class: 'name', text: l.label })))),
+        ...(cur ? [] : [h('div', { class: 'hint', text: 'Custom: your fine-tuning matches none of these looks. Pick one to start again from it.' })]));
     }
 
-    // pick-one options (for example Now playing's Look). Choosing the default removes the option so the pane file stays tidy.
-    (CHOICES[w.type] || []).forEach(([key, label, values, dflt, when]) => {
-      if (when && !when(w.options || {})) return;          // a choice that only matters for some looks (the clock face) appears with them
+    // ---- The basics: the few things people change most. A type with a `basics` list shows only those; others show their usual switches.
+    const basics = reg.basics || null;
+    const inBasics = (k) => !lookSet.has(k) && (!basics || basics.includes(k));
+    const toggles = (TOGGLES[w.type] || []).filter(([k]) => inBasics(k));
+    const choices = (CHOICES[w.type] || []).filter(([k]) => inBasics(k));
+    const textual = !['divider', 'image', 'video'].includes(w.type);
+    if (toggles.length || choices.length || textual || (basics && basics.length)) box.append(h('div', { class: 'section', text: 'The basics' }));
+    toggles.forEach(([key, label, dflt]) => {
+      const on = (w.options || {})[key] === undefined ? dflt : !!(w.options || {})[key];
+      const input = h('input', { type: 'checkbox', onChange: () => setOpt(key, input.checked) });
+      input.checked = on;
+      box.append(h('label', { class: 'check' }, input, label));
+    });
+    // pick-one options (the clock face for the round looks). Choosing the default removes the option so the pane file stays tidy.
+    choices.forEach(([key, label, values, dflt, when]) => {
+      if (when && !when(w.options || {})) return;          // a choice that only matters for some looks appears with them
       const current = (w.options || {})[key] || dflt;
       box.append(h('label', { class: 'lbl', text: label }),
         h('select', { class: 'field', 'data-option': key, onChange: (ev) => this._patch(w.id, (x) => { x.options = { ...(x.options || {}) }; if (ev.target.value === dflt) delete x.options[key]; else x.options[key] = ev.target.value; }) },
           values.map(([v, text]) => h('option', { value: v, selected: v === current, text }))));
     });
+    // basics that have no hand-made control: drawn from the schema the same way as "More options"
+    if (basics) {
+      const handled = new Set([...(TOGGLES[w.type] || []).map((t) => t[0]), ...(CHOICES[w.type] || []).map((c) => c[0]), 'timezone', ...lookSet]);
+      const want = basics.filter((k) => !handled.has(k));
+      const defs = this._ensureSchema();
+      if (defs && want.length) {
+        const all = ops.optionFields(defs['opt_' + w.type], []);
+        want.forEach((k) => { const f = all.find((x) => x.key === k); if (f) box.append(this._optionRow(w, f)); });
+      }
+    }
+    if ((w.type === 'clock' || w.type === 'date') && inBasics('timezone')) this._timezoneField(box, w);
+    if (textual) {
+      // colour by name from the pane's theme; "Any" opens the browser's colour picker. The full list is under Fine-tune text.
+      const th = this.edit.pane.theme && THEMES[this.edit.pane.theme];
+      const tone = (c) => (th && th[c]) || BASE_TONES[c];
+      box.append(h('label', { class: 'lbl', text: 'Colour' }),
+        h('div', { class: 'swatches' },
+          SWATCHES.map(([c, name]) => h('button', { class: 'sw' + ((style.color || '') === c ? ' on' : ''), 'data-color': c || 'default', title: name, onClick: () => setStyle('color', c || null) },
+            h('span', { class: 'dot', style: 'background:' + tone(c || 'fg') }), h('span', { class: 'name', text: name }))),
+          h('label', { class: 'sw any' + (HEX6.test(style.color || '') ? ' on' : ''), title: 'Pick any colour' },
+            h('input', { type: 'color', value: HEX6.test(style.color || '') ? style.color : '#ffffff', onChange: (ev) => setStyle('color', ev.target.value.toLowerCase()) }),
+            h('span', { class: 'name', text: 'Any' }))),
+        this._readabilityNote(w));
+    }
 
-    if (w.type === 'clock' || w.type === 'date') this._timezoneField(box, w);
-
-    if (!['divider', 'image', 'video'].includes(w.type)) {
-      box.append(h('div', { class: 'section', text: 'Text style' }),
+    // ---- Fine-tune text, and Name, position and size: closed until opened (remembered while you edit)
+    const fold = (cls, title, openKey, ...kids) => h('details', { class: 'fold ' + cls, open: this[openKey] === true },
+      h('summary', { onClick: (ev) => { this[openKey] = !ev.currentTarget.parentElement.open; } }, h('span', { class: 'lbl', style: 'display:inline;margin:0', text: title })), ...kids);
+    if (textual) {
+      box.append(fold('finetune', 'Fine-tune text', '_fineOpen',
         h('label', { class: 'lbl', text: 'Font' }),
         h('select', { class: 'field', id: 'fontpick', onChange: (ev) => setStyle('font', ev.target.value || null) },
-          h('option', { value: '', text: 'Default' }), FONT_CHOICES.map(([v, name]) => h('option', { value: v, selected: style.font === v, text: name }))),
+          h('option', { value: '', text: 'Default' }), h('optgroup', { label: 'Bundled' }, FONT_CHOICES.map(([v, name]) => h('option', { value: v, selected: style.font === v, text: name }))),
+          ['Classic', 'Screen', 'Display', 'Script'].map((g) => h('optgroup', { label: g + ' lookalikes' }, LOOK_FONTS.filter((f) => f[2] === g).map(([v, name, , like]) => h('option', { value: v, selected: style.font === v, text: name + ' (' + like + ')' }))))),
         h('div', { class: 'grid2' }, number('Size', style.size || 32, (v) => setStyle('size', Math.max(8, Math.min(400, Math.round(v)))), { step: 2 }),
           h('div', {}, h('label', { class: 'lbl', text: 'Weight' }),
             h('select', { class: 'field', onChange: (ev) => setStyle('weight', ev.target.value ? parseInt(ev.target.value, 10) : null) },
               h('option', { value: '', text: 'Default' }), [200, 300, 400, 500, 700].map((n) => h('option', { value: n, selected: style.weight === n, text: n }))))),
-        h('label', { class: 'lbl', text: 'Colour' }),
-        h('div', { class: 'row', style: 'gap:6px;flex-wrap:nowrap' },
-          h('select', { class: 'field', style: 'flex:1', onChange: (ev) => setStyle('color', ev.target.value || null) },
-            h('option', { value: '', text: 'Default' }), COLORS.map((c) => h('option', { value: c, selected: style.color === c, text: c })),
-            style.color && !COLORS.includes(style.color) ? h('option', { value: style.color, selected: true, text: style.color }) : null),
-          // any colour: the browser's own colour picker, stored as #rrggbb
-          h('input', { type: 'color', class: 'swatch', title: 'Pick any colour', value: HEX6.test(style.color || '') ? style.color : '#ffffff', onChange: (ev) => setStyle('color', ev.target.value.toLowerCase()) })),
-        this._readabilityNote(w),
+        h('label', { class: 'lbl', text: 'Colour by name' }),
+        h('select', { class: 'field', onChange: (ev) => setStyle('color', ev.target.value || null) },
+          h('option', { value: '', text: 'Default' }), COLORS.map((c) => h('option', { value: c, selected: style.color === c, text: c })),
+          style.color && !COLORS.includes(style.color) ? h('option', { value: style.color, selected: true, text: style.color }) : null),
         h('label', { class: 'lbl', text: 'Alignment' }),
         h('div', { class: 'seg' }, ['left', 'center', 'right'].map((a) => h('button', { class: (style.align || 'left') === a ? 'on' : '', onClick: () => setStyle('align', a === 'left' ? null : a), text: a }))),
         h('details', { class: 'fold textmore', open: this._textOpen === true }, h('summary', { class: 'hint', text: 'More text options', onClick: (ev) => { this._textOpen = !ev.currentTarget.parentElement.open; } }),      // stays open while you edit
-        h('div', { class: 'grid2', style: 'margin-top:8px' },
-          h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !!style.italic, onChange: (ev) => setStyle('italic', ev.target.checked || null) }), 'Italic'),
-          h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !!style.uppercase, onChange: (ev) => setStyle('uppercase', ev.target.checked || null) }), 'ALL CAPS')),
-        h('div', { class: 'grid2' },
-          h('div', {}, h('label', { class: 'lbl', text: 'Letter spacing (px)' }),
-            h('input', { class: 'field', type: 'number', min: -10, max: 40, step: 0.5, value: style.letter_spacing != null ? style.letter_spacing : 0,
-              onChange: (ev) => { const v = parseFloat(ev.target.value); setStyle('letter_spacing', isNaN(v) || v === 0 ? null : Math.max(-10, Math.min(40, v))); } })),
-          h('div', {}, h('label', { class: 'lbl', text: 'Line height' }),
-            h('input', { class: 'field', type: 'number', min: 0.8, max: 3, step: 0.05, value: style.line_height != null ? style.line_height : '', placeholder: 'Auto',
-              onChange: (ev) => { const v = parseFloat(ev.target.value); setStyle('line_height', isNaN(v) ? null : Math.max(0.8, Math.min(3, v))); } })))));
+          h('div', { class: 'grid2', style: 'margin-top:8px' },
+            h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !!style.italic, onChange: (ev) => setStyle('italic', ev.target.checked || null) }), 'Italic'),
+            h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !!style.uppercase, onChange: (ev) => setStyle('uppercase', ev.target.checked || null) }), 'ALL CAPS')),
+          h('div', { class: 'grid2' },
+            h('div', {}, h('label', { class: 'lbl', text: 'Letter spacing (px)' }),
+              h('input', { class: 'field', type: 'number', min: -10, max: 40, step: 0.5, value: style.letter_spacing != null ? style.letter_spacing : 0,
+                onChange: (ev) => { const v = parseFloat(ev.target.value); setStyle('letter_spacing', isNaN(v) || v === 0 ? null : Math.max(-10, Math.min(40, v))); } })),
+            h('div', {}, h('label', { class: 'lbl', text: 'Line height' }),
+              h('input', { class: 'field', type: 'number', min: 0.8, max: 3, step: 0.05, value: style.line_height != null ? style.line_height : '', placeholder: 'Auto',
+                onChange: (ev) => { const v = parseFloat(ev.target.value); setStyle('line_height', isNaN(v) ? null : Math.max(0.8, Math.min(3, v))); } })))),
+        ...(w.type !== 'video' ? this._opacityRow(style, setStyle) : [])));
     }
-    if (w.type !== 'video') {
-      const pct = Math.round((style.opacity == null ? 1 : style.opacity) * 100);
-      const out = h('span', { class: 'hint', text: pct + '%' });
-      box.append(h('label', { class: 'lbl', text: 'Opacity' }),
-        h('div', { class: 'row', style: 'gap:8px;flex-wrap:nowrap' },
-          h('input', { type: 'range', min: 10, max: 100, step: 5, value: pct, style: 'flex:1',
-            onInput: (ev) => { out.textContent = ev.target.value + '%'; },
-            onChange: (ev) => { const v = parseInt(ev.target.value, 10); setStyle('opacity', v >= 100 ? null : v / 100); } }), out));
-    }
-
-    box.append(h('label', { class: 'lbl', text: 'Position and size' }),
+    box.append(fold('placebox', 'Name, position and size', '_placeOpen',
+      h('label', { class: 'lbl', text: 'Name' }), h('input', { class: 'field', id: 'namepick', value: w.name || '', maxlength: 80, onChange: (ev) => this._patch(w.id, (x) => { x.name = ev.target.value; }) }),
+      ...(!textual && w.type !== 'video' ? this._opacityRow(style, setStyle) : []),
+      h('label', { class: 'lbl', text: 'Position and size' }),
       h('div', { class: 'grid2' }, number('X', rect.x, setBox('x')), number('Y', rect.y, setBox('y')), number('Width', rect.w, setBox('w')), number('Height', rect.h, setBox('h'))),
-      h('div', { class: 'hint', style: 'margin-top:6px', text: (this._grid() ? 'Snaps to a ' + this._grid() + ' px grid when you drag.' : 'Grid is off: drags land on any pixel.') + ' Type a number for an exact spot.' }));
-
+      h('div', { class: 'hint', style: 'margin-top:6px', text: (this._grid() ? 'Snaps to a ' + this._grid() + ' px grid when you drag.' : 'Grid is off: drags land on any pixel.') + ' Type a number for an exact spot.' })));
 
     // "Show when" and the layout rules: folded away until needed, open by itself when this widget already uses one (or after you opened it)
     const inUse = !!w.show_when || !!w.flow || !!w.auto_height || w.when_hidden != null;
@@ -2064,6 +2422,26 @@ class GlassPanesPanel extends HTMLElement {
     } catch (e) { this.fail(e); }              // for example: a pane still uses it
   }
 
+  /** The art pond's pieces: every uploaded picture as a tile; a click moves it through base -> accent -> edge -> not used. */
+  _pondPicker(w) {
+    const pieces = (w.options || {}).pieces || [];
+    const roleOf = new Map(pieces.map((p) => [p.media, p.role || 'base']));
+    const words = { base: 'Group', accent: 'On top', edge: 'Edge' };
+    const set = (list) => this._patch(w.id, (x) => { x.options = { ...(x.options || {}) }; if (list.length) x.options.pieces = list; else delete x.options.pieces; });
+    const input = h('input', { type: 'file', style: 'display:none', accept: 'image/png,image/webp,image/gif,image/*',
+      onChange: async () => { const file = input.files && input.files[0]; input.value = ''; const made = await this._uploadMedia(file); if (made) set(ops.cyclePiece(pieces, made.id)); } });
+    const items = this.state.media.filter((m) => m.kind === 'image');
+    const tiles = items.map((m) => h('div', { class: 'mtile' + (roleOf.has(m.id) ? ' on' : ''), title: m.name, 'data-media': m.id, onClick: () => set(ops.cyclePiece(pieces, m.id)) },
+      h('img', { src: m.url, alt: '' }), h('span', { class: 'mname', text: roleOf.has(m.id) ? words[roleOf.get(m.id)] : m.name })));
+    return h('div', {},
+      h('label', { class: 'lbl', text: 'Your cut-outs' }),
+      h('div', { class: 'row' }, h('button', { class: 'btn sm primary', onClick: () => input.click() }, icon('plus'), 'Upload a cut-out…')),
+      input,
+      items.length ? h('div', { class: 'media-grid' }, tiles) : h('div', { class: 'hint', style: 'margin-top:8px', text: 'Nothing uploaded yet.' }),
+      h('div', { class: 'hint', text: 'Click a picture to use it: Group (floats in groups, like lily pads), then On top (sits on a group, like a flower), then Edge (stands along the bottom, like grass), then not used. '
+        + 'Small PNG or WebP pictures with see-through backgrounds work best (a few hundred pixels wide keeps the mirror light). Use your own pictures, or ones you have the right to use.' }));
+  }
+
   _mediaPicker(w) {
     const kind = w.type === 'video' ? 'video' : 'image';
     const current = (w.options || {}).media || null;
@@ -2092,8 +2470,156 @@ class GlassPanesPanel extends HTMLElement {
 
   // ---------------------------------------------------------------- the Add panel and the entity chooser
   // While editing with nothing selected, the right-hand column IS the Add panel. Choosing an entity for one widget's slot opens a slide-over.
+  /** schema/works_with.json's widgets map (integrations that feed each widget), fetched once; null until it arrives (the list redraws then). */
+  _loadWorksWith() {
+    if (this._worksWith) return this._worksWith;
+    if (!this._worksWithLoading) {
+      this._worksWithLoading = fetch('/glass_panes/schema/works_with.json').then((r) => r.json())
+        .then((j) => { this._worksWith = j.widgets || {}; if (this._addState && this._addState.tab === 'elements') this._renderDrawerList(this._addState); })
+        .catch(() => { this._worksWith = {}; });
+    }
+    return null;
+  }
+
+  /** Draw one Widgets card's preview: the widget alone, with made-up data, scaled into the card. */
+  _cardPreview(prev, e) {
+    if (!e.pane) { prev.append(h('span', { class: 'none', text: 'Plays on the display itself' })); return; }
+    const W = 150, H = 84;
+    const stage = h('div', { class: 'gp-stage' });
+    const bh = e.box.auto ? Math.min(e.box.h * 2, 600) : e.box.h;
+    stage.style.width = e.box.w + 'px'; stage.style.height = bh + 'px';
+    const scale = Math.min(W / e.box.w, H / bh, 1);
+    stage.style.transform = 'scale(' + scale + ')';
+    stage.style.left = Math.max(0, (W - e.box.w * scale) / 2) + 'px'; stage.style.top = Math.max(0, (H - bh * scale) / 2) + 'px';      // centred in the card
+    prev.append(stage);
+    try {
+      const r = new PaneRenderer({ stage, client: this.mock, time: this.time, onError: () => { /* a preview may fail quietly */ } });
+      (this._cardRenderers || (this._cardRenderers = [])).push(r);
+      r.show(e.pane, mockBindings(this.state.registry, e.pane));
+    } catch (err) { prev.append(h('span', { class: 'none', text: 'No preview' })); }
+  }
+
+  _clearCardPreviews() { (this._cardRenderers || []).forEach((r) => { try { r.clear(); } catch (e) { /* gone already */ } }); this._cardRenderers = []; }
+
+  /** The panel on the right when nothing is selected: this pane's own settings, with "Add something" on top. */
+  _renderPaneSettings(box) {
+    const pane = this.edit.pane;
+    const lightTheme = !!pane.theme && !themeIsDark(pane.theme);
+    const useThemeBg = !!pane.theme && (pane.own_background !== true || lightTheme);
+    const toggle = (id, label, hint, on, set) => h('label', { class: 'check paneopt' },
+      h('input', { type: 'checkbox', id, checked: on, onChange: (ev) => set(ev.target.checked) }),
+      h('span', {}, h('span', { text: label }), hint ? h('span', { class: 'hint', text: hint }) : null));
+    // a theme is picked by sight: a small card in its own colours ("Original" is the plain look with no theme)
+    const themeCard = (id, t) => h('button', { class: 'themecard' + ((pane.theme || '') === id ? ' on' : ''), 'data-theme': id, title: t.label,
+      onClick: () => this._setTheme(id) },
+    h('span', { class: 'sample', style: `background:${t.bg};color:${t.fg}`, text: 'Aa' }), h('span', { class: 'name', text: t.label }));
+    box.append(
+      h('button', { class: 'btn primary addbig', onClick: () => this._openDrawer('add') }, icon('plus'), 'Add something'),
+      h('h3', { text: 'This pane' }),
+      h('label', { class: 'lbl', text: 'Theme' }),
+      h('div', { class: 'themecards' }, themeCard('', { label: 'Original', bg: '#000000', fg: '#f2f2f2' }), Object.entries(THEMES).map(([id, t]) => themeCard(id, t))),
+      ...(pane.theme ? [h('label', { class: 'check', title: lightTheme ? 'A light theme needs its own light background (its text is dark)' : 'Use the theme’s own lit background instead of black' },
+        h('input', { type: 'checkbox', id: 'themebgpick', checked: useThemeBg, disabled: lightTheme, onChange: (ev) => this._setPaneField('own_background', ev.target.checked ? null : true) }), 'Theme background')] : []),
+      h('label', { class: 'lbl', text: 'Background' }),
+      h('div', { class: 'row', style: 'gap:8px;flex-wrap:nowrap;align-items:center' },
+        h('input', { type: 'color', class: 'swatch', id: 'bgpick', value: HEX6.test(pane.background || '') ? pane.background : '#000000', disabled: useThemeBg,
+          title: useThemeBg ? 'The theme sets the background. Untick Theme background to pick your own.' : 'Background. Pure black is see-through on a two-way mirror.',
+          onChange: (ev) => this._setPaneField('background', ev.target.value.toLowerCase() === '#000000' ? null : ev.target.value.toLowerCase()) }),
+        h('span', { class: 'hint', text: 'Black keeps the glass a mirror.' })),
+      ...this._photoBackgroundFields(pane),
+      h('label', { class: 'lbl', text: 'Brightness' }),
+      h('select', { id: 'brightpick', class: 'field', title: 'Backlight while this pane shows', onChange: (ev) => this._setPaneField('brightness', ev.target.value === '' ? null : parseInt(ev.target.value, 10)) },
+        h('option', { value: '', text: 'Leave as it is' }), [10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((n) => h('option', { value: n, selected: pane.brightness === n, text: n + '%' })),
+        pane.brightness != null && pane.brightness % 10 ? h('option', { value: pane.brightness, selected: true, text: pane.brightness + '%' }) : null),
+      h('div', { class: 'section', text: 'While you edit and on the mirror' }),
+      h('label', { class: 'lbl', text: 'Snap to grid' }),
+      h('select', { id: 'gridpick', class: 'field', title: 'Snap size while you drag (kept in this browser)',
+        onChange: (ev) => { try { localStorage.setItem('glass_panes_grid', ev.target.value); } catch (e) { /* ignore */ } this._renderInspector(); } },
+      ops.GRID_CHOICES.map((n) => h('option', { value: n, selected: this._grid() === n, text: n ? n + ' px' : 'Off (any pixel)' }))),
+      toggle('fadepick', 'Fade', 'Widgets switched by "Show when" fade in and out', !!(pane.motion && pane.motion.widgets === 'fade'), (on) => this._setPaneField('motion', on ? { widgets: 'fade' } : null)),
+      toggle('driftpick', 'Burn-in drift', 'The whole pane moves a few pixels over 40 minutes', pane.burn_in_saver === true, (on) => this._setPaneField('burn_in_saver', on ? true : null)));
+  }
+
+  /** "Background photo" in This pane: none, one photo, or a slideshow of a media folder (pane.photo_background). The photos come from the
+   *  same place as the Photo slideshow widget and are shrunk by the integration before a display gets them. */
+  _photoBackgroundFields(pane) {
+    const bg = pane.photo_background || null;
+    const mode = !bg ? '' : bg.photo ? 'one' : 'show';
+    const set = (changes) => {
+      const next = { ...(bg || {}), ...changes };
+      Object.keys(next).forEach((k) => { if (next[k] == null || next[k] === '') delete next[k]; });
+      this._setPaneField('photo_background', next.folder ? next : null);
+    };
+    const opt = (value, text, on) => h('option', { value, text, selected: on });
+    const fields = [
+      h('label', { class: 'lbl', text: 'Background photo' }),
+      h('select', { id: 'photobgmode', class: 'field', onChange: (ev) => {
+        const v = ev.target.value;
+        if (!v) { this._setPaneField('photo_background', null); return; }
+        if (!bg || !bg.folder) { this._photoBgDraft = v; this._renderInspector(); return; }      // ask for the folder first
+        if (v === 'show') { set({ photo: null }); return; }
+        const first = bg.photo || this._photoNames(bg.folder)[0];
+        if (first) set({ photo: first }); else this._loadPhotoNames(bg.folder, true);          // the first photo, once the folder is read
+      } }, opt('', 'None', !mode && !this._photoBgDraft), opt('one', 'One photo', mode === 'one' || (!mode && this._photoBgDraft === 'one')),
+      opt('show', 'Slideshow', mode === 'show' || (!mode && this._photoBgDraft === 'show'))),
+    ];
+    if (!mode && !this._photoBgDraft) return fields;
+    const folder = (bg && bg.folder) || '';
+    fields.push(h('input', { id: 'photobgfolder', class: 'field', type: 'text', value: folder, placeholder: 'Photo folder, for example photos/family', maxlength: 240, spellcheck: false,
+      onChange: (ev) => {
+        const v = ev.target.value.trim();
+        if (!v) { this._setPaneField('photo_background', null); return; }
+        const wantOne = (mode || this._photoBgDraft) === 'one';
+        this._photoBgDraft = null;
+        set({ folder: v, photo: wantOne ? (bg && bg.folder === v ? bg.photo : null) : null });
+        if (wantOne) this._loadPhotoNames(v, true);
+      } }));
+    if (!folder) {
+      fields.push(h('div', { class: 'hint', text: 'A folder inside a Home Assistant media folder. Full-size photos are fine: they are shrunk before the display gets them.' }));
+      return fields;
+    }
+    if (mode === 'one') {
+      const names = this._photoNames(folder);
+      fields.push(h('select', { id: 'photobgpick', class: 'field', title: 'Which photo', onChange: (ev) => set({ photo: ev.target.value }) },
+        names.length ? names.map((n) => opt(n, n, n === bg.photo)) : opt(bg.photo || '', bg.photo || 'Looking in the folder…', true),
+        bg.photo && names.length && !names.includes(bg.photo) ? opt(bg.photo, bg.photo + ' (not found)', true) : null));
+    } else {
+      const secs = bg.interval_s || 300;
+      fields.push(h('select', { id: 'photobgsecs', class: 'field', title: 'How long each photo stays', onChange: (ev) => set({ interval_s: parseInt(ev.target.value, 10) }) },
+        [[30, 'Every 30 seconds'], [60, 'Every minute'], [300, 'Every 5 minutes'], [900, 'Every 15 minutes'], [3600, 'Every hour']].map(([n, t]) => opt(n, t, n === secs)),
+        [30, 60, 300, 900, 3600].includes(secs) ? null : opt(secs, 'Every ' + secs + ' seconds', true)));
+    }
+    const dim = Number(bg.dim) || 0;
+    fields.push(h('select', { id: 'photobgdim', class: 'field', title: 'A dark veil over the photo so text stays readable', onChange: (ev) => set({ dim: parseFloat(ev.target.value) || null }) },
+      [[0, 'No dimming'], [0.2, 'Dim a little'], [0.4, 'Dim'], [0.6, 'Dim a lot']].map(([n, t]) => opt(n, t, Math.abs(n - dim) < 0.01)),
+      [0, 0.2, 0.4, 0.6].some((n) => Math.abs(n - dim) < 0.01) ? null : opt(dim, 'Dim ' + Math.round(dim * 100) + '%', true)),
+    h('div', { class: 'hint', text: 'A photo is not see-through on a mirror (only black is).' }));
+    return fields;
+  }
+
+  /** File names in a media folder for the "One photo" list, read once per folder from the slideshow listing. */
+  _photoNames(folder) {
+    const cache = this._photoNameCache || (this._photoNameCache = new Map());
+    if (!cache.has(folder)) this._loadPhotoNames(folder, false);
+    return cache.get(folder) || [];
+  }
+
+  _loadPhotoNames(folder, pickFirst) {
+    const cache = this._photoNameCache || (this._photoNameCache = new Map());
+    if (cache.has(folder) && !pickFirst) return;
+    cache.set(folder, cache.get(folder) || []);
+    Promise.resolve(this._hass ? this.ws({ type: 'glass_panes/slideshow/list', folder, w: 128, h: 128 }) : { items: [] })
+      .then((r) => {
+        const names = (r.names || []).filter((n) => typeof n === 'string');
+        cache.set(folder, names);
+        const bg = this.edit && this.edit.pane.photo_background;
+        if (pickFirst && bg && bg.folder === folder && !bg.photo && names.length) this._setPaneField('photo_background', { ...bg, photo: names[0] });
+        else if (this.edit && !this.edit.selected.length && this._paneView !== 'add') this._renderInspector();
+      }).catch(() => { /* the list shows the saved name only */ });
+  }
+
   _renderAddPanel(box) {
-    const D = this._addState || (this._addState = { mode: 'add', docked: true, tab: 'entities', query: '', open: null });
+    const D = this._addState || (this._addState = { mode: 'add', docked: true, tab: 'elements', query: '', open: null });
     D.host = box;
     this._renderDrawer(D);
   }
@@ -2101,7 +2627,7 @@ class GlassPanesPanel extends HTMLElement {
   _openDrawer(mode, target) {
     if (mode === 'add') {                                         // "+ Add": let go of the selection so the Add panel shows
       if (!this.edit) return;
-      this._selectWidgets([]);
+      this._selectWidgets([], 'add');
       setTimeout(() => { const q = this.$('inspector').querySelector('input'); if (q) q.focus(); }, 60);
       return;
     }
@@ -2127,9 +2653,12 @@ class GlassPanesPanel extends HTMLElement {
       h('h2', {}, bind ? 'Choose an entity' : 'Add to this pane', D.docked ? null : h('button', { class: 'btn icon ghost', title: 'Close', onClick: () => this._closeDrawer() }, icon('x'))));
     if (!bind) {
       head.append(h('div', { class: 'seg' },
-        ['entities', 'elements', 'groups'].map((t) => h('button', { class: D.tab === t ? 'on' : '', text: t === 'entities' ? 'Your entities' : t === 'groups' ? 'Groups' : 'Facets', onClick: () => { D.tab = t; this._renderDrawer(D); } }))));
+        ['elements', 'entities', 'groups'].map((t) => h('button', { class: D.tab === t ? 'on' : '', text: t === 'entities' ? 'Your entities' : t === 'groups' ? 'Groups' : 'Widgets', onClick: () => { D.tab = t; this._renderDrawer(D); } }))));
     }
-    if (!bind && D.docked) head.append(h('div', { class: 'hint', text: 'Drag to move, corners to resize, shift-click to pick several. The dashed line is the safe zone.' }));
+    if (!bind && D.docked) {
+      head.prepend(h('button', { class: 'btn sm ghost backlink', id: 'panelink', onClick: () => { this._paneView = 'pane'; this._renderInspector(); } }, '← This pane'));
+      head.append(h('div', { class: 'hint', text: 'Drag to move, corners to resize, shift-click to pick several. The dashed line is the safe zone.' }));
+    }
     if (D.tab === 'entities') head.append(search);
     dr.append(head, h('div', { class: 'list', style: D.docked ? 'padding: 0' : '' }));
     this._renderDrawerList(D);
@@ -2148,9 +2677,26 @@ class GlassPanesPanel extends HTMLElement {
       return;
     }
     if (D.tab === 'elements') {
-      list.append(h('div', { class: 'tiles' }, ops.plainElements(this.state.registry).map((el) =>
-        h('button', { class: 'tile', onClick: () => this._addWidget(el.type, el.label) }, h('b', { text: el.label }), h('span', { class: 'sub', text: ELEMENT_INFO[el.type] || '' })))));
-      list.append(h('div', { class: 'hint', style: 'padding:8px 6px', text: 'Facets need no entity. Widgets that show Home Assistant data (calendar, weather, sports…) come from “Your entities”: pick an entity and Glass Panes suggests the right one.' }));
+      // every kind of widget as a card with a small live preview (made-up data); a card that needs data says where to get it
+      this._clearCardPreviews();
+      const cat = D.cat || 'all';
+      list.append(h('div', { class: 'cats' }, WIDGET_GROUPS.map(([id, label]) => h('button', { class: 'catchip' + (cat === id ? ' on' : ''), 'data-cat': id, text: label,
+        onClick: () => { D.cat = id; this._renderDrawerList(D); } }))));
+      const ww = this._loadWorksWith();
+      const cards = h('div', { class: 'wcards' });
+      ops.catalogueEntries(this.state.registry).filter((e) => e.box && (cat === 'all' || widgetGroup(e.type, this.state.registry[e.type]) === cat)).forEach((e) => {
+        const prev = h('span', { class: 'wprev', 'aria-hidden': 'true' });
+        const card = h('div', { class: 'wcard', 'data-widget-type': e.type },
+          h('button', { class: 'tile', 'data-type': e.type, title: 'Add ' + e.label + ' to this pane', onClick: () => this._addWidget(e.type, e.label) },
+            prev, h('b', { text: e.label }), h('span', { class: 'sub', text: ELEMENT_INFO[e.type] || e.description })));
+        const links = (ww && ww[e.type]) || [];
+        if (e.needs) card.append(h('div', { class: 'needs' }, h('span', { text: 'Uses ' + e.needs + '.' }),
+          ...(links.length ? [h('span', { text: ' Get one from ' }), ...links.flatMap((l, i) => [i ? h('span', { text: i === links.length - 1 ? ' or ' : ', ' }) : null,
+            h('a', { href: l.url, target: '_blank', rel: 'noopener', title: l.gives, text: l.name + (l.source === 'hacs' ? ' (HACS)' : '') })].filter(Boolean)), h('span', { text: '.' })] : [])));
+        cards.append(card);
+        this._cardPreview(prev, e);
+      });
+      list.append(cards);
       return;
     }
     const states = (this._hass && this._hass.states) || {};

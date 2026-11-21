@@ -47,6 +47,14 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     "progress_ring": {"w": 160, "h": 160, "style": {"size": 39, "weight": 300}, "options": {}},
     "sports": {"w": 960, "h": 260, "auto_height": True, "style": {"size": 28}, "options": {"layout": "rows", "max_games": 3}},
     "news": {"w": 760, "h": 160, "auto_height": True, "style": {"size": 26}, "options": {"max_stories": 2}},
+    "sparkles": {"w": 240, "h": 600, "options": {"count": 10}},
+    "radar": {"w": 560, "h": 560, "style": {"size": 22}, "options": {}},
+    "ascii_art": {"w": 480, "h": 320, "options": {"art": "coffee", "look": "green", "scanlines": True}},
+    "petals": {"w": 1000, "h": 800, "options": {"count": 14}},
+    "moon": {"w": 360, "h": 440, "options": {}},
+    "flights": {"w": 1000, "h": 240, "options": {}},
+    "art_pond": {"w": 1000, "h": 320, "options": {}},
+    "rss": {"w": 760, "h": 200, "auto_height": True, "style": {"size": 26}, "options": {"max_stories": 3}},
 }
 FALLBACK_DEFAULT = {"w": 560, "h": 120}                     # a widget type the builder's palette does not offer (for example status_summary)
 
@@ -443,10 +451,11 @@ def align_widgets(pane: dict[str, Any], widget_ids: Any, mode: Any) -> dict[str,
 
 def set_pane_fields(
     pane: dict[str, Any], *, name: Any = None, description: Any = None, theme: Any = "unchanged", background: Any = None, brightness: Any = "unchanged",
-    fade: Any = None, burn_in_saver: Any = None,
+    fade: Any = None, burn_in_saver: Any = None, photo_background: Any = "unchanged",
 ) -> dict[str, Any]:
     """Change the pane's name, description, theme, background, brightness or fade. `theme` and `brightness` accept null to remove them.
-    `fade` true makes show-when widgets fade in and out; false removes it."""
+    `fade` true makes show-when widgets fade in and out; false removes it. `photo_background` is {folder, photo?, interval_s?, shuffle?,
+    fade?, dim?}; null, {} or an empty folder removes it (the pane schema checks the rest)."""
     out = copy.deepcopy(pane)
     if name is not None:
         if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80:
@@ -475,6 +484,13 @@ def set_pane_fields(
             out["motion"] = {**(out.get("motion") or {}), "widgets": "fade"}
         else:
             out.pop("motion", None)
+    if photo_background != "unchanged":
+        if photo_background is None or (isinstance(photo_background, dict) and not photo_background.get("folder")):
+            out.pop("photo_background", None)
+        elif not isinstance(photo_background, dict):
+            raise OpError("photo_background must be an object with at least a folder, or null to remove it")
+        else:
+            out["photo_background"] = {k: v for k, v in photo_background.items() if v is not None}
     if burn_in_saver is not None:
         if not isinstance(burn_in_saver, bool):
             raise OpError("burn_in_saver must be true or false")

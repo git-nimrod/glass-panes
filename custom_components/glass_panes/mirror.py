@@ -86,6 +86,47 @@ async def call(hass: HomeAssistant, endpoint: str, key: str | None, path: str, p
     return data
 
 
+UPLOAD_TIMEOUT_S = 900          # sending a ~90 MB app file over a slow Wi-Fi
+
+
+async def upload(hass: HomeAssistant, endpoint: str, key: str | None, path: str, file_path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+    """POST a file to one fixed path on the mirror (only /update/install uses this) and return its JSON answer.
+
+    The file goes as the plain body with its Content-Length (the app's small server needs the length up front; aiohttp reads the
+    file in a worker thread). Same rules as `call`: no redirects, a capped answer, plain-language errors with no address or key."""
+    query = {k: str(v) for k, v in (params or {}).items()}
+    if key:
+        query["key"] = key
+    url = endpoint + path + ("?" + urlencode(query) if query else "")
+    session = async_get_clientsession(hass)
+    f = await hass.async_add_executor_job(open, file_path, "rb")
+    try:
+        async with session.post(url, data=f, allow_redirects=False, headers={"Content-Type": "application/vnd.android.package-archive"},
+                                timeout=aiohttp.ClientTimeout(total=UPLOAD_TIMEOUT_S)) as response:
+            status = response.status
+            body = await response.content.read(MAX_BYTES + 1)
+    except TimeoutError:
+        raise MirrorError("Sending the update to the mirror took too long. Check that it is on and try again.") from None
+    except (aiohttp.ClientError, OSError):
+        raise MirrorError("Could not send the update to the mirror. Check that it is on and on the same network.") from None
+    finally:
+        await hass.async_add_executor_job(f.close)
+    if 300 <= status < 400:
+        raise MirrorError("The mirror answered with a redirect. Redirects are never followed, so nothing was sent. Check the address.")
+    try:
+        data = json.loads(body[:MAX_BYTES].decode("utf-8", "replace"))
+    except ValueError:
+        data = None
+    if not isinstance(data, dict):
+        raise MirrorError(f"The mirror answered (code {int(status)}) but not like the Mirror Kiosk app.")
+    if status == 403 and lib.clean_text(data.get("error"), 120) == "bad key":
+        raise MirrorError("The mirror refused the key. Pair the mirror again so Home Assistant has its key.")
+    if status != 200 or data.get("ok") is False:
+        reason = lib.clean_text(data.get("error"), 160)
+        raise MirrorError(f"The mirror did not install the update (code {int(status)}{': ' + reason if reason else ''}).")
+    return data
+
+
 async def read_status(hass: HomeAssistant, endpoint: str, key: str | None, now: str) -> dict[str, Any]:
     """Read /status and keep the known fields. `now` is when it was measured (an ISO time given by the caller)."""
     raw = await call(hass, endpoint, key, "/status")

@@ -18,7 +18,8 @@ MAX_ITEMS = 40              # per slot, same as the schema
 _SLUG = re.compile(r"^[a-z0-9_]{1,64}\Z")
 _ENTITY_ID = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+\Z")
 CONDITION_SLOT_PREFIX = "when_"     # slots named when_... hold the entity of a widget's "show when" entity condition
-_RULE_KEYS ={"entity", "name", "text", "bad", "ok", "below", "above", "filter"}
+_RULE_KEYS = {"entity", "name", "text", "bad", "ok", "below", "above", "filter", "from", "to"}
+_HHMM = re.compile(r"^([01][0-9]|2[0-3]):[0-5][0-9]\Z")      # a time of day, as the "Show when" time condition writes it
 
 
 def empty() -> dict[str, Any]:
@@ -58,6 +59,15 @@ def _check_rule(where: str, rule: Any, errors: list[str]) -> None:
             errors.append(f"{where}: '{key}' must be a number")
     if "filter" in rule and rule["filter"] not in ("all", "keywords"):
         errors.append(f"{where}: 'filter' must be 'all' or 'keywords'")
+    # a time window: the check only warns between `from` and `to` (later `from` than `to` runs through midnight)
+    if "from" in rule or "to" in rule:
+        if "from" not in rule or "to" not in rule:
+            errors.append(f"{where}: a time window needs both 'from' and 'to'")
+        for key in ("from", "to"):
+            if key in rule and (not isinstance(rule[key], str) or not _HHMM.match(rule[key])):
+                errors.append(f"{where}: '{key}' must be a time of day like 01:00")
+        if rule.get("from") is not None and rule.get("from") == rule.get("to"):
+            errors.append(f"{where}: the time window starts and ends at {rule.get('from')}; use two different times, or remove it")
 
 
 def _check_value(where: str, value: Any, errors: list[str]) -> None:

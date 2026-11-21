@@ -59,11 +59,28 @@ class PairLogic(
 
         fun randomCode(): String = String.format("%06d", rng.nextInt(1_000_000))
 
+        /**
+         * Whether a page that just finished loading can be the mirror's real page. With no page address saved, or while the
+         * pairing code is on screen, the only thing that can finish loading is the browser's own empty start page, and that must
+         * not take the pairing code away (app 0.12.0 showed a white screen on a fresh install because it did). App 0.13.0 also ignores
+         * the empty start page when it is what last started loading, on a mirror that is set up.
+         */
+        fun finishedLoadIsPage(url: String?, pairing: Boolean, startedUri: String? = null): Boolean =
+            !url.isNullOrBlank() && !pairing && !isEmptyStartPage(startedUri)
+
+        /** The engine's own empty page (about:blank) or no address at all: never the mirror's page. A null [uri] means "not known". */
+        fun isEmptyStartPage(uri: String?): Boolean = uri != null && (uri.isBlank() || uri == "about:blank")
+
         /** "482 913", "482-913" and "482913" are all the same code. */
         fun digitsOnly(s: String): String = s.filter { it.isDigit() }
 
         /** "482 913": the way the code is written on the screen. */
         fun pretty(code: String): String = if (code.length == 6) code.substring(0, 3) + " " + code.substring(3) else code
+
+        /** What the home network may ask a mirror that has no control key yet: only to pair it and to read its status (Home
+         *  Assistant's pairing form needs both). Everything else waits for pairing. The mirror's own page and adb
+         *  (both on this device) are not limited by this. */
+        fun openBeforePairing(path: String): Boolean = path == "/pair" || path == "/status" || path == "/"
 
         /** Null when everything Home Assistant sent is acceptable; otherwise a short reason. */
         fun payloadProblem(url: String, token: String, key: String): String? {

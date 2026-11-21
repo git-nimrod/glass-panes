@@ -39,11 +39,14 @@ import org.mozilla.geckoview.WebRequestError
  *   adb shell am start -n com.nimrod.mirrorkiosk/.MainActivity --es url "<page url>" --es token "<ha token>"
  *       --es key "<optional api key>" --es webhook "<presence webhook id>" --es alive_webhook "<alive webhook id>"
  *       --es rotation "<auto|portrait|portrait_reverse|landscape|landscape_reverse>"
+ *   Wi-Fi for a fresh mirror (the installer sends it; nothing is stored by the app, see WifiSetup.kt):
+ *   adb shell am start -n com.nimrod.mirrorkiosk/.MainActivity --es wifi_ssid "<name>" --es wifi_pass "<password>" [--es wifi_hidden 1]
  */
 class MainActivity : Activity() {
 
     private lateinit var view: GeckoView
     private lateinit var root: FrameLayout
+    private var listenSign: ListenSign? = null          // the "the mic is in use" sign (EspServer), above the page
     private lateinit var splash: LinearLayout
     private lateinit var splashText: TextView
     private lateinit var splashPic: ImageView
@@ -56,6 +59,7 @@ class MainActivity : Activity() {
     private var videoUrl: String? = null
     private lateinit var session: GeckoSession
     private val retryLoad = Runnable { loadPage() }
+    private var lastStartedUri: String? = null          // the address of the load that started last (onPageStart), see onPageStop
 
     // Page watchdog. A page can "load" and still be broken: Home Assistant answers "404: Not Found" while it is still starting, or a
     // script fails. Once a player has ever sent a heartbeat (so older players are not affected), the page must say it is alive within
@@ -105,6 +109,8 @@ class MainActivity : Activity() {
             }
 
             if (!p.getBoolean("heartbeat", false) || !hasPage || Kiosk.lastLoadMs == 0L) return
+            // screen switched off (Screen.kt): the page may pause while asleep, so a missing heartbeat means nothing; never reload in the dark
+            if (!Screen.isOn(this@MainActivity)) { watchdogReloads = 0; return }
             if (Kiosk.lastAliveMs > Kiosk.lastLoadMs) watchdogReloads = 0
             val neverAlive = Kiosk.lastAliveMs < Kiosk.lastLoadMs && now - Kiosk.lastLoadMs > 60_000
             val wentQuiet = Kiosk.lastAliveMs >= Kiosk.lastLoadMs && now - Kiosk.lastAliveMs > 180_000
@@ -118,6 +124,9 @@ class MainActivity : Activity() {
             }
         }
     }
+
+    /** A restart asked for from Home Assistant (engine settings that only apply at start-up, GET /engine/tune?restart=1). */
+    fun restartForSettings(why: String) = restartApp(why)
 
     /** Restarts the app by itself: Android has no root here, so this is the strongest thing the app can do. It comes back in a few seconds and loads the saved page. */
     private fun restartApp(why: String) {
@@ -163,6 +172,8 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Kiosk.init(this)
+        AppUpdate.onStart(this)                 // "app_updated" in the diary after an update from Home Assistant
+        SystemSetup.ensureScreenAdmin(this)     // built-in app (image 3+): the Screen switch works with no adb step
 
         // Stay awake, show over any lock screen, and turn the screen on when we start.
         @Suppress("DEPRECATION")
@@ -190,6 +201,9 @@ class MainActivity : Activity() {
             FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         setContentView(root)
         showSplash(getString(R.string.splash_starting))
+        listenSign = ListenSign(this)
+        root.addView(listenSign, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
 
         newSession()
         handleIntent(intent, startup = true)
@@ -246,6 +260,10 @@ class MainActivity : Activity() {
         val s = GeckoSession()
 
         s.progressDelegate = object : GeckoSession.ProgressDelegate {
+            override fun onPageStart(session: GeckoSession, url: String) {
+                lastStartedUri = url
+            }
+
             override fun onPageStop(session: GeckoSession, success: Boolean) {
                 Kiosk.lastFinishedMs = Kiosk.mono()
                 if (!success) {                      // this load did not finish: try again shortly
@@ -255,6 +273,8 @@ class MainActivity : Activity() {
                 } else if (errorPageShown) {         // only the black "can't reach it" page loaded: the retry is already queued
                     errorPageShown = false
                     Kiosk.pageOk = false
+                } else if (!pageCanBeLoaded()) {     // not set up, pairing, or only the engine's empty start page finished: keep the screen as it is
+                    Kiosk.log("page_stop", "only the empty start page finished; the pairing code or loading screen stays")
                 } else {                             // the real page loaded: nothing left to retry
                     Kiosk.pageOk = true
                     Kiosk.lastLoadMs = Kiosk.mono()
@@ -336,6 +356,13 @@ class MainActivity : Activity() {
         Kiosk.main.postDelayed(retryLoad, 10_000)
     }
 
+    /** True once there is a page address to show, the pairing code is not up, and what finished was not the engine's empty start page
+     *  (see PairLogic.finishedLoadIsPage). */
+    private fun pageCanBeLoaded(): Boolean {
+        val p = Kiosk.prefs(this)
+        return PairLogic.finishedLoadIsPage(p.getString("url", ""), p.getBoolean("pairing", false), lastStartedUri)
+    }
+
     private fun loadPage() {
         val p = Kiosk.prefs(this)
         val url = p.getString("url", "") ?: ""
@@ -376,6 +403,14 @@ class MainActivity : Activity() {
 
     private fun handleIntent(intent: Intent?, startup: Boolean) {
         val e = intent?.extras
+        // Wi-Fi from the installer: handed to Android at once and taken out of the intent, so the password is not kept anywhere here
+        if (e != null && e.containsKey("wifi_ssid")) {
+            val ssid = e.getString("wifi_ssid")
+            val pass = e.getString("wifi_pass")
+            val hidden = e.getString("wifi_hidden") == "1"
+            intent.removeExtra("wifi_ssid"); intent.removeExtra("wifi_pass"); intent.removeExtra("wifi_hidden")
+            thread(name = "wifi-setup", isDaemon = true) { WifiSetup.join(applicationContext, ssid, pass, hidden) }
+        }
         var changed = false
         val ed = Kiosk.prefs(this).edit()
         e?.getString("url")?.let { ed.putString("url", it); changed = true }
@@ -518,6 +553,19 @@ class MainActivity : Activity() {
         }
     }
 
+    // ---------------------------------------------------------------- listening sign
+
+    /** Show the mic sign (main thread). A native video draws above every view, so then a short system note is shown as well. */
+    fun showListenSign(state: ListenSign.State) {
+        val sign = listenSign ?: return
+        val was = sign.state
+        sign.show(state)
+        if (videoView != null && state != was && (state == ListenSign.State.LISTENING || state == ListenSign.State.THINKING)) {
+            android.widget.Toast.makeText(this, if (state == ListenSign.State.THINKING) R.string.voice_thinking else R.string.voice_listening,
+                android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
     // ---------------------------------------------------------------- video
 
     /**
@@ -615,18 +663,36 @@ class MainActivity : Activity() {
             "data:text/html,<html><body style='background:%23000;margin:0'></body></html>"
 
         private var runtime: GeckoRuntime? = null
+        /** The engine switches the running engine was started with (EngineConfig); /engine says when saved ones differ. */
+        @Volatile var engineGpu = true
+        @Volatile var engineCrash = true
 
         /** The engine can only be created once per process, so keep it here. */
         fun runtime(ctx: Context): GeckoRuntime {
             runtime?.let { return it }
             // remote debugging and about:config only in debug builds: a release mirror should not expose the page to anyone with a cable
             val debuggable = (ctx.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
-            val settings = GeckoRuntimeSettings.Builder()
+            val builder = GeckoRuntimeSettings.Builder()
                 .remoteDebuggingEnabled(debuggable)
                 .aboutConfigEnabled(debuggable)
                 .consoleOutput(true)
-                .build()
-            return GeckoRuntime.create(ctx.applicationContext, settings).also { runtime = it }
+            // the memory switches (EngineConfig, GET /engine/tune): both off by default, so no file and no change unless chosen
+            val p = Kiosk.prefs(ctx)
+            engineGpu = p.getBoolean("engine_gpu_process", true)
+            engineCrash = p.getBoolean("engine_crash_helper", true)
+            val yaml = EngineConfig.yaml(engineGpu, engineCrash)
+            if (yaml != null) {
+                try {
+                    val f = java.io.File(ctx.filesDir, "geckoview-config.yaml")
+                    f.writeText(yaml)
+                    builder.configFilePath(f.path)
+                    Kiosk.log("engine", "gpu_process=" + engineGpu + " crash_helper=" + engineCrash)
+                } catch (e: Exception) {
+                    engineGpu = true; engineCrash = true
+                    Kiosk.log("engine", "could not write the engine settings (" + e.javaClass.simpleName + "); started as Firefox has them")
+                }
+            }
+            return GeckoRuntime.create(ctx.applicationContext, builder.build()).also { runtime = it }
         }
     }
 }

@@ -10,6 +10,7 @@ displays are changed through the websocket API and the services, not here.
     GET  /api/glass_panes/displays            the displays
     GET  /api/glass_panes/displays/<id>       one display, with the entity that switches its pane
     GET  /api/glass_panes/slideshow           the photos in a media folder (signed, shrunk addresses); /photo serves one
+    GET  /api/glass_panes/feed                the stories of a saved pane's news feed widget (Home Assistant fetches the feed, with a cache)
     GET  /api/glass_panes/picture_url         a signed address for an image or camera entity's picture; /picture serves it, shrunk
 """
 
@@ -40,7 +41,7 @@ class BindingsView(HomeAssistantView):
         self._manager = manager
 
     async def get(self, request):
-        return self.json(self._manager.bindings.data, headers=NO_STORE)
+        return self.json(self._manager.bindings_data(), headers=NO_STORE)
 
     async def put(self, request):
         user = request.get(KEY_HASS_USER)
@@ -131,7 +132,7 @@ class MediaFileView(HomeAssistantView):
 
 
 class SlideshowListView(HomeAssistantView):
-    """GET ?folder=&w=&h= returns the photos in a media folder as expiring signed addresses of copies shrunk to w by h."""
+    """GET ?folder=&w=&h=[&name=] returns the photos in a media folder as expiring signed addresses of copies shrunk to w by h."""
 
     url = f"/api/{DOMAIN}/slideshow"
     name = f"api:{DOMAIN}:slideshow"
@@ -141,7 +142,7 @@ class SlideshowListView(HomeAssistantView):
 
     async def get(self, request: web.Request) -> web.Response:
         q = request.query
-        return self.json(await self._manager.list_slideshow(q.get("folder", ""), q.get("w"), q.get("h")), headers=NO_STORE)
+        return self.json(await self._manager.list_slideshow(q.get("folder", ""), q.get("w"), q.get("h"), q.get("name") or None), headers=NO_STORE)
 
 
 class PhotoView(HomeAssistantView):
@@ -200,6 +201,24 @@ class PictureView(HomeAssistantView):
         return web.Response(body=data, headers={"Content-Type": "image/jpeg", "Cache-Control": "no-store"})
 
 
+class FeedView(HomeAssistantView):
+    """GET ?pane=&widget= returns the stories of that pane's `rss` widget. The feed address comes from the saved pane, never the request,
+    so a display's login cannot make Home Assistant fetch an address of its choosing."""
+
+    url = f"/api/{DOMAIN}/feed"
+    name = f"api:{DOMAIN}:feed"
+
+    def __init__(self, manager: Manager) -> None:
+        self._manager = manager
+
+    async def get(self, request: web.Request) -> web.Response:
+        q = request.query
+        problem, result = await self._manager.widget_feed(q.get("pane", ""), q.get("widget", ""))
+        if problem:
+            return self.json_message(problem, HTTPStatus.NOT_FOUND)
+        return self.json(result, headers=NO_STORE)
+
+
 def views(manager: Manager) -> list[HomeAssistantView]:
     return [BindingsView(manager), PaneView(manager), DisplaysView(manager), DisplayView(manager), MediaListView(manager), MediaFileView(manager),
-            SlideshowListView(manager), PhotoView(manager), PictureUrlView(manager), PictureView(manager)]
+            SlideshowListView(manager), PhotoView(manager), PictureUrlView(manager), PictureView(manager), FeedView(manager)]

@@ -3,6 +3,9 @@
 from logging import Logger, getLogger
 
 DOMAIN = "glass_panes"
+
+# a short-lived "show this draft on a display" pane, served under this id + the display id (never saved, never listed)
+PREVIEW_PANE_PREFIX = "__preview__"
 NAME = "Glass Panes"
 
 LOGGER: Logger = getLogger(__package__)

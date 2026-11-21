@@ -1,0 +1,39 @@
+{
+  "kiosk_api": 1,
+  "about": "The control API every Glass Panes kiosk speaks (the Android Mirror Kiosk app, and any other kiosk such as a Linux one), so Home Assistant, the player and the builder do not care which board a display runs on. Human-readable version: docs/mirror-app/api.md. A kiosk lists the optional calls it has in /status `capabilities`; required ones are always there.",
+  "rules": {
+    "port": 8099,
+    "method": "GET (POST only for /update/install)",
+    "content_type": "application/json",
+    "cors": "Access-Control-Allow-Origin: *",
+    "key": "With a key set, calls from other devices add ?key=<key>; a wrong or missing key gets 403 {\"ok\":false,\"error\":\"bad key\"}. Calls from the device itself need none.",
+    "errors": { "400": "a bad value, with a short reason in `error`", "403": "a bad key", "404": "{\"ok\":false,\"error\":\"not found\"} for an unknown path or a call this kiosk does not have" }
+  },
+  "status": {
+    "required": ["ok", "app", "version", "platform", "board", "kiosk_api", "capabilities", "page_ok", "uptime_s"],
+    "optional": ["update", "engine", "esphome", "seconds_since_page_load", "seconds_since_heartbeat", "brightness", "screen", "orientation", "video", "audio", "presence", "memory", "boot", "recovery", "alive_report", "engine_restarts", "blocked_loads", "display_pp", "display_pp_detail"],
+    "platforms": ["android", "linux"]
+  },
+  "capabilities": {
+    "status": { "required": true, "paths": ["/status"], "read_only": true, "about": "Everything about the kiosk in one document." },
+    "reload": { "required": true, "paths": ["/reload"], "about": "Load the player page again." },
+    "log": { "required": true, "paths": ["/log"], "read_only": true, "about": "The kiosk's diary of what it did, kept across power cycles." },
+    "pair": { "required": true, "paths": ["/pair"], "about": "Set the kiosk up from the code on its screen (Home Assistant's Pair a mirror)." },
+    "brightness": { "required": true, "paths": ["/brightness/<n>"], "about": "Backlight 0 to 100, or default." },
+    "screen": { "required": false, "paths": ["/screen", "/screen/on", "/screen/off"], "read_only_paths": ["/screen"], "about": "Screen on or off while the network stays up." },
+    "presence": { "required": false, "paths": ["/presence", "/presence/on", "/presence/off", "/presence/tune", "/presence/size"], "read_only_paths": ["/presence"], "about": "Camera presence, numbers only, never pictures." },
+    "video": { "required": false, "paths": ["/video/start", "/video/stop"], "about": "A looping video played natively above the page. Without it the player uses the page's own video element." },
+    "audio": { "required": false, "paths": ["/audio", "/audio/play", "/audio/pause", "/audio/resume", "/audio/stop", "/audio/seek", "/audio/volume"], "read_only_paths": ["/audio"], "about": "The kiosk's own speaker." },
+    "recovery": { "required": false, "paths": ["/recovery", "/recovery/tune"], "read_only_paths": ["/recovery"], "about": "Settings for getting unstuck and the still-alive message." },
+    "display_fix": { "required": false, "paths": ["/display/fix"], "about": "Board-specific display clean-up (the Qualcomm board's adaptive backlight)." },
+    "rotation": { "required": false, "paths": ["/rotation/<value>"], "about": "Turn the kiosk's own picture." },
+    "mic_test": { "required": false, "paths": ["/mic/test"], "about": "How loud the microphone hears, numbers only." },
+    "bluetooth_test": { "required": false, "paths": ["/bluetooth/test"], "about": "Whether a Bluetooth radio works, counts only." },
+    "engine": { "required": false, "paths": ["/engine", "/engine/tune"], "read_only_paths": ["/engine"], "about": "Memory switches for the kiosk's browser engine; they apply at the kiosk's next start." },
+    "esphome": { "required": false, "paths": ["/esphome", "/esphome/lock/on", "/esphome/lock/off", "/esphome/key/forget"], "read_only_paths": ["/esphome"], "about": "An ESPHome-style server on port 6053 that Home Assistant's own ESPHome integration adds (one connection for the Bluetooth proxy and voice). Runs only while one of them is switched on. Encrypted once Home Assistant has handed over its key. `/esphome` is its state, counts only." },
+    "bluetooth_proxy": { "required": false, "paths": ["/esphome/bt/on", "/esphome/bt/off"], "about": "Bluetooth proxy for Home Assistant (passive scan, raw advertisements), off by default." },
+    "voice": { "required": false, "paths": ["/esphome/voice/on", "/esphome/voice/off", "/voice/test"], "about": "Assist satellite: the kiosk's microphone and speaker for Home Assistant voice, off by default. Offered only on the encrypted connection; a sign shows on screen while the mic is open." },
+    "wake_word": { "required": false, "paths": ["/esphome/wake/on", "/esphome/wake/off", "/wake/selftest"], "about": "Listen for a wake word on the kiosk itself (models bundled with the kiosk, nothing leaves it until the word is heard), off by default; needs voice. `/wake/selftest` checks the models without the mic." },
+    "app_update": { "required": false, "paths": ["/update", "/update/install"], "read_only_paths": ["/update"], "about": "The kiosk installs a newer version of itself that Home Assistant sends (POST /update/install?sha256=, the file as the body). Listed only when this kiosk can install by itself." }
+  }
+}

@@ -81,14 +81,27 @@ export class HAClient {
 
   // The photos in a media folder, as addresses of copies the integration has already shrunk to w by h (a phone photo would be too big
   // for a small mirror). `fresh` is accepted for symmetry with mediaUrl; the integration signs new addresses on every call.
-  async slideshowItems(folder, w, h) {
+  // `name` (optional) asks for one photo only (a pane's single background photo).
+  async slideshowItems(folder, w, h, name) {
     try {
-      const r = await this._fetch('/api/glass_panes/slideshow?folder=' + encodeURIComponent(folder) + '&w=' + w + '&h=' + h);
+      const r = await this._fetch('/api/glass_panes/slideshow?folder=' + encodeURIComponent(folder) + '&w=' + w + '&h=' + h + (name ? '&name=' + encodeURIComponent(name) : ''));
       if (r.ok) { const j = await r.json(); return { items: (j.items || []).map((u) => this.base + u), problem: j.problem || null }; }
     } catch (e) {
       if (e.message === '401') throw e;
     }
     return { items: [], problem: 'unavailable' };
+  }
+
+  // A news feed widget's stories. Home Assistant fetches the feed (the display never reaches the internet for it) and reads the address
+  // from the saved pane, so `url` is not sent. Returns {title, items, hash, problem} or null.
+  async feed(pane, widget) {
+    try {
+      const r = await this._fetch('/api/glass_panes/feed?pane=' + encodeURIComponent(pane) + '&widget=' + encodeURIComponent(widget));
+      if (r.ok) return await r.json();
+    } catch (e) {
+      if (e.message === '401') throw e;
+    }
+    return null;
   }
 
   // The current picture of an image or camera entity, shrunk by the integration. Returns something an <img> can show, or null.

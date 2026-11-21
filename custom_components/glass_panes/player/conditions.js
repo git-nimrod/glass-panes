@@ -262,7 +262,7 @@ export function styledFor(widget, st) {
 }
 
 // ---------------------------------------------------------------- warnings (the status_summary widget's checks)
-// A check is { entity, name?, text?, bad?, ok?, below?, above? }. It uses the same tests as an entity condition (is / is not / above /
+// A check is { entity, name?, text?, bad?, ok?, below?, above?, from?, to? }. It uses the same tests as an entity condition (is / is not / above /
 // below / unavailable), written the way the widget has always stored them:
 //   bad: [states]   warn when the state is one of these              = test "is"
 //   ok: [states]    warn when the state is NOT one of these          = test "is_not"
@@ -295,22 +295,44 @@ export function withTest(k, test, value) {
 export function checkProblem(k, st) {
   const v = st ? st.state : 'unavailable', offline = !st || v === 'unavailable' || v === 'unknown';
   const n = PLAIN_NUMBER.test(String(v).trim()) && !/^[-+]?0\d/.test(String(v).trim()) ? Number(v) : NaN;
-  if (k.below != null) return isNaN(n) ? 'offline' : n < k.below ? 'low' : null;
-  if (k.above != null) return isNaN(n) ? 'offline' : n > k.above ? 'high' : null;
+  // a number test only judges numbers: an unavailable / unknown / text reading is not "low" or "high" (its own words, like
+  // "battery is low", would be wrong). Like a bad list, offline is not a warning by itself; add an "is unavailable" check for that.
+  if (k.below != null) return !isNaN(n) && n < k.below ? 'low' : null;
+  if (k.above != null) return !isNaN(n) && n > k.above ? 'high' : null;
   if (k.ok) return k.ok.indexOf(v) < 0 ? (offline ? 'offline' : v) : null;
   if (k.bad ? k.bad.indexOf(v) >= 0 : (offline || v === '' || v == null)) return offline ? 'offline' : v;
   return null;
 }
 
-/** A plain sentence for the editor: "Warn when it is above 30." */
+// A check may also carry a time window, { from: "HH:MM", to: "HH:MM" }: it then only warns inside that part of the day, in the
+// display's timezone. A window whose start is later than its end runs through midnight ("01:00" to "04:00" is the small hours,
+// "22:00" to "06:00" is the night), exactly like the "Show when" time condition.
+
+/** The check's time window, or null when it warns at any time of day. Both ends must be real times and differ. */
+export function checkWindow(k) {
+  if (!k || isNaN(toMinutes(k.from)) || isNaN(toMinutes(k.to)) || k.from === k.to) return null;
+  return { from: k.from, to: k.to };
+}
+
+/** Whether the check is in its window at `minutes` past midnight (always true for a check with no window). */
+export function checkInWindow(k, minutes) {
+  const w = checkWindow(k);
+  return !w || inTimeWindow(w.from, w.to, minutes);
+}
+
+/** A plain sentence for the editor: "Warn when it is above 30." / "Warn when it is on, between 01:00 and 04:00." */
 export function describeCheck(k) {
   const t = checkTest(k);
   const list = (v) => [].concat(v).join(' or ');
+  let s;
   switch (t.test) {
-    case 'below': return 'Warn when it is below ' + t.value + '.';
-    case 'above': return 'Warn when it is above ' + t.value + '.';
-    case 'is': return 'Warn when it is ' + list(t.value) + '.';
-    case 'is_not': return 'Warn when it is anything but ' + list(t.value) + '.';
-    default: return 'Warn when it is unavailable or unknown.';
+    case 'below': s = 'Warn when it is below ' + t.value; break;
+    case 'above': s = 'Warn when it is above ' + t.value; break;
+    case 'is': s = 'Warn when it is ' + list(t.value); break;
+    case 'is_not': s = 'Warn when it is anything but ' + list(t.value); break;
+    default: s = 'Warn when it is unavailable or unknown';
   }
+  const w = checkWindow(k);
+  if (w) s += ', between ' + w.from + ' and ' + w.to + (toMinutes(w.from) > toMinutes(w.to) ? ' (through midnight)' : '');
+  return s + '.';
 }

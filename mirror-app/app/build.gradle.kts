@@ -13,8 +13,8 @@ android {
         targetSdk = 23       // keeps old-Android behavior: permissions granted at install, plain HTTP allowed
         // The app's version is its OWN, separate from the Home Assistant integration's (see CONTRIBUTING.md). Raise it only when the
         // app's code changes. versionCode must ALWAYS go up (Android refuses to install a lower one over a higher one).
-        versionCode = 1200
-        versionName = "0.12.0"
+        versionCode = 1300
+        versionName = "0.13.0"
         ndk { abiFilters += listOf("arm64-v8a") }   // the mirror's CPU; we only ship the 64-bit engine
     }
 
@@ -49,6 +49,9 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+    androidResources {
+        noCompress += "tflite"          // the wake-word models are read as they are
+    }
     packaging {
         // Firefox's own APK ships its native libraries extracted; do the same.
         jniLibs { useLegacyPackaging = true }
@@ -66,5 +69,9 @@ kotlin {
 dependencies {
     // Firefox 143's engine, 64-bit ARM only (same engine as the Firefox 143 that already runs on the mirror)
     implementation("org.mozilla.geckoview:geckoview-arm64-v8a:143.0.20251003115653")
+    // Noise encryption for the ESPHome-style server (EspNoise.kt): Curve25519, ChaCha20-Poly1305. Signal's MIT build, pure Java.
+    implementation("org.signal.forks:noise-java:0.1.1")
+    // Runs the bundled wake-word models (WakeWord.kt). Apache-2.0; adds about 3.4 MB for the mirror's 64-bit CPU.
+    implementation("org.tensorflow:tensorflow-lite:2.16.1")
     testImplementation("junit:junit:4.13.2")
 }

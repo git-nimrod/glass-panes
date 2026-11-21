@@ -17,18 +17,20 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import llm
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.loader import async_get_integration
 
 from . import api, ws_api
 from .assets import AssetsView, IconsView
-from .const import DOMAIN, LOGGER
+from .const import DOMAIN, LOGGER, SIGNAL_DISPLAY_REMOVED
 from .llm_api import GlassPanesAPI
 from .manager import Manager, remove_login_user
 from .panes import PaneChecker, load_shipped
+from .screen_schedule import ScreenSchedule
 from .services import async_register_services, async_remove_services
 from .storage import BindingsStore, DisplayStore, DraftStore, MediaStore, PaneStore
 
-PLATFORMS = [Platform.SELECT, Platform.BUTTON, Platform.MEDIA_PLAYER, Platform.NUMBER, Platform.SWITCH]
+PLATFORMS = [Platform.SELECT, Platform.BUTTON, Platform.MEDIA_PLAYER, Platform.NUMBER, Platform.SWITCH, Platform.TIME, Platform.UPDATE]
 
 # The folders handed out over the web (without a login) are listed, with the reasons, in assets.py.
 
@@ -70,6 +72,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         manager = Manager(hass, shipped, checker, registry, bindings, pane_store, display_store, media_store, draft_store)
         manager.pane_schema = pane_schema
+        manager.screen_schedule = ScreenSchedule(hass, manager.mirror_set_screen)
+        await manager.screen_schedule.async_load()
         data["manager"] = manager
         # views and websocket commands cannot be removed once added, so this happens once per Home Assistant run
         for view in api.views(manager):
@@ -83,6 +87,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if "unregister_llm_api" not in data:
         data["unregister_llm_api"] = llm.async_register_api(hass, GlassPanesAPI(hass))
     async_register_services(hass, data["manager"])
+
+    async def display_removed(display_id: str) -> None:
+        await data["manager"].screen_schedule.async_forget(display_id)       # a deleted display's screen schedule goes with it
+
+    entry.async_on_unload(async_dispatcher_connect(hass, SIGNAL_DISPLAY_REMOVED, display_removed))
 
     # A panel cannot be registered twice, so it is removed again on unload (see async_unload_entry).
     await panel_custom.async_register_panel(

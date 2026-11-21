@@ -38,6 +38,20 @@
       "minimum": 0,
       "maximum": 100
     },
+    "photo_background": {
+      "description": "Photos behind the widgets, from a Home Assistant media folder: one photo (`photo`) or a slideshow of the whole folder. The integration shrinks each photo to the screen before the display gets it. Not see-through on a mirror (only black is). Leave it out for none.",
+      "type": "object",
+      "required": ["folder"],
+      "additionalProperties": false,
+      "properties": {
+        "folder": { "type": "string", "minLength": 1, "maxLength": 240, "description": "A folder inside a Home Assistant media folder, for example photos/family or local/photos/family." },
+        "photo": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "^[^/]+$", "description": "One file name in that folder: show only this photo. Left out: a slideshow of every photo in the folder." },
+        "interval_s": { "type": "integer", "minimum": 5, "maximum": 86400, "default": 300, "description": "Slideshow: seconds each photo stays." },
+        "shuffle": { "type": "boolean", "default": true, "description": "Slideshow: mix the order (every photo once before any repeats)." },
+        "fade": { "type": "boolean", "default": true, "description": "Slideshow: crossfade between photos." },
+        "dim": { "type": "number", "minimum": 0, "maximum": 0.8, "default": 0, "description": "A dark veil over the photo so text stays readable: 0 = none, 0.8 = very dark." }
+      }
+    },
     "burn_in_saver": {
       "description": "Drift the whole pane a few pixels, very slowly (one lap about every 40 minutes), so a screen left on for hours never holds the same pixels. Too slow to notice.",
       "type": "boolean"
@@ -71,7 +85,9 @@
       "additionalProperties": false,
       "properties": {
         "font": {
-          "enum": ["inter", "outfit", "jost", "space-grotesk", "jetbrains-mono", "cormorant-garamond", "playfair-display", "montserrat", "lora", "dm-serif-display", "system-sans", "system-serif", "system-mono"]
+          "enum": ["inter", "outfit", "jost", "space-grotesk", "jetbrains-mono", "cormorant-garamond", "playfair-display", "montserrat", "lora", "dm-serif-display", "galactic", "system-sans", "system-serif", "system-mono",
+            "arimo", "gfs-didot", "bodoni-moda", "libre-baskerville", "eb-garamond", "tinos", "gelasio", "crimson-pro", "source-serif-4", "libre-franklin", "news-cycle", "nunito-sans", "hind", "hanken-grotesk", "cinzel", "source-sans-3", "fira-sans", "arvo", "stardos-stencil", "dm-sans", "poppins", "bebas-neue", "anton", "oswald", "pinyon-script", "antonio", "michroma", "orbitron", "monoton", "audiowide", "press-start-2p", "vt323", "share-tech-mono", "cinzel-decorative", "lobster", "pacifico", "yellowtail", "allura", "alex-brush", "great-vibes", "rock-salt", "cookie", "grape-nuts", "croissant-one", "amita", "league-spartan", "josefin-sans", "shrikhand", "megrim", "racing-sans-one", "fredoka", "abril-fatface", "vast-shadow", "limelight", "chango", "raleway", "merriweather"],
+          "description": "galactic is an alien alphabet for fun looks: it is not readable as English (a clock can add a plain line with clock.plain_line). The ids after system-mono are lookalike fonts (schema/fonts.json lists what each looks like)."
         },
         "size": { "type": "integer", "minimum": 8, "maximum": 400, "description": "Font size in canvas pixels." },
         "weight": { "type": "integer", "minimum": 100, "maximum": 900, "multipleOf": 100 },
@@ -148,7 +164,7 @@
           "enum": [
             "clock", "date", "text", "image", "slideshow", "video", "divider", "icon", "table", "message", "entity_value", "weather",
             "calendar_agenda", "todo_list", "now_playing", "people", "lights_summary", "status_summary",
-            "progress_ring", "sports", "news"
+            "progress_ring", "sports", "news", "sparkles", "radar", "ascii_art", "petals", "art_pond", "moon", "flights", "rss"
           ]
         },
         "x": { "type": "integer", "minimum": 0, "maximum": 1080 },
@@ -212,7 +228,15 @@
         { "if": { "properties": { "type": { "const": "progress_ring" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_progress_ring" } } } },
         { "if": { "properties": { "type": { "const": "sports" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_sports" } } } },
         { "if": { "properties": { "type": { "const": "slideshow" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_slideshow" } } } },
-        { "if": { "properties": { "type": { "const": "news" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_news" } } } }
+        { "if": { "properties": { "type": { "const": "news" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_news" } } } },
+        { "if": { "properties": { "type": { "const": "sparkles" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_sparkles" } } } },
+        { "if": { "properties": { "type": { "const": "radar" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_radar" } } } },
+        { "if": { "properties": { "type": { "const": "ascii_art" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_ascii_art" } } } },
+        { "if": { "properties": { "type": { "const": "petals" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_petals" } } } },
+        { "if": { "properties": { "type": { "const": "art_pond" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_art_pond" } } } },
+        { "if": { "properties": { "type": { "const": "moon" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_moon" } } } },
+        { "if": { "properties": { "type": { "const": "flights" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_flights" } } } },
+        { "if": { "properties": { "type": { "const": "rss" } } }, "then": { "properties": { "options": { "$ref": "#/$defs/opt_rss" } } } }
       ]
     },
 
@@ -224,6 +248,8 @@
         "hide_meridiem": { "type": "boolean", "default": true, "description": "Show 9:30 instead of 9:30 AM." },
         "show_seconds": { "type": "boolean", "default": false, "description": "Digital: show the seconds too. Traditional and alarm clock: draw a red second hand." },
         "style": { "enum": ["digital", "analog", "alarm"], "default": "digital", "description": "digital: the time as numbers (the original look). analog: a traditional round clock face with hands. alarm: a bedside alarm clock with two bells, feet and a small alarm hand; its case takes the widget's text colour when that is a #rrggbb, else red." },
+        "orientation": { "enum": ["horizontal", "stacked", "sideways"], "default": "horizontal", "description": "Digital clock only: horizontal is one line (the original). stacked puts the hours over the minutes, with the seconds and AM/PM in a small row underneath. sideways turns the line a quarter to the right so it reads top to bottom along a narrow strip. In stacked and sideways the widget's box sizes the digits (the text size is not used); font, weight and colour still apply. The round looks ignore it." },
+        "plain_line": { "type": "boolean", "default": false, "description": "Digital clock in one line: adds a small second line with the time in ordinary digits and the system font, for a clock set in an alien alphabet such as the galactic font." },
         "face": { "enum": ["light", "dark"], "default": "light", "description": "Traditional and alarm clock only: a light face with dark numerals, or a dark face with light ones (kinder on a mirror)." },
         "timezone": { "type": "string", "maxLength": 64, "description": "A time zone name such as America/Chicago or Asia/Tokyo, to show the time somewhere other than the display's own zone. Empty (or a name that is not a time zone) means the display's own." }
       }
@@ -300,7 +326,10 @@
         "lines": { "type": "array", "minItems": 1, "maxItems": 50, "items": { "type": "string", "maxLength": 200 } },
         "rotate_minutes": { "type": "integer", "minimum": 1, "maximum": 1440, "default": 30 },
         "prefix": { "type": "string", "maxLength": 60 },
-        "suffix": { "type": "string", "maxLength": 60 }
+        "suffix": { "type": "string", "maxLength": 60 },
+        "look": { "enum": ["plain", "bubble", "thought"], "default": "plain", "description": "plain: just the words. bubble: a manga-style speech bubble with a pointed tail. thought: a thought bubble with two little circles." },
+        "tail": { "enum": ["left", "right", "none"], "default": "left", "description": "Which side of the bubble the tail sits on." },
+        "bubble_color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "The bubble's fill (#rrggbb); default white with dark ink." }
       }
     },
     "table_column": {
@@ -366,7 +395,8 @@
           "items": { "enum": ["temperature", "condition", "high_low"] },
           "default": ["temperature", "condition", "high_low"]
         },
-        "day_offset": { "enum": [0, 1], "default": 0, "description": "1 = tomorrow's high and condition." }
+        "day_offset": { "enum": [0, 1], "default": 0, "description": "1 = tomorrow's high and condition." },
+        "icon": { "enum": ["none", "chibi"], "default": "none", "description": "chibi: a small, round drawn icon with a little face in front of the weather (sun, clouds, rain, snow, storm, fog, wind, night)." }
       }
     },
     "opt_calendar_agenda": {
@@ -444,7 +474,14 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "layout": { "enum": ["line", "rows", "box"], "default": "rows", "description": "line = one text line, rows = logo/score/logo rows, box = compact two-row box scores for narrow columns." },
+        "layout": { "enum": ["line", "rows", "box", "bug"], "default": "rows", "description": "line = one text line, rows = logo/score/logo rows, box = compact two-row box scores for narrow columns, bug = broadcast-style scorebugs (see bug)." },
+        "bug": { "type": "string", "maxLength": 40, "pattern": "^[a-z0-9-]+$", "default": "auto", "description": "layout bug: which scorebug (an id from the scorebug catalogue that get_schema lists), or auto for each league's default (bug_by_league first)." },
+        "bug_by_league": { "type": "object", "propertyNames": { "pattern": "^[A-Z0-9-]{2,12}$" }, "additionalProperties": { "type": "string", "pattern": "^[a-z0-9-]+$", "maxLength": 40 }, "description": "layout bug with bug auto: a scorebug per league, e.g. {\"NFL\": \"nfl-floating-25\", \"NHL\": \"nhl-sog-25\"}." },
+        "bug_marks": { "enum": ["both", "league", "ha", "none"], "default": "both", "description": "layout bug: the marks on the scorebug. The league's logo goes where the broadcast showed it; the Home Assistant logo goes where the network's own mark was. both, league only, Home Assistant only, or none." },
+        "bug_logos": { "enum": ["default", "dark"], "default": "default", "description": "layout bug: which version of each team's logo to show. dark = the version drawn for dark backgrounds, where the logo service has one." },
+        "bug_tv": { "enum": ["auto", "clean", "soft", "vhs"], "default": "auto", "description": "layout bug: the picture the scorebug is drawn with. auto = the bug's own (retro bugs come out soft, as on an old TV), clean = sharp, soft = standard-definition blur with scanlines, vhs = softer with the colour bleed of a taped game." },
+        "bug_height": { "type": "integer", "minimum": 30, "maximum": 400, "description": "layout bug: the most height one scorebug may take; it is otherwise as wide as the widget." },
+        "bug_gap": { "type": "integer", "minimum": 0, "maximum": 200, "default": 16, "description": "layout bug: space between scorebugs when several games show." },
         "max_games": { "type": "integer", "minimum": 1, "maximum": 6, "default": 3 },
         "show_next": { "type": "boolean", "default": true },
         "game_day_only": { "type": "boolean", "default": false, "description": "Show sports only on game day: live games, tonight's game, and a final only until midnight. Later games are never announced (this overrides show_next). Off keeps a final for about 18 hours, so last night's score is still there in the morning." },
@@ -461,7 +498,145 @@
         "max_headline_chars": { "type": "integer", "minimum": 40, "maximum": 200, "default": 110 },
         "keywords": { "type": "array", "maxItems": 100, "items": { "type": "string", "maxLength": 40 }, "description": "Used by feeds whose filter is 'keywords'. Empty = every story counts." },
         "show_source": { "type": "boolean", "default": false },
-        "max_age_hours": { "type": "integer", "minimum": 1, "maximum": 168, "default": 36 }
+        "max_age_hours": { "type": "integer", "minimum": 1, "maximum": 168, "default": 36 },
+        "rotate_minutes": { "type": "integer", "minimum": 0, "maximum": 240, "default": 0, "description": "0 = always the newest stories. Otherwise move on to the next group of max_stories stories every this many minutes, round and round the list (up to 12 stories)." },
+        "same_size": { "type": "boolean", "default": false, "description": "Every headline at the widget's text size (normally the second and later ones are a little smaller)." }
+      }
+    },
+    "opt_sparkles": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "count": { "type": "integer", "minimum": 0, "maximum": 60, "default": 10, "description": "How many small four-point twinkles." },
+        "min_size": { "type": "integer", "minimum": 4, "maximum": 200, "default": 12, "description": "Smallest twinkle, in pixels." },
+        "max_size": { "type": "integer", "minimum": 4, "maximum": 200, "default": 34, "description": "Largest twinkle, in pixels." },
+        "palette": { "enum": ["pastel", "rainbow", "gold", "silver", "ice", "custom"], "default": "pastel", "description": "The twinkles' colours. custom uses `colors`." },
+        "colors": { "type": "array", "maxItems": 12, "items": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }, "description": "Your own twinkle colours (#rrggbb), used when palette is custom." },
+        "stars": { "type": "integer", "minimum": 0, "maximum": 60, "default": 0, "description": "How many bigger five-point stars (0 = none)." },
+        "star_min_size": { "type": "integer", "minimum": 4, "maximum": 200, "default": 14 },
+        "star_max_size": { "type": "integer", "minimum": 4, "maximum": 200, "default": 30 },
+        "star_palette": { "enum": ["pastel", "rainbow", "gold", "silver", "ice", "custom"], "default": "rainbow", "description": "The stars' colours. custom uses `star_colors`." },
+        "star_colors": { "type": "array", "maxItems": 12, "items": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }, "description": "Your own star colours (#rrggbb), used when star_palette is custom." },
+        "change": { "enum": ["daily", "never"], "default": "daily", "description": "daily: a new scatter each day (the same all day). never: always the same scatter." },
+        "shape": { "enum": ["twinkle", "kira"], "default": "twinkle", "description": "twinkle: soft four-point sparkles. kira: thin four-ray glints, the sparkle of anime-style art." },
+        "twinkle": { "type": "boolean", "default": false, "description": "Fade each sparkle gently in and out. Off = perfectly still (the lightest on a mirror)." },
+        "whole_screen": { "type": "boolean", "default": false, "description": "Scatter over the whole pane, behind every other widget, wherever the widget's own box is." },
+        "keep_middle": { "type": "boolean", "default": false, "description": "Leave the middle clear (where your face is in the mirror); sparkles there move to the sides." }
+      }
+    },
+    "opt_radar": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "frame": { "enum": ["rounded", "square", "circle", "none"], "default": "rounded", "description": "The radar's frame: rounded corners (radius), square, a circle, or none (no edge)." },
+        "radius": { "type": "integer", "minimum": 0, "maximum": 200, "default": 24, "description": "Corner size in pixels for the rounded frame." },
+        "border": { "type": "boolean", "default": true, "description": "A thin edge around the frame." },
+        "dim": { "type": "integer", "minimum": 0, "maximum": 80, "default": 20, "description": "How much darker than the original the picture is drawn, in percent, so bright map colours don't glare through the glass. 0 = as is." },
+        "fit": { "enum": ["cover", "contain"], "default": "cover", "description": "cover fills the frame (the edges of the map may be cut off); contain shows the whole picture." },
+        "show_updated": { "type": "boolean", "default": true, "description": "A small 'Updated 7:42 pm' in the corner: an image entity's own update time, or for a camera the time the picture was fetched." },
+        "updated_text": { "type": "string", "maxLength": 24, "description": "The word before the time (default Updated)." },
+        "label": { "type": "string", "maxLength": 40, "description": "An optional title in the top corner, such as Radar." },
+        "refresh_s": { "type": "integer", "minimum": 0, "maximum": 3600, "default": 0, "description": "How often to get the picture again, in seconds (at least 30). 0 = every 2 minutes for a camera, every 10 minutes for an image entity (which also updates the moment its picture changes), every 5 minutes for a web address." },
+        "source": { "enum": ["entity", "url", "us_composite"], "default": "entity", "description": "Where the picture comes from. entity: a bound radar camera or image entity. url: any https picture address (url). us_composite: the United States radar composite (all NEXRAD radars, in colour) from the Iowa Environmental Mesonet, for a region; the display loads it itself. A bound entity always wins." },
+        "region": { "type": "string", "maxLength": 8, "pattern": "^[A-Za-z]{3,5}$", "default": "conus", "description": "us_composite: conus (the whole country), lot (Chicago), hun, iem (Iowa), ict, sd, texas, or a 3-letter National Weather Service office such as MKX or DTX." },
+        "layers": { "type": "array", "uniqueItems": true, "items": { "enum": ["counties", "roads", "places", "temps", "warnings"] }, "default": ["counties"], "description": "us_composite: what to draw with the radar: county lines, interstates, towns, live air temperatures at weather stations, storm warnings." },
+        "url": { "type": "string", "maxLength": 1000, "pattern": "^https://", "description": "Instead of an entity: the https address of a public radar picture (for example a radar map image from your weather service). The display loads it itself, every refresh_s. An entity, when bound, wins." },
+        "grayscale": { "type": "boolean", "default": false, "description": "Black and white, a little crisper, so a bright radar map sits quietly on a mirror." },
+        "anchor": { "enum": ["center", "top", "bottom"], "default": "center", "description": "Which part of the picture stays in view when fit is cover crops it." }
+      }
+    },
+    "opt_ascii_art": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "show": { "enum": ["art", "clock", "weather"], "default": "art", "description": "art: a picture from the library or your own text. clock: the time in big # digits. weather: an ASCII weather picture and the temperature (bind a weather entity)." },
+        "art": { "enum": ["coffee", "cat", "mountains", "rocket", "sun", "moon", "plant", "waves", "heart", "house", "custom"], "default": "coffee", "description": "A piece from the built-in library (all drawn for Glass Panes), or custom for your own text." },
+        "text": { "type": "string", "maxLength": 4000, "description": "Your own ASCII art (used when art is custom). Plain characters; each line is a row." },
+        "look": { "enum": ["green", "amber", "plain"], "default": "green", "description": "green or amber: an old terminal's glowing text. plain: the widget's own colour." },
+        "scanlines": { "type": "boolean", "default": false, "description": "Faint dark lines over a terminal look, like an old CRT screen. Still, no animation." },
+        "cursor": { "type": "boolean", "default": false, "description": "A blinking _ cursor after the text." },
+        "fit": { "type": "boolean", "default": true, "description": "Size the characters so the art fills the box. Off uses the text size." },
+        "format": { "enum": ["12h", "24h"], "default": "12h", "description": "For the clock." }
+      }
+    },
+    "opt_petals": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "count": { "type": "integer", "minimum": 0, "maximum": 40, "default": 14, "description": "How many petals." },
+        "min_size": { "type": "integer", "minimum": 6, "maximum": 120, "default": 16 },
+        "max_size": { "type": "integer", "minimum": 6, "maximum": 120, "default": 30 },
+        "palette": { "enum": ["sakura", "plum", "white", "autumn", "custom"], "default": "sakura", "description": "The petals' colours. custom uses `colors`." },
+        "colors": { "type": "array", "maxItems": 12, "items": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }, "description": "Your own petal colours (#rrggbb), used when palette is custom." },
+        "motion": { "enum": ["fall", "still"], "default": "fall", "description": "fall: petals drift down and sway (a slow CSS animation). still: scattered and perfectly still, a new scatter each day." },
+        "speed": { "enum": ["slow", "medium", "fast"], "default": "slow", "description": "How fast they fall." },
+        "opacity": { "type": "integer", "minimum": 10, "maximum": 100, "default": 85, "description": "In percent." }
+      }
+    },
+    "opt_moon": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "look": { "enum": ["realistic", "photo", "line", "glow"], "default": "realistic", "description": "realistic: a lit moon with its darker seas and the dark side faintly showing. photo: NASA's picture of the real moon for this hour (Scientific Visualization Studio, public domain; loaded from NASA, and the drawing for a year NASA has not published yet). line: an outline with the lit part filled in the widget's text colour. glow: a soft white moon with a halo and no dark side." },
+        "layout": { "enum": ["stacked", "side", "moon"], "default": "stacked", "description": "stacked: the moon over its words. side: the words beside the moon. moon: the moon only." },
+        "show_name": { "type": "boolean", "default": true, "description": "The phase name, such as Waxing gibbous." },
+        "show_percent": { "type": "boolean", "default": true, "description": "How much of the moon is lit, in percent." },
+        "show_next": { "type": "boolean", "default": true, "description": "When the next full moon is (the next new moon on the night of a full moon)." },
+        "show_rise": { "type": "boolean", "default": true, "description": "Moonrise and moonset, when the bound sensor gives them (Lunar Phase from HACS does)." },
+        "hemisphere": { "enum": ["north", "south"], "default": "north", "description": "Seen from the southern hemisphere the moon is upside down, so the lit side swaps." }
+      }
+    },
+    "opt_flights": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "look": { "enum": ["overhead", "radar", "board"], "default": "overhead", "description": "overhead: the nearest plane as a card (where it is going, the airline and flight, aircraft, height, speed and distance). radar: a round scope with home in the middle and every plane pointing where it is heading. board: an airport-style list, nearest first." },
+        "units": { "enum": ["km", "mi"], "default": "km", "description": "Distances and speeds in kilometres or miles. Heights are always in feet, as in flight apps." },
+        "max_flights": { "type": "integer", "minimum": 1, "maximum": 20, "default": 6, "description": "board: how many rows." },
+        "labels": { "type": "integer", "minimum": 0, "maximum": 20, "default": 3, "description": "radar: how many of the nearest planes get a label." },
+        "radius_km": { "type": "number", "minimum": 1, "maximum": 500, "description": "radar: the scope's edge in km; empty = the integration's own area." },
+        "empty_text": { "type": "string", "maxLength": 80, "description": "What to say when no planes are near (default: No planes nearby right now; empty = nothing)." }
+      }
+    },
+    "opt_art_pond": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "set": { "enum": ["monet_lilies", "own"], "default": "monet_lilies", "description": "monet_lilies: cut-outs from Claude Monet's Water Lilies paintings (public domain), built in. own: your own cut-outs from the media library (`pieces`)." },
+        "pieces": {
+          "type": "array", "maxItems": 40,
+          "description": "Used when set is own. Your own cut-out pictures from the media library, each with a role: base (gathers in overlapping groups, like lily pads), accent (sits on top of a group, like flowers) or edge (stands along the bottom, like grass). Small PNG or WebP pictures with see-through backgrounds work best.",
+          "items": {
+            "type": "object",
+            "required": ["media"],
+            "additionalProperties": false,
+            "properties": {
+              "media": { "type": "string", "pattern": "^m_[0-9a-f]{12}$", "description": "An uploaded picture from the media library." },
+              "role": { "enum": ["base", "accent", "edge"], "default": "base" }
+            }
+          }
+        },
+        "clusters": { "type": "integer", "minimum": 0, "maximum": 12, "default": 5, "description": "How many groups." },
+        "per_cluster": { "type": "integer", "minimum": 1, "maximum": 8, "default": 5, "description": "About how many base pieces in a group." },
+        "accents": { "type": "integer", "minimum": 0, "maximum": 4, "default": 2, "description": "About how many accent pieces on each group." },
+        "edge": { "type": "integer", "minimum": 0, "maximum": 12, "default": 3, "description": "How many edge pieces along the bottom." },
+        "size": { "type": "integer", "minimum": 60, "maximum": 600, "default": 240, "description": "How wide a nearby group is, in pixels (far ones are smaller)." },
+        "depth": { "type": "boolean", "default": true, "description": "Far groups are smaller, higher and a little faded; off draws every group the same." },
+        "change": { "enum": ["daily", "never"], "default": "daily", "description": "daily: a new arrangement each day (the same all day). never: always the same one." }
+      }
+    },
+    "opt_rss": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "url": { "type": ["string", "null"], "maxLength": 500, "pattern": "^https?://", "description": "The RSS or Atom feed's address. Home Assistant fetches it (the display never does) and keeps a copy. null = nothing to show." },
+        "max_stories": { "type": "integer", "minimum": 1, "maximum": 10, "default": 3, "description": "How many headlines to show, newest first." },
+        "refresh_minutes": { "type": "integer", "minimum": 10, "maximum": 1440, "default": 30, "description": "How old Home Assistant's copy may get before it fetches the feed again. The display redraws only when the stories change." },
+        "skip_teasers": { "type": "boolean", "default": true, "description": "Leave out headlines that only tease the article (questions, \"here's why\", WATCH: videos), like the News headlines widget." },
+        "max_headline_chars": { "type": "integer", "minimum": 40, "maximum": 300, "default": 140, "description": "Longer headlines are left out (or shortened when skip_teasers is off)." },
+        "show_source": { "type": "boolean", "default": false, "description": "The feed's name under each headline." },
+        "show_summary": { "type": "boolean", "default": false, "description": "A line or two of the story under the headline." },
+        "show_time": { "type": "boolean", "default": false, "description": "How long ago each story came out (3h, 2d)." }
       }
     }
   }

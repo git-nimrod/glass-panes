@@ -10,6 +10,7 @@
   target: { entity_id: select.glass_panes_mirror }
   data: { option: house }
   ```
+- A display that has a mirror also gets controls on the same device: Brightness (`number`), Presence detection and Screen (`switch`), Screen mode (`select`: `manual`, `auto`, `on`, `off`) and the screen's quiet hours (two `time` entities). Screen mode and quiet hours are kept in Home Assistant (`glass_panes.screen`) and need nothing on the mirror beyond `/screen/on|off`. See "Controls Home Assistant gets for a mirror" in `docs/getting-started.md`.
 - **Bindings** say which entity feeds which widget (see `docs/pane-schema.md`).
 
 ## Services
@@ -44,6 +45,7 @@ Any logged-in user can read, so a display can run as a plain non-admin user.
 - `GET /api/glass_panes/bindings`, `PUT /api/glass_panes/bindings` (administrators)
 - `GET /api/glass_panes/panes/<pane id>`: one pane (a saved one wins over the shipped one)
 - `GET /api/glass_panes/displays`, `GET /api/glass_panes/displays/<id>`: includes the `entity_id` that switches it
+- `GET /api/glass_panes/feed?pane=<id>&widget=<id>`: the stories of that saved pane's news feed (`rss`) widget: `title`, `items` (`title`, `link`, `time`, `summary`, newest first, plain text), `hash` (changes only when the stories do) and `problem`. Home Assistant fetches the feed when its copy is older than the widget's `refresh_minutes` and never on a timer; the address always comes from the saved pane, so a display's login cannot make Home Assistant fetch anything else. A failed fetch keeps the last stories and says why
 
 The player, the shipped panes and the schemas are also served **without** a login at `/glass_panes/player/`, `/glass_panes/panes/` and `/glass_panes/schema/`; those only ever hold layouts and code, never entities.
 
@@ -74,6 +76,8 @@ Any logged-in user can read. Every command that changes something needs an admin
 | `glass_panes/mirror/audio` (admin) | `display_id`, `action` (`status`, `pause`, `resume`, `stop` or `volume`), `level` (0-100, with `volume`) | `{ok, audio}` where `audio` is the speaker's state (`state`, `volume`, `title`, `artist`, `position_s`, `duration_s`, `error`) for `status`, and `null` for the others. Needs Mirror Kiosk app 0.11.0. |
 | `glass_panes/mirror/measure` (admin) | `display_id`, `confirm` (true) | Same as the `measure_presence_cost` service. Takes about half a minute. |
 | `glass_panes/media/list` | | `media`: every uploaded picture and video (id, name, kind, size, created) with an expiring signed `url` a display can load without a login |
+| `glass_panes/slideshow/list` | `folder`, optional `w`, `h`, `name` | `items` (expiring signed addresses of copies shrunk to w by h), `names` (the file names, same order) and `count` for the photos in a media folder; with `name`, only that one photo (`problem: photo_not_found` when it is not there). Also `GET /api/glass_panes/slideshow?folder=&w=&h=&name=`. Used by the Photo slideshow widget and a pane's `photo_background` |
+| `glass_panes/feed/get` | `pane`, `widget`, optional `url` (administrators only: try an address not saved yet) | Same as `GET /api/glass_panes/feed` |
 | `glass_panes/media/add` (admin) | `file_id`, optional `name` | `media`, `all`. Takes a file the browser already sent to Home Assistant's `/api/file_upload` into the library. Checked by its contents (JPEG, PNG, GIF, WebP images up to 25 MB; MP4, MOV, WebM videos up to 100 MB); anything else is refused with the reason |
 | `glass_panes/media/delete` (admin) | `media_id` | `all`. Refused while a saved pane uses the file |
 | `glass_panes/bindings/get` | | the bindings document |
@@ -83,7 +87,8 @@ Any logged-in user can read. Every command that changes something needs an admin
 ## Display settings: how Home Assistant talks to a mirror
 A display can have the address (and optionally a key) of a Mirror Kiosk app's control server ([mirror app API](mirror-app/api.md)). Only Home Assistant calls it, never the browser. A page opened over https cannot call a plain http address, and the key must not reach the browser. The rules:
 - **Mirror commands answer in two ways.** A request that cannot be done (no such display, no mirror set up, a value outside its range, a measurement not confirmed) is an error with a reason. A mirror that cannot be reached, or says no, is a normal websocket result with `ok: false` and a plain-language `error` (the services raise an error with the same text instead). Nothing raises into the websocket.
-- **Fixed paths only**: `/status`, `/presence/on`, `/presence/off`, `/presence/tune`, `/brightness/<n>`, on the address you typed. Redirects are never followed (a mirror that answers with one is refused). Timeouts are 6 seconds, answers over 64 KB are ignored, and only the status fields documented above are passed on.
+- **Fixed paths only**: `/status`, `/presence/on`, `/presence/off`, `/presence/tune`, `/brightness/<n>`, `/screen/on`, `/screen/off`, on the address you typed. Redirects are never followed (a mirror that answers with one is refused). Timeouts are 6 seconds, answers over 64 KB are ignored, and only the status fields documented above are passed on.
+- **What a kiosk can do** comes from its `/status` (the [kiosk API contract](mirror-app/api.md#0-the-kiosk-api-contract-kiosk-api-1)): `platform`, `board`, `kiosk_api` and `capabilities`. The mirror status (`glass_panes/mirror/status`) passes them on as `kiosk`, and a control whose call the kiosk does not list is unavailable (for example the Screen switch). A kiosk that sends no list (the Android app before 0.13.0) is taken to be the Android app of its version.
 - **The key** is sent to the mirror as `?key=` (the only way the app takes it, plain http on the home network). It is stored in `config/.storage/glass_panes.displays`, written readable by the Home Assistant user only. It is never returned by a websocket command, service or web endpoint, never logged, and scrubbed from any text coming back from the mirror. It can only be set with `glass_panes/mirror/connect` (the builder), not through any service, so automations and agents never handle it. Deleting the display deletes it.
 - The display endpoints and `displays/list` (readable by any logged-in user) show only `has_mirror` and `key_set`, not the address.
 - **Memory numbers are measured**: they come from the mirror's `/status` at the time shown in `measured_at`. Nothing is estimated.
@@ -101,4 +106,4 @@ Uploads go to Home Assistant's own `/api/file_upload` first (any logged-in user 
 - Saved panes, displays and bindings are never touched by an update or a reload.
 
 ## Where things are stored
-Home Assistant's own storage, in `config/.storage/`: `glass_panes.bindings`, `glass_panes.panes` (saved panes only), `glass_panes.displays`. A stored file that fails its checks when read back is ignored with a warning. It is never half-trusted.
+Home Assistant's own storage, in `config/.storage/`: `glass_panes.bindings`, `glass_panes.panes` (saved panes only), `glass_panes.displays`, `glass_panes.screen` (screen mode and quiet hours per display). A stored file that fails its checks when read back is ignored with a warning. It is never half-trusted.

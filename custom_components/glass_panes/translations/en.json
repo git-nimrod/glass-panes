@@ -325,11 +325,11 @@
         },
         "entities": {
           "name": "Entities",
-          "description": "Entities for this widget: {slot: entity id or list}."
+          "description": "Entities for this widget: an object of slot name to an entity id or a list of them."
         },
         "style_rules": {
           "name": "Style rules",
-          "description": "Conditional formatting for a widget with an `entity` slot: a list of up to 8 rules, the first that holds wins. Each is {test: above|below|between|is|is_not, value, to (between only), attribute (optional), style: {color, size, weight, opacity, icon}}."
+          "description": "Conditional formatting for a widget with an `entity` slot: a list of up to 8 rules, the first that holds wins. Each rule has test (above, below, between, is, is_not), value, to (between only), attribute (optional) and style (color, size, weight, opacity, icon)."
         }
       }
     },
@@ -367,7 +367,7 @@
         },
         "show_when": {
           "name": "Show when",
-          "description": "A rule that switches the widget on and off: {match: all|any, conditions: [...]}. See get_schema for the condition kinds."
+          "description": "A rule that switches the widget on and off: match (all or any) and a list of conditions. See get_schema for the condition kinds."
         },
         "clear_show_when": {
           "name": "Clear show when",
@@ -499,7 +499,7 @@
     },
     "set_pane": {
       "name": "Change the pane itself",
-      "description": "Change the draft's name, description, theme, background colour, brightness or fade. Themes: moss, cream, creamnight, midnight, paper, slate, or original to remove it. Administrators only.",
+      "description": "Change the draft's name, description, theme, background colour, photo background, brightness or fade. Themes: moss, cream, creamnight, midnight, paper, slate, or original to remove it. Administrators only.",
       "fields": {
         "draft": {
           "name": "Draft",
@@ -532,6 +532,10 @@
         "burn_in_saver": {
           "name": "Burn in saver",
           "description": "Drift the whole pane a few pixels very slowly, against burn-in on screens left on for hours."
+        },
+        "photo_background": {
+          "name": "Photo background",
+          "description": "Photos behind the widgets from a Home Assistant media folder, with folder, photo (one file name; leave out for a slideshow of the folder), interval_s, shuffle, fade and dim (0 to 0.8, a dark veil so text stays readable). An empty object removes it. Not see-through on a mirror."
         }
       }
     },
@@ -556,6 +560,72 @@
         "draft": {
           "name": "Draft",
           "description": "The draft's id, as start_draft or list_drafts gave it."
+        }
+      }
+    },
+    "find_entities": {
+      "name": "Find entities",
+      "description": "Look up the person's entities before binding one (never invent an entity id). Filter by domain, area, words in the name, or the widget you want to fill. Each result says which widget slots it fits. Names and places only, no states. Administrators only.",
+      "fields": {
+        "domain": {
+          "name": "Domain",
+          "description": "Only this kind of entity, like weather, calendar, sensor or media_player."
+        },
+        "area": {
+          "name": "Area",
+          "description": "Only entities in this area (its name)."
+        },
+        "text": {
+          "name": "Text",
+          "description": "Words that must all appear in the entity id, name or area."
+        },
+        "widget": {
+          "name": "Widget",
+          "description": "Only entities made for this widget type (see get_schema)."
+        },
+        "limit": {
+          "name": "Limit",
+          "description": "At most this many results (default 50)."
+        }
+      }
+    },
+    "get_widget": {
+      "name": "Get one widget's rules",
+      "description": "Everything about one widget type: its entity slots, every option with its allowed values and default, and its named looks. Use it after get_schema, for the widgets you are about to add. Administrators only.",
+      "fields": {
+        "type": {
+          "name": "Type",
+          "description": "The widget type, as get_schema lists it."
+        }
+      }
+    },
+    "preview_draft": {
+      "name": "Show a draft on a display",
+      "description": "Show a draft on a display for a short while (default 2 minutes), then the display goes back to its own pane by itself. Nothing is saved. Ask the person first: it takes over a screen in their home. Administrators only.",
+      "fields": {
+        "draft": {
+          "name": "Draft",
+          "description": "The draft's id, as start_draft or list_drafts gave it."
+        },
+        "display": {
+          "name": "Display",
+          "description": "The display's id (as list_panes' displays or the builder show it)."
+        },
+        "seconds": {
+          "name": "Seconds",
+          "description": "How long to show it (10 to 600, default 120)."
+        }
+      }
+    }
+  },
+  "entity": {
+    "select": {
+      "screen_mode": {
+        "state": {
+          "manual": "Manual",
+          "auto": "Auto (quiet hours)",
+          "on": "Always on",
+          "off": "Always off"
         }
       }
     }

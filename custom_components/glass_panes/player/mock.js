@@ -31,17 +31,36 @@ export class MockClient {
   async mediaUrl() { return null; }          // nothing is uploaded in mock mode
 
   // Six made-up pictures, so a fresh install (or ?mock=1) shows the slideshow working with no folder at all.
-  async slideshowItems(folder) {
+  async slideshowItems(folder, w, h, name) {
     const tones = [['#1f4e79', '#c0583a'], ['#2f6b4f', '#e8b04a'], ['#5b3a7a', '#e07a8a'], ['#27566b', '#8cc7b0'], ['#7a3b2e', '#f2d8a7'], ['#33415c', '#9db4d4']];
     const items = tones.map((t, i) => 'data:image/svg+xml;utf8,' + encodeURIComponent(
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="' + t[0] +
       '"/><stop offset="1" stop-color="' + t[1] + '"/></linearGradient></defs><rect width="400" height="300" fill="url(#g)"/><text x="200" y="170" font-size="64" ' +
       'text-anchor="middle" fill="#fff" fill-opacity=".85" font-family="sans-serif">Photo ' + (i + 1) + '</text></svg>'));
-    return { items: folder ? items : [], problem: null };
+    return { items: folder ? (name ? items.slice(0, 1) : items) : [], problem: null };
+  }
+
+  // Made-up headlines for the news feed widget (demo data and ?mock=1).
+  async feed() {
+    const now = Math.floor(Date.now() / 1000);
+    const items = [
+      ['City council approves new bike lanes on Main Street', 'The plan adds 4 miles of protected lanes by next summer.', 2],
+      ['Local library extends weekend hours through the winter', 'Saturday and Sunday opening moves to 9 am.', 5],
+      ['High school robotics team heads to the state final', 'The team won its regional round on Saturday.', 9],
+      ['Why your energy bill is going up this month', '', 12],
+      ['Farmers market moves indoors for the cold season', 'Find it at the community hall from December.', 20],
+    ].map(([title, summary, h], i) => ({ title, summary, link: 'https://example.com/' + i, time: now - h * 3600 }));
+    return { title: 'Demo News', items, hash: 'demo', problem: null };
   }
 
   async picture(entity) {
     if (String(entity || '').startsWith('media_player.')) return MOCK_ALBUM_ART;          // a cover, not a camera snapshot
+    if (/radar/.test(String(entity || ''))) {                                            // a made-up radar map
+      return 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><rect width="400" height="400" fill="#1d2a38"/>' +
+        '<path d="M0 260 C80 230 120 300 200 270 S330 210 400 240" stroke="#3b5068" stroke-width="3" fill="none"/><path d="M60 0 L140 400 M300 0 L250 400" stroke="#3b5068" stroke-width="2"/>' +
+        '<ellipse cx="150" cy="150" rx="90" ry="55" fill="#6bcb77" opacity=".8"/><ellipse cx="160" cy="145" rx="45" ry="28" fill="#ffd93d" opacity=".9"/><ellipse cx="165" cy="142" rx="15" ry="10" fill="#ff5c5c"/>' +
+        '<ellipse cx="290" cy="290" rx="70" ry="40" fill="#4d96ff" opacity=".7"/><circle cx="210" cy="215" r="5" fill="#fff"/></svg>');
+    }
     return 'data:image/svg+xml;utf8,' + encodeURIComponent(
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect width="400" height="300" fill="#26364a"/><circle cx="130" cy="110" r="38" fill="#e8b04a"/>' +
       '<path d="M0 300 L120 170 L200 240 L290 140 L400 300 Z" fill="#4f7a63"/><text x="200" y="285" font-size="22" text-anchor="middle" fill="#fff" font-family="sans-serif">' +
@@ -67,7 +86,13 @@ export class MockClient {
   connect() { /* nothing to connect */ }
 
   async state(id) {
-    return this._state(id);
+    // dev previews only: ?states=<file> (a JSON map of entity id -> state) puts real-looking states in place of the made-up ones
+    if (this._file === undefined) {
+      const f = typeof location !== 'undefined' && new URLSearchParams(location.search).get('states');
+      this._file = f ? fetch(f).then((r) => r.json()).catch(() => ({})) : Promise.resolve({});
+    }
+    const real = (await this._file)[id];
+    return real || this._state(id);
   }
 
   _state(id) {
@@ -173,6 +198,7 @@ export function mockBindings(registry, pane) {
     for (const [name, spec] of Object.entries(slots)) {
       // an image shows its uploaded picture; it only shows an entity's picture when someone bound one, so demo data invents none
       if (w.type === 'image' && spec.required === false) continue;
+      if (w.type === 'radar' && w.options && (w.options.url || w.options.source === 'us_composite')) continue;   // a radar from the web needs no made-up entity
       const dom = (spec.domains && spec.domains[0]) || 'sensor';
       if (spec.kind === 'entity') out[name] = dom + '.demo_' + w.id;
       else if (spec.kind === 'entities') {

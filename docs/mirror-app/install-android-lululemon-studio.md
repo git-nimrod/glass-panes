@@ -61,6 +61,7 @@ A **cold boot** means cutting wall power. A trick that works: plug the mirror in
 4. Reports differ about **Zadig with the WinUSB driver**: one owner of the same board said it works, another said it didn't and the Google driver did. Use the Google driver first.
 5. Use a **normal (non-admin)** terminal and run `fastboot devices`. **Expected:** it lists the mirror.
 6. **If nothing is listed at all**, and Device Manager shows no new device (on a Mac, `system_profiler` shows nothing), the usual cause is the **cable**. It has to be a micro-USB **data** cable, and many are charge-only. One owner went through four before one worked. Try a different cable and a different USB port before anything else.
+7. **Windows still won't see it, or the driver won't install?** Use a Linux live USB instead: Linux needs no driver for fastboot. See [Fastboot from a Linux live USB](fastboot-linux.md).
 
 ## 3. Download and check the images
 

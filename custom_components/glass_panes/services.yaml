@@ -519,6 +519,10 @@ set_pane:
     burn_in_saver:
       selector:
         boolean:
+    photo_background:
+      example: {"folder": "photos/family", "dim": 0.4}
+      selector:
+        object:
 
 finish_draft:
   fields:
@@ -538,5 +542,57 @@ discard_draft:
       example: "d_1a2b3c4d"
       selector:
         text:
+
+find_entities:
+  fields:
+    domain:
+      example: "calendar"
+      selector:
+        text:
+    area:
+      example: "Kitchen"
+      selector:
+        text:
+    text:
+      example: "family"
+      selector:
+        text:
+    widget:
+      example: "calendar_agenda"
+      selector:
+        text:
+    limit:
+      selector:
+        number:
+          min: 1
+          max: 200
+          mode: box
+
+get_widget:
+  fields:
+    type:
+      required: true
+      example: "clock"
+      selector:
+        text:
+
+preview_draft:
+  fields:
+    draft:
+      required: true
+      example: "d_1a2b3c4d"
+      selector:
+        text:
+    display:
+      required: true
+      example: "mirror"
+      selector:
+        text:
+    seconds:
+      selector:
+        number:
+          min: 10
+          max: 600
+          mode: box
 
 # ---- end of generated agent tools ----

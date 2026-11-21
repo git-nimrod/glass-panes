@@ -26,12 +26,14 @@ from .manager import Manager
 PREFIX = "glass_panes_"
 
 API_PROMPT = (
-    "Glass Panes designs the screens (\"panes\") a Lululemon Studio mirror shows. A pane is a 1080 x 1920 portrait canvas of positioned "
-    "widgets. To build one: call glass_panes_get_schema to learn the widget types, their options and the layout rules; glass_panes_start_draft; "
-    "then add widgets one at a time (glass_panes_add_widget, glass_panes_place_widget, glass_panes_bind_widget, ...); then glass_panes_finish_draft. "
-    "A draft is private until you finish it, and every step is checked, so a step that would make an invalid pane is refused with the reasons. "
-    "Finishing saves a normal pane that the person can open in the Glass Panes builder and edit by hand. Never invent entity ids: look them up "
-    "first, or leave a widget unbound. Keep important things 40 px or more from the canvas edge. Black is see-through on a two-way mirror."
+    "Glass Panes designs the screens (\"panes\") a smart mirror shows (a Lululemon Studio mirror taken over with the Glass Panes app). A pane is a 1080 x 1920 portrait "
+    "canvas of positioned widgets. To build one: call glass_panes_get_schema for the widget list and layout rules (glass_panes_get_widget gives "
+    "one widget's full options); glass_panes_start_draft; then add widgets one at a time (glass_panes_add_widget, glass_panes_place_widget, "
+    "glass_panes_bind_widget, ...); then glass_panes_finish_draft. A draft is private until you finish it, and every step is checked, so a step "
+    "that would make an invalid pane is refused with the reasons. Finishing saves a normal pane that the person can open in the Glass Panes "
+    "builder and edit by hand. Never invent entity ids: look them up with glass_panes_find_entities, or leave a widget unbound. "
+    "glass_panes_preview_draft shows a draft on a mirror for two minutes: ask the person first. Keep important things 40 px or more from the "
+    "canvas edge. Black is see-through on a two-way mirror."
 )
 
 
@@ -119,7 +121,7 @@ class _ReadTool(llm.Tool):
             return llm.ToolResult(data={"error": f"The request is not valid: {err}"}, error=True)
         manager: Manager = hass.data[DOMAIN]["manager"]
         if self._short == "get_schema":
-            return llm.ToolResult(data=schema_document(manager))
+            return llm.ToolResult(data=schema_document(manager, short=True))
         if self._short == "list_panes":
             return llm.ToolResult(data={"panes": manager.list_panes()})
         if self._short == "list_media":
@@ -130,15 +132,16 @@ class _ReadTool(llm.Tool):
         return llm.ToolResult(data={"pane": found[0], "source": found[1], "bindings": manager.bindings.data["bindings"].get(found[0]["id"], {})})
 
 
-def schema_document(manager: Manager) -> dict[str, Any]:
-    """The same document the glass_panes.get_schema service returns."""
-    from .services import schema_for_agents      # imported here: services.py imports this module's neighbours
+def schema_document(manager: Manager, short: bool = False) -> dict[str, Any]:
+    """The document the glass_panes.get_schema service returns, or (short) the compact one the MCP tool gives: a whole JSON Schema is
+    about 9,000 tokens, too much for a small model on every session, so agents get the summary and ask get_widget for details."""
+    from .services import schema_for_agents, schema_summary      # imported here: services.py imports this module's neighbours
 
-    return schema_for_agents(manager)
+    return schema_summary(manager) if short else schema_for_agents(manager)
 
 
 READ_TOOLS = (
-    ("get_schema", "Get the rules", "Everything you need to write a valid pane: the pane schema, every widget type with its options and entity slots, the canvas and grid sizes, and the layout notes. Call this first.", ()),
+    ("get_schema", "Get the rules", "The rules for a valid pane, in short: every widget type with its entity slots and option names, the pane's own fields, the canvas and grid sizes, and the layout notes. Call this first; then get_widget for the full options of the widgets you use.", ()),
     ("list_panes", "List panes", "List the panes that exist (id, name, description, widget count).", ()),
     ("get_pane", "Get a pane", "Return one pane and the entities bound to it, as an example or to start from.", (draft_tools.Field("pane", "text", "The pane's id.", True, "mirror"),)),
     ("list_media", "List uploaded files", "List the pictures and videos a person uploaded (id, name, kind, size). Use an id as options.media on an image or video widget. You can't upload files.", ()),

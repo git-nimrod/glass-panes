@@ -38,15 +38,18 @@ This takes about ten minutes and ends with a pane on a screen. Glass Panes is bu
 - **Clock** has a **Look**: digital numbers, a traditional clock face, or an alarm clock (the two round looks also have a light or dark face and a red second hand with **Show seconds**). Its **Time zone** box shows another place's time, such as `America/Chicago`; the **Date** widget has one too.
 - **Now playing** has a **Look**: the default card, a spinning **vinyl** record with a tonearm, or a **CD**. They only move while a song is playing. The **Burn-in saver** switch drifts the block a few pixels over 40 minutes, so a screen left on for hours never holds the same pixels. It's off by default and works with every look.
 
-## 4. Make a display and sign it in
+## 4. Add your mirror
 
-![The Displays tab: the display's pane picker, Set up login, and a button for the mirror's settings](images/builder-displays.png)
+![The Mirrors tab: the mirror's pane picker, its sign-in, and a button for its settings](images/builder-displays.png)
 
-1. Go to **Displays > Add display** and name it (for example "Hall mirror").
-2. Press **Set up login**. You get a link and a token. **They are shown once**, and Glass Panes keeps the token nowhere.
-   - Your display's **id** is its name in lowercase with underscores: "Hall mirror" becomes `hall_mirror`. It is the small grey text under the display's name (`select.glass_panes_hall_mirror`), after `select.glass_panes_`. A mirror needs this id, and capital letters won't work. The easiest way to get it exactly right is the **Open this display's player** link under the display.
-3. Open that link in the screen's browser. It signs itself in and shows the display's pane.
-4. Choose what it shows in the builder, or use an automation (next step).
+A mirror running the Glass Panes app (0.12.0 or newer) shows a six-digit code and its address when it is new. Go to **Mirrors > Add mirror**, type the code and the address, give it a name (for example "Hall mirror"), and press **Add and pair**. Home Assistant makes the mirror's login and sends it to the mirror itself; you never see a token. The mirror's card then says when it has loaded its page. Details: [installing the app, step 7](mirror-app/install-app-lululemon-studio.md#7-start-the-app-and-point-it-at-your-display).
+
+Each mirror's card starts with how it is connected: **Connected**, **Signed in with a link**, or **Not connected yet** (with **Pair with a code…** below it).
+
+**Mirror app older than 0.12 (no code on its screen)?** Under the pairing form, press **No code on the mirror?**, name it, and press **Add and make the link**. You get a sign-in link and a token. **They are shown once**, and Glass Panes keeps the token nowhere; send it to the mirror with `adb` as in [installing the app, step 7a](mirror-app/install-app-lululemon-studio.md#7a-get-your-player-address-from-glass-panes).
+   - The mirror's **id** is its name in lowercase with underscores: "Hall mirror" becomes `hall_mirror`. It is the small grey text under the name (`select.glass_panes_hall_mirror`), after `select.glass_panes_`. The easiest way to get it exactly right is the **Open this display's player** link on the card.
+
+Then choose what it shows in the builder, or use an automation (next step).
 
 The login is a separate, ordinary Home Assistant user for that one display. It is not an admin, and it only works from your home network. Home Assistant can't limit a user to certain entities, so it can read whatever any ordinary user can. **Revoke** deletes the user. **Replace** makes a new login and stops the old one working.
 
@@ -106,16 +109,55 @@ The mirror stays plain glass until someone stands in front of it, then the clock
 
 Want the backlight lower when nobody's there too? Use the blueprint: in Home Assistant open **Settings > Automations & scenes > Blueprints > Import Blueprint** and paste `https://github.com/git-nimrod/glass-panes/blob/main/blueprints/automation/glass_panes/presence_brightness.yaml`. Create an automation from it, pick your toggle and your display's **Brightness** number (see "Controls Home Assistant gets for a mirror" below), and choose the two levels and how long to wait before dimming. A person walking back up cancels the wait.
 
+Want the backlight to follow the room's light instead (dim at night, bright on a sunny afternoon)? Import `https://github.com/git-nimrod/glass-panes/blob/main/blueprints/automation/glass_panes/light_sensor_brightness.yaml` the same way. Pick any sensor that reports light in lux, your display's **Brightness** number, what counts as a dark and a bright room, and the lowest and highest brightness. It changes the brightness at most once per wait (30 seconds by default) and ignores small wobbles, so the mirror isn't asked over and over. Use one of the two blueprints per display, not both: they would fight over the same number.
+
 ### Controls Home Assistant gets for a mirror
 
-Once a display has its mirror set up (the mirror address), Home Assistant gets two entities for it, on the display's device. Use them in dashboards, automations and scripts:
+Once a display has its mirror set up (the mirror address), Home Assistant gets these entities for it, on the display's device. Use them in dashboards, automations and scripts:
 
 | Entity | What it is | Notes |
 |---|---|---|
 | `number.glass_panes_<display>_brightness` | The backlight, 0 to 100 % | Shows the mirror's real setting, read every 10 seconds. Unknown until something sets it (Android is in charge before that). 0 is as dark as the panel goes, not off. |
 | `switch.glass_panes_<display>_presence_detection` | Camera presence on or off | Follows the mirror: it changes by itself if presence is switched in the Settings page. Numbers only, never pictures. |
+| `switch.glass_panes_<display>_screen` | The screen on or off (mirror app 0.13.0 and later) | Off is fully black on mirror-android-2 and later; the mirror stays on the network, so switching it on works. Before the first "off", run `adb shell dpm set-active-admin com.nimrod.mirrorkiosk/.ScreenAdmin` once. Unavailable with an older app. |
+| `select.glass_panes_<display>_screen_mode` | How the screen is run: **Manual**, **Auto (quiet hours)**, **Always on**, **Always off** | Starts on Manual, which does nothing (the Screen switch is yours). See "Quiet hours" below. |
+| `time.glass_panes_<display>_screen_quiet_hours_start` / `..._end` | When quiet hours start and end | Only used in Auto. Home Assistant's time zone. Default 23:00 to 07:00. The same time twice means no quiet hours. |
+| `switch.glass_panes_<display>_bluetooth_proxy` | The mirror as a Bluetooth proxy (mirror app 0.13.0 and later) | Off by default. See "Voice and Bluetooth proxy" below. |
+| `switch.glass_panes_<display>_voice` | The mirror as a voice assistant (mirror app 0.13.0 and later) | Off by default. Its `voice_state` attribute says what it is waiting for. |
+| `switch.glass_panes_<display>_wake_word` | Listen for a wake word on the mirror (mirror app 0.13.0 and later) | Off by default; needs Voice on. |
 
-They need the mirror app 0.10.3 or newer, and they appear and disappear with the mirror address. For a few seconds after Home Assistant starts they show an unknown value, until the first read. A screen on and off switch is not included yet.
+They need the mirror app 0.10.3 or newer (the screen, Bluetooth proxy, Voice and Wake word ones need 0.13.0), and they appear and disappear with the mirror address. For a few seconds after Home Assistant starts they show an unknown value, until the first read.
+
+#### Voice and Bluetooth proxy (mirror app 0.13.0)
+
+The mirror can be a Bluetooth proxy (for BLE sensors and presence) and a voice assistant with its own microphone and speaker. Both are off
+until you switch them on, and the mirror runs nothing for them while they are off. *(Not yet run on a mirror: this is a test-build feature.)*
+
+1. Open **Settings > Devices & services > Glass Panes**, then your display's device. Switch on **Bluetooth proxy**, **Voice**, or both.
+2. Within a minute **Settings > Devices & services** shows a **Discovered** card: **ESPHome, glass-panes-xxxxxx**. Click **Add**, then
+   **Submit**. (Not there? Click **Add integration**, pick **ESPHome**, type the mirror's address and port `6053`.) You are never asked
+   for an encryption key: Home Assistant makes one and gives it to the mirror by itself.
+3. For Bluetooth that's it: the mirror's advertisements show up in Home Assistant's Bluetooth integration.
+4. For voice, wait until the **Voice** switch's `voice_state` attribute says `ready` (open the switch, then **Attributes**). The mirror now
+   appears as an Assist device: open the new ESPHome device and pick its **Assistant** (pipeline) as for any voice satellite.
+5. Want to talk to it hands-free? Switch on **Wake word** on the Glass Panes device. On the ESPHome device, **Wake word** picks the phrase:
+   "Okay Nabu" (the default), "Hey Jarvis" or "Hey Mycroft". The mirror listens on its own and sends nothing until it hears the word.
+6. Without the wake word, Home Assistant can still start a conversation: `assist_satellite.start_conversation` on the mirror's Assist
+   entity, for example from an automation when you walk up.
+
+While the mic listens for the wake word a small dot shows in the mirror's top-right corner, and a **Listening…** sign shows at the top
+while what you say goes to Home Assistant. Android needs the microphone and location permissions once: see
+[the mirror app API](mirror-app/api.md) (section 3) for the two `adb` lines.
+
+#### Quiet hours (screen off at night)
+
+1. Open **Settings > Devices & services > Glass Panes**, then your display's device.
+2. Set **Screen quiet hours start** and **Screen quiet hours end** (for example 23:00 and 07:00).
+3. Set **Screen mode** to **Auto (quiet hours)**.
+
+In Auto the screen goes off when quiet hours start and back on when they end. In between you can still turn the **Screen** switch on to have a look; Auto leaves it alone until the next start or end. **Always on** and **Always off** keep the screen that way: if the mirror restarts or something else switches it, it is put back within half a minute, and the Screen switch refuses the other way until you pick Manual or Auto. **Manual** (the default) does nothing at all.
+
+Want the screen to follow something else (nobody home, a bedtime scene)? Leave the mode on Manual and switch the **Screen** switch from your own automation.
 
 ## 6. Share a pane
 
@@ -166,8 +208,8 @@ Any other screen with a browser (a tablet, a wall panel) can open the display's 
 
 ### Display settings (if the mirror runs the Mirror Kiosk app)
 
-1. Open **Glass Panes** in the sidebar, then press the **Settings** gear at the top, next to Dark mode. (Settings used to sit inside the Displays tab; the display's card there now has a **Mirror settings...** button that opens the same page.) If you have several displays, choose the display at the top of the page.
-2. In the **Display settings** card, press **Connect a mirror...**. Type the mirror's address: the host, plus the port if it isn't 8099, for example `mirror.local:8099`. Add its key only if you set one on the mirror. Press **Save**. Nothing else is accepted (no `user:password@`, no path).
+1. Open **Glass Panes** in the sidebar, then press the **Settings** gear at the top, next to Dark mode. (Settings used to sit inside the Displays tab; the display's card there has a **Settings...** button that opens the same page.) If you have several displays, choose the display at the top of the page.
+2. A paired display is connected already. Otherwise, in the **Display settings** card, press **Connect by address and key (advanced)...**. Type the mirror's address: the host, plus the port if it isn't 8099, for example `mirror.local:8099`. Add its key only if you set one on the mirror. Press **Save**. Nothing else is accepted (no `user:password@`, no path).
 3. Above it, the **Speaker** card shows what the mirror is playing and has a volume slider with Pause, Resume and Stop (needs Mirror Kiosk app 0.11.0 and Glass Panes 0.11.0). A **Planned** card lists the Bluetooth proxy and the voice assistant, which are not built yet. The **Display settings** card now shows whether the page is loaded and what presence is doing. You also get a **Presence detection** switch, the presence settings in plain words with their allowed ranges (press **Apply settings** to save changes), brightness, and the memory the mirror reports.
 4. **Measure what presence costs...** asks you first, then turns presence off for about 20 seconds, compares the mirror's memory before and after, and turns presence back on. The numbers are what the mirror reported, with the time they were read.
 
@@ -184,7 +226,7 @@ Everything the builder does can also be done with services, with the same safety
 - **Removing:** go to **Settings > Devices & services > Glass Panes**, open the three dots, and choose **Delete**. Afterwards you can delete it in HACS too.
   - Deleting the integration **revokes every display login**. The "Glass Panes: ..." users are deleted and their tokens stop working, so any display that was signed in goes dark.
   - Home Assistant removes the pane `select` and button entities by itself.
-  - Your **panes, display list, bindings and uploaded pictures and videos are kept** (in `config/.storage/` and Glass Panes' media storage). If you add the integration again, your work comes back. You only need to press **Set up login** again on each display.
+  - Your **panes, display list, bindings and uploaded pictures and videos are kept** (in `config/.storage/` and Glass Panes' media storage). If you add the integration again, your work comes back. You only need to pair each display again, or press **Set up a sign-in link…** on it.
   - To wipe everything for good, delete the `glass_panes.*` files and the uploaded media yourself while Home Assistant is stopped.
 
 Having trouble? See [troubleshooting.md](troubleshooting.md).

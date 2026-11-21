@@ -3,8 +3,83 @@
   "widgets": {
     "clock": {
       "label": "Clock",
-      "description": "The time of day, as digits, a round analog face or a bedside alarm clock.",
-      "slots": {}
+      "description": "The time of day, as digits (in a line, stacked or sideways), a round analog face or a bedside alarm clock.",
+      "slots": {},
+      "looks": [
+        {
+          "id": "digital",
+          "label": "Digital",
+          "options": {
+            "style": "digital",
+            "orientation": "horizontal"
+          },
+          "style": {}
+        },
+        {
+          "id": "thin",
+          "label": "Thin",
+          "options": {
+            "style": "digital",
+            "orientation": "horizontal"
+          },
+          "style": {
+            "weight": 200,
+            "letter_spacing": 2
+          }
+        },
+        {
+          "id": "stacked",
+          "label": "Stacked",
+          "options": {
+            "style": "digital",
+            "orientation": "stacked"
+          },
+          "style": {}
+        },
+        {
+          "id": "sideways",
+          "label": "Sideways",
+          "options": {
+            "style": "digital",
+            "orientation": "sideways"
+          },
+          "style": {}
+        },
+        {
+          "id": "analog",
+          "label": "Clock face",
+          "options": {
+            "style": "analog"
+          },
+          "style": {}
+        },
+        {
+          "id": "alarm",
+          "label": "Alarm clock",
+          "options": {
+            "style": "alarm"
+          },
+          "style": {}
+        },
+        {
+          "id": "galactic",
+          "label": "Galactic",
+          "options": {
+            "style": "digital",
+            "orientation": "horizontal",
+            "plain_line": true
+          },
+          "style": {
+            "font": "galactic"
+          }
+        }
+      ],
+      "basics": [
+        "format",
+        "show_seconds",
+        "face",
+        "timezone"
+      ]
     },
     "date": {
       "label": "Date",
@@ -72,7 +147,43 @@
           "required": false,
           "label": "Message source (optional, overrides the rotating lines)"
         }
-      }
+      },
+      "looks": [
+        {
+          "id": "plain",
+          "label": "Plain",
+          "options": {
+            "look": "plain"
+          },
+          "style": {}
+        },
+        {
+          "id": "bubble",
+          "label": "Speech bubble",
+          "options": {
+            "look": "bubble"
+          },
+          "style": {}
+        },
+        {
+          "id": "thought",
+          "label": "Thought bubble",
+          "options": {
+            "look": "thought"
+          },
+          "style": {}
+        },
+        {
+          "id": "galactic",
+          "label": "Galactic bubble",
+          "options": {
+            "look": "bubble"
+          },
+          "style": {
+            "font": "galactic"
+          }
+        }
+      ]
     },
     "entity_value": {
       "label": "Entity value",
@@ -100,7 +211,45 @@
           "required": true,
           "label": "Weather entity"
         }
-      }
+      },
+      "looks": [
+        {
+          "id": "line",
+          "label": "One line",
+          "options": {
+            "layout": "line",
+            "icon": "none"
+          },
+          "style": {}
+        },
+        {
+          "id": "stacked",
+          "label": "Stacked",
+          "options": {
+            "layout": "stacked",
+            "icon": "none"
+          },
+          "style": {}
+        },
+        {
+          "id": "chibi",
+          "label": "Chibi",
+          "options": {
+            "layout": "stacked",
+            "icon": "chibi"
+          },
+          "style": {}
+        },
+        {
+          "id": "chibi_line",
+          "label": "Chibi line",
+          "options": {
+            "layout": "line",
+            "icon": "chibi"
+          },
+          "style": {}
+        }
+      ]
     },
     "calendar_agenda": {
       "label": "Calendar agenda",
@@ -145,7 +294,37 @@
           "required": true,
           "label": "Media players"
         }
-      }
+      },
+      "looks": [
+        {
+          "id": "card",
+          "label": "Card",
+          "options": {
+            "style": "card"
+          },
+          "style": {}
+        },
+        {
+          "id": "vinyl",
+          "label": "Vinyl record",
+          "options": {
+            "style": "vinyl"
+          },
+          "style": {}
+        },
+        {
+          "id": "cd",
+          "label": "CD",
+          "options": {
+            "style": "cd"
+          },
+          "style": {}
+        }
+      ],
+      "basics": [
+        "show_art",
+        "cd_case"
+      ]
     },
     "people": {
       "label": "People",
@@ -222,7 +401,56 @@
           "required": true,
           "label": "Team Tracker sensors"
         }
-      }
+      },
+      "looks": [
+        {
+          "id": "scorebug",
+          "label": "Scorebug",
+          "options": {
+            "layout": "rows",
+            "head_top": false
+          },
+          "style": {}
+        },
+        {
+          "id": "big",
+          "label": "Big score",
+          "options": {
+            "layout": "rows",
+            "head_top": true
+          },
+          "style": {
+            "size": 44
+          }
+        },
+        {
+          "id": "compact",
+          "label": "Compact",
+          "options": {
+            "layout": "box"
+          },
+          "style": {}
+        },
+        {
+          "id": "line",
+          "label": "One line",
+          "options": {
+            "layout": "line"
+          },
+          "style": {}
+        }
+      ],
+      "basics": [
+        "max_games",
+        "show_logos",
+        "game_day_only",
+        "show_next"
+      ]
+    },
+    "rss": {
+      "label": "News from a web feed",
+      "description": "Headlines from any RSS or Atom feed address. Home Assistant fetches the feed and keeps a copy; the display only asks Home Assistant.",
+      "slots": {}
     },
     "news": {
       "label": "News headlines",
@@ -251,6 +479,394 @@
           "label": "Rows (one entity each)"
         }
       }
+    },
+    "sparkles": {
+      "label": "Sparkles",
+      "description": "Little twinkles and stars scattered through the box, a new scatter each day. A decoration: it needs no entity.",
+      "group": "decorations",
+      "slots": {},
+      "looks": [
+        {
+          "id": "pastel",
+          "label": "Pastel twinkles",
+          "options": {
+            "palette": "pastel",
+            "stars": 0,
+            "shape": "twinkle"
+          },
+          "style": {}
+        },
+        {
+          "id": "starry",
+          "label": "Starry",
+          "options": {
+            "palette": "pastel",
+            "stars": 6,
+            "shape": "twinkle"
+          },
+          "style": {}
+        },
+        {
+          "id": "gold",
+          "label": "Gold",
+          "options": {
+            "palette": "gold",
+            "stars": 0,
+            "shape": "twinkle"
+          },
+          "style": {}
+        },
+        {
+          "id": "frost",
+          "label": "Frost",
+          "options": {
+            "palette": "ice",
+            "stars": 0,
+            "shape": "twinkle"
+          },
+          "style": {}
+        },
+        {
+          "id": "kira",
+          "label": "Kira glints",
+          "options": {
+            "palette": "pastel",
+            "stars": 0,
+            "shape": "kira"
+          },
+          "style": {}
+        },
+        {
+          "id": "screen",
+          "label": "Whole screen",
+          "options": {
+            "palette": "pastel",
+            "stars": 8,
+            "shape": "twinkle",
+            "whole_screen": true,
+            "keep_middle": true
+          },
+          "style": {}
+        }
+      ],
+      "basics": [
+        "count",
+        "twinkle",
+        "whole_screen",
+        "keep_middle",
+        "max_size",
+        "stars"
+      ]
+    },
+    "radar": {
+      "label": "Weather radar",
+      "description": "A live radar map: the US colour composite for your area, a radar camera or image entity, or any radar picture on the web, in a frame made for glass.",
+      "group": "home",
+      "slots": {
+        "entity": {
+          "kind": "entity",
+          "domains": [
+            "camera",
+            "image"
+          ],
+          "required": false,
+          "label": "Radar camera or image (optional: or use a web address)"
+        }
+      },
+      "looks": [
+        {
+          "id": "rounded",
+          "label": "Rounded",
+          "options": {
+            "frame": "rounded"
+          },
+          "style": {}
+        },
+        {
+          "id": "circle",
+          "label": "Round window",
+          "options": {
+            "frame": "circle"
+          },
+          "style": {}
+        },
+        {
+          "id": "edge",
+          "label": "Edge to edge",
+          "options": {
+            "frame": "none"
+          },
+          "style": {}
+        }
+      ],
+      "basics": [
+        "source",
+        "region",
+        "layers",
+        "url",
+        "dim",
+        "show_updated"
+      ]
+    },
+    "ascii_art": {
+      "label": "ASCII art",
+      "description": "Text art in a terminal look: a picture from a small built-in library, your own typed art, an ASCII clock or ASCII weather.",
+      "group": "decorations",
+      "slots": {
+        "weather": {
+          "kind": "entity",
+          "domains": [
+            "weather"
+          ],
+          "required": false,
+          "label": "Weather entity (for ASCII weather)"
+        }
+      },
+      "looks": [
+        {
+          "id": "green",
+          "label": "Green terminal",
+          "options": {
+            "look": "green",
+            "scanlines": true
+          },
+          "style": {}
+        },
+        {
+          "id": "amber",
+          "label": "Amber terminal",
+          "options": {
+            "look": "amber",
+            "scanlines": true
+          },
+          "style": {}
+        },
+        {
+          "id": "plain",
+          "label": "Plain",
+          "options": {
+            "look": "plain",
+            "scanlines": false
+          },
+          "style": {}
+        }
+      ],
+      "basics": [
+        "show",
+        "art",
+        "cursor",
+        "format"
+      ]
+    },
+    "petals": {
+      "label": "Falling petals",
+      "description": "Cherry-blossom petals drifting down through the box, or scattered and still. A decoration: it needs no entity.",
+      "group": "decorations",
+      "slots": {},
+      "looks": [
+        {
+          "id": "sakura",
+          "label": "Sakura",
+          "options": {
+            "palette": "sakura",
+            "motion": "fall"
+          },
+          "style": {}
+        },
+        {
+          "id": "white",
+          "label": "White blossom",
+          "options": {
+            "palette": "white",
+            "motion": "fall"
+          },
+          "style": {}
+        },
+        {
+          "id": "autumn",
+          "label": "Autumn leaves",
+          "options": {
+            "palette": "autumn",
+            "motion": "fall"
+          },
+          "style": {}
+        },
+        {
+          "id": "still",
+          "label": "Still petals",
+          "options": {
+            "palette": "sakura",
+            "motion": "still"
+          },
+          "style": {}
+        }
+      ],
+      "basics": [
+        "count",
+        "speed",
+        "max_size",
+        "opacity"
+      ]
+    },
+    "art_pond": {
+      "label": "Lily pond",
+      "description": "Monet's water lilies as cut-outs, arranged like a pond strip, anew each day: pads in groups, flowers on top, grass along the bottom. Or use your own cut-outs.",
+      "group": "decorations",
+      "slots": {},
+      "looks": [
+        {
+          "id": "monet",
+          "label": "Monet lilies",
+          "options": {
+            "set": "monet_lilies",
+            "depth": true
+          },
+          "style": {}
+        },
+        {
+          "id": "monet_flat",
+          "label": "Monet, flat",
+          "options": {
+            "set": "monet_lilies",
+            "depth": false
+          },
+          "style": {}
+        },
+        {
+          "id": "own",
+          "label": "Your cut-outs",
+          "options": {
+            "set": "own",
+            "depth": true
+          },
+          "style": {}
+        }
+      ],
+      "basics": [
+        "clusters",
+        "per_cluster",
+        "accents",
+        "edge",
+        "size"
+      ]
+    },
+    "moon": {
+      "label": "Moon phase",
+      "description": "Tonight's moon with its real shadow, the phase name, how much is lit and the next full moon. Needs no setup.",
+      "group": "sky",
+      "slots": {
+        "entity": {
+          "kind": "entity",
+          "domains": [
+            "sensor"
+          ],
+          "required": false,
+          "label": "Moon sensor (optional: the Moon integration, or Lunar Phase from HACS for rise and set times)"
+        }
+      },
+      "looks": [
+        {
+          "id": "photo",
+          "label": "Real moon photo",
+          "options": {
+            "look": "photo",
+            "layout": "stacked"
+          },
+          "style": {}
+        },
+        {
+          "id": "realistic",
+          "label": "Realistic",
+          "options": {
+            "look": "realistic",
+            "layout": "stacked"
+          },
+          "style": {}
+        },
+        {
+          "id": "side",
+          "label": "Moon and words",
+          "options": {
+            "look": "realistic",
+            "layout": "side"
+          },
+          "style": {}
+        },
+        {
+          "id": "line",
+          "label": "Line drawing",
+          "options": {
+            "look": "line",
+            "layout": "stacked"
+          },
+          "style": {}
+        },
+        {
+          "id": "glow",
+          "label": "Glowing moon",
+          "options": {
+            "look": "glow",
+            "layout": "moon"
+          },
+          "style": {}
+        }
+      ],
+      "basics": [
+        "show_name",
+        "show_percent",
+        "show_next",
+        "show_rise",
+        "hemisphere"
+      ]
+    },
+    "flights": {
+      "label": "Planes overhead",
+      "description": "Planes flying over your home: the nearest one, a radar or an airport board. Needs FlightRadar24 or Flights Above from HACS.",
+      "needs": "a flight sensor from the FlightRadar24 or Flights Above integration (HACS)",
+      "group": "sky",
+      "slots": {
+        "entities": {
+          "kind": "entities",
+          "domains": [
+            "sensor"
+          ],
+          "required": true,
+          "label": "Flight sensors: FlightRadar24's Current in area, or Flights Above's Flights overhead plus Flight 1 to 3"
+        }
+      },
+      "looks": [
+        {
+          "id": "overhead",
+          "label": "Nearest plane",
+          "options": {
+            "look": "overhead"
+          },
+          "style": {}
+        },
+        {
+          "id": "radar",
+          "label": "Radar",
+          "options": {
+            "look": "radar"
+          },
+          "style": {}
+        },
+        {
+          "id": "board",
+          "label": "Airport board",
+          "options": {
+            "look": "board"
+          },
+          "style": {
+            "font": "vt323"
+          }
+        }
+      ],
+      "basics": [
+        "units",
+        "max_flights",
+        "labels"
+      ]
     }
   }
 }

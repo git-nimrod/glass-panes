@@ -24,6 +24,8 @@ from .const import (
     SIGNAL_PANES_CHANGED,
 )
 from .manager import Manager
+from .mirror_entities import ScheduleSetting, async_setup_controls
+from .screen_lib import MODES
 
 
 async def async_setup_entry(
@@ -47,6 +49,7 @@ async def async_setup_entry(
 
     entry.async_on_unload(async_dispatcher_connect(hass, SIGNAL_DISPLAY_ADDED, display_added))
     entry.async_on_unload(async_dispatcher_connect(hass, SIGNAL_DISPLAY_REMOVED, display_removed))
+    await async_setup_controls(hass, entry, async_add_entities, "select", DisplayScreenMode.suffix, DisplayScreenMode)
 
 
 class DisplayPaneSelect(SelectEntity):
@@ -65,9 +68,13 @@ class DisplayPaneSelect(SelectEntity):
 
     def _refresh(self) -> None:
         record = self._manager.display_store.displays.get(self._display_id)
-        self._attr_options = self._manager.pane_ids()
-        pane = record["pane"] if record else None
-        self._attr_current_option = pane if pane in self._attr_options else None
+        options = self._manager.pane_ids()
+        preview = self._manager.preview_pane_id(self._display_id)      # a live "show on the mirror" preview takes over for a while
+        pane = preview or (record["pane"] if record else None)
+        if preview and preview not in options:
+            options = [*options, preview]
+        self._attr_options = options
+        self._attr_current_option = pane if pane in options else None
         if record:
             self._attr_device_info = DeviceInfo(
                 identifiers={(DOMAIN, self._display_id)},
@@ -105,3 +112,24 @@ class DisplayPaneSelect(SelectEntity):
         problem = await self._manager.set_display_pane(self._display_id, option)
         if problem:
             raise ServiceValidationError(problem)
+
+
+class DisplayScreenMode(ScheduleSetting, SelectEntity):
+    """How the screen of a display's mirror is run: Manual (the default, the schedule does nothing), Auto (off during quiet hours),
+    On or Off (kept that way). Exists while the display has a mirror; the rules are in screen_lib.py."""
+
+    suffix = "screen_mode"
+    runs_schedule = True
+    _attr_name = "Screen mode"
+    _attr_icon = "mdi:monitor-shimmer"
+    _attr_options = list(MODES)
+    _attr_translation_key = "screen_mode"
+
+    @property
+    def current_option(self) -> str | None:
+        return self._setting("mode")
+
+    async def async_select_option(self, option: str) -> None:
+        if option not in MODES:
+            raise ServiceValidationError(f"Screen mode must be one of {', '.join(MODES)}")
+        await self._schedule.async_update(self._display_id, mode=option)

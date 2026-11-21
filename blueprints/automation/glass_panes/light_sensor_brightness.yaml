@@ -1,0 +1,122 @@
+blueprint:
+  name: "Glass Panes: mirror brightness follows a light sensor"
+  description: >
+    Sets a display's backlight from a light sensor in the room: dim in a dark room, bright in a sunny one.
+    It needs the display's mirror set up in Glass Panes (that gives the display a Brightness number) and any sensor that
+    measures light in lux (a motion sensor with a light reading, a weather station, a phone's light sensor through the
+    Home Assistant app). It only ever changes the Brightness number of the display you choose, at most once per wait time,
+    and only when the new level differs enough from the current one, so the mirror is not asked over and over.
+    Lux is read on a curve that matches how eyes see (a doubling of light counts the same in a dim or a bright room).
+  domain: automation
+  input:
+    light:
+      name: Light sensor
+      description: A sensor that reports light in lux.
+      selector:
+        entity:
+          domain: sensor
+          device_class: illuminance
+    brightness:
+      name: The display's Brightness number
+      description: Look for "Brightness" under your display, for example number.glass_panes_hall_mirror_brightness.
+      selector:
+        entity:
+          integration: glass_panes
+          domain: number
+    dark_lux:
+      name: A dark room (lux)
+      description: At this light level or below, the mirror uses the lowest brightness.
+      default: 5
+      selector:
+        number:
+          min: 0
+          max: 1000
+          unit_of_measurement: lx
+          mode: box
+    bright_lux:
+      name: A bright room (lux)
+      description: At this light level or above, the mirror uses the highest brightness.
+      default: 400
+      selector:
+        number:
+          min: 1
+          max: 100000
+          unit_of_measurement: lx
+          mode: box
+    low_level:
+      name: Lowest brightness
+      description: 0 is as dark as the panel goes, not off.
+      default: 10
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: "%"
+          mode: slider
+    high_level:
+      name: Highest brightness
+      default: 90
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: "%"
+          mode: slider
+    min_change:
+      name: Only change by at least
+      description: Small wobbles in the light reading are ignored.
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 50
+          unit_of_measurement: "%"
+          mode: slider
+    wait:
+      name: Wait at least this long between changes
+      default:
+        seconds: 30
+      selector:
+        duration:
+
+# single + a wait at the end: readings that arrive during the wait are dropped, so a chatty sensor costs one call per wait
+mode: single
+max_exceeded: silent
+
+triggers:
+  - trigger: state
+    entity_id: !input light
+    not_to:
+      - unavailable
+      - unknown
+  - trigger: homeassistant
+    event: start
+
+variables:
+  light: !input light
+  brightness: !input brightness
+  dark_lux: !input dark_lux
+  bright_lux: !input bright_lux
+  low_level: !input low_level
+  high_level: !input high_level
+  min_change: !input min_change
+  # the one calculation a native condition cannot do: lux -> brightness on a log curve, clamped to the two levels
+  level: >-
+    {% set lux = states(light) | float(-1) %}
+    {% if lux < 0 or bright_lux <= dark_lux %}-1{% else %}
+    {% set lo = (dark_lux + 1) | log %}{% set hi = (bright_lux + 1) | log %}
+    {% set f = ((lux + 1) | log - lo) / (hi - lo) %}
+    {{ (low_level + (high_level - low_level) * ([0, [f, 1] | min] | max)) | round(0) | int }}{% endif %}
+  current: "{{ states(brightness) | float(-100) }}"
+
+conditions:
+  - condition: template
+    value_template: "{{ level | int(-1) >= 0 and (level | int - current) | abs >= min_change }}"
+
+actions:
+  - action: number.set_value
+    target:
+      entity_id: !input brightness
+    data:
+      value: "{{ level | int }}"
+  - delay: !input wait

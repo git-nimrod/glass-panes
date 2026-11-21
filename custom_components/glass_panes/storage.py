@@ -65,24 +65,30 @@ class PaneStore:
     def __init__(self, hass: HomeAssistant) -> None:
         self._store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION, PANES_KEY)
         self.panes: dict[str, dict[str, Any]] = {}
+        # Saved panes that failed the check: not shown or served, but written back on every save, so an update with a stricter
+        # schema (or a widget this version does not have) never erases someone's pane. A newer version may read them again.
+        self.set_aside: dict[str, Any] = {}
 
     async def async_load(self, check) -> None:
-        """`check(pane) -> list of problems` is applied to everything read back; damaged panes are skipped, not trusted."""
+        """`check(pane) -> list of problems` is applied to everything read back; a pane that fails is set aside, not trusted."""
         stored = await self._store.async_load()
         if not isinstance(stored, dict) or not isinstance(stored.get("panes"), dict):
             return
         for pane_id, pane in stored["panes"].items():
             problems = check(pane)
             if problems or not isinstance(pane, dict) or pane.get("id") != pane_id:
-                LOGGER.warning("Saved pane '%s' is not valid and was ignored: %s", pane_id, "; ".join(problems[:3]))
+                LOGGER.warning("Saved pane '%s' is not valid for this version, so it is not shown; it is kept as it was: %s",
+                               pane_id, "; ".join(problems[:3]))
+                self.set_aside[pane_id] = pane
                 continue
             self.panes[pane_id] = pane
 
     async def _save(self) -> None:
-        await self._store.async_save({"schema_version": 1, "panes": self.panes})
+        await self._store.async_save({"schema_version": 1, "panes": {**self.set_aside, **self.panes}})
 
     async def async_put(self, pane: dict[str, Any]) -> None:
         self.panes[pane["id"]] = copy.deepcopy(pane)
+        self.set_aside.pop(pane["id"], None)          # a pane saved now under the same id replaces the old one
         await self._save()
 
     async def async_remove(self, pane_id: str) -> bool:

@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "about": "Integrations that feed Glass Panes widgets, shown in the builder's Add panel and on docs/works-with.md. Each entry was checked against the integration's own page (Nov 18, 2026; radar entries re-checked the same day). source: core (built into Home Assistant) or hacs.",
+  "widgets": {
+    "sports": [
+      { "name": "Team Tracker", "source": "hacs", "url": "https://github.com/vasqued2/ha-teamtracker", "gives": "one sensor per team: live score, opponent and the next game" }
+    ],
+    "news": [
+      { "name": "Feedreader", "source": "core", "url": "https://www.home-assistant.io/integrations/feedreader/", "gives": "an event entity per RSS or Atom feed" }
+    ],
+    "image": [
+      { "name": "Generic Camera", "source": "core", "url": "https://www.home-assistant.io/integrations/generic/", "gives": "a camera from any picture address" }
+    ],
+    "weather": [
+      { "name": "Met.no", "source": "core", "url": "https://www.home-assistant.io/integrations/met/", "gives": "a weather entity with a forecast, anywhere in the world" }
+    ],
+    "calendar_agenda": [
+      { "name": "Local Calendar", "source": "core", "url": "https://www.home-assistant.io/integrations/local_calendar/", "gives": "a calendar kept in Home Assistant" },
+      { "name": "Google Calendar", "source": "core", "url": "https://www.home-assistant.io/integrations/google/", "gives": "your Google calendars" }
+    ],
+    "todo_list": [
+      { "name": "Local To-do", "source": "core", "url": "https://www.home-assistant.io/integrations/local_todo/", "gives": "a to-do list kept in Home Assistant" }
+    ],
+    "now_playing": [
+      { "name": "Music Assistant", "source": "core", "url": "https://www.home-assistant.io/integrations/music_assistant/", "gives": "a media player for every speaker it finds, including the mirror's own" }
+    ],
+    "people": [
+      { "name": "Home Assistant Companion app", "source": "core", "url": "https://www.home-assistant.io/integrations/mobile_app/", "gives": "a phone's location for each person" }
+    ],
+    "lights_summary": [
+      { "name": "Group", "source": "core", "url": "https://www.home-assistant.io/integrations/group/", "gives": "a light group, so one widget covers a room" }
+    ],
+    "radar": [
+      { "name": "Environment Canada", "source": "core", "url": "https://www.home-assistant.io/integrations/environment_canada/", "gives": "a radar map camera, rain, snow or precipitation type (Canada; switch the camera entity on first)" },
+      { "name": "Buienradar", "source": "core", "url": "https://www.home-assistant.io/integrations/buienradar/", "gives": "a rain radar camera (Netherlands and Belgium; switch the camera entity on first)" },
+      { "name": "Generic Camera", "source": "core", "url": "https://www.home-assistant.io/integrations/generic/", "gives": "a camera from any picture address, such as your weather service's radar image (a still image URL)" }
+    ]
+  }
+}

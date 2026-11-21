@@ -88,8 +88,8 @@ TOOLS: tuple[Tool, ...] = (
             Field("options", "object", "The widget's options (see get_schema), merged over its defaults."),
             Field("style", "object", "Style: font, size, weight, color, opacity, align, italic, uppercase, letter_spacing, line_height."),
             Field("auto_height", "boolean", "Let the height follow the content."),
-            Field("entities", "object", "Entities for this widget: {slot: entity id or list}.", example='{"weather": "weather.home"}'),
-            Field("style_rules", "any", "Conditional formatting for a widget with an `entity` slot: a list of up to 8 rules, the first that holds wins. Each is {test: above|below|between|is|is_not, value, to (between only), attribute (optional), style: {color, size, weight, opacity, icon}}.",
+            Field("entities", "object", "Entities for this widget: an object of slot name to an entity id or a list of them.", example='{"weather": "weather.home"}'),
+            Field("style_rules", "any", "Conditional formatting for a widget with an `entity` slot: a list of up to 8 rules, the first that holds wins. Each rule has test (above, below, between, is, is_not), value, to (between only), attribute (optional) and style (color, size, weight, opacity, icon).",
                   example='[{"test": "above", "value": 30, "style": {"color": "bad"}}]'),
         ),
     ),
@@ -104,7 +104,7 @@ TOOLS: tuple[Tool, ...] = (
             Field("style", "object", "Style to change (merged). A key set to null is removed."),
             Field("auto_height", "boolean", "Let the height follow the content, or not."),
             Field("when_hidden", "text", "What an off or empty widget does to the layout: collapse (default) or keep.", options=("collapse", "keep")),
-            Field("show_when", "object", "A rule that switches the widget on and off: {match: all|any, conditions: [...]}. See get_schema for the condition kinds.",
+            Field("show_when", "object", "A rule that switches the widget on and off: match (all or any) and a list of conditions. See get_schema for the condition kinds.",
                   example='{"conditions": [{"kind": "empty", "widget": "sports"}]}'),
             Field("clear_show_when", "boolean", "Remove the widget's show-when rule."),
             Field("style_rules", "any", "Replace the widget's conditional formatting (see add_widget).", example='[{"test": "below", "value": 20, "style": {"color": "warn"}}]'),
@@ -147,7 +147,7 @@ TOOLS: tuple[Tool, ...] = (
     ),
     Tool(
         "set_pane", "Change the pane itself",
-        "Change the draft's name, description, theme, background colour, brightness or fade. Themes: moss, cream, creamnight, midnight, paper, slate, or original to remove it.",
+        "Change the draft's name, description, theme, background colour, photo background, brightness or fade. Themes: moss, cream, creamnight, midnight, paper, slate, or original to remove it.",
         (
             DRAFT,
             Field("name", "text", "The pane's name."),
@@ -157,6 +157,11 @@ TOOLS: tuple[Tool, ...] = (
             Field("brightness", "number", "Backlight percent to ask for while this pane shows (0 to 100).", minimum=0, maximum=100),
             Field("fade", "boolean", "Fade widgets in and out when their show-when rule switches them (new panes start with this on)."),
             Field("burn_in_saver", "boolean", "Drift the whole pane a few pixels very slowly, against burn-in on screens left on for hours."),
+            Field("photo_background", "object",
+                  "Photos behind the widgets from a Home Assistant media folder, with folder, photo (one file name; leave out for a slideshow of the "
+                  "folder), interval_s, shuffle, fade and dim (0 to 0.8, a dark veil so text stays readable). An empty object removes it. "
+                  "Not see-through on a mirror.",
+                  example={"folder": "photos/family", "dim": 0.4}),
         ),
     ),
     Tool(
@@ -166,8 +171,44 @@ TOOLS: tuple[Tool, ...] = (
         (DRAFT, Field("replace", "boolean", "Overwrite the pane this draft was started from (only for a draft started with edit).")),
     ),
     Tool("discard_draft", "Discard a draft", "Throw a draft away. Nothing else is changed.", (DRAFT,), destructive=True),
+    Tool(
+        "find_entities", "Find entities",
+        "Look up the person's entities before binding one (never invent an entity id). Filter by domain, area, words in the name, or the widget "
+        "you want to fill. Each result says which widget slots it fits. Names and places only, no states.",
+        (
+            Field("domain", "text", "Only this kind of entity, like weather, calendar, sensor or media_player.", example="calendar"),
+            Field("area", "text", "Only entities in this area (its name).", example="Kitchen"),
+            Field("text", "text", "Words that must all appear in the entity id, name or area.", example="family"),
+            Field("widget", "text", "Only entities made for this widget type (see get_schema).", example="calendar_agenda"),
+            Field("limit", "number", "At most this many results (default 50).", minimum=1, maximum=200),
+        ),
+        read_only=True,
+    ),
+    Tool(
+        "get_widget", "Get one widget's rules",
+        "Everything about one widget type: its entity slots, every option with its allowed values and default, and its named looks. "
+        "Use it after get_schema, for the widgets you are about to add.",
+        (Field("type", "text", "The widget type, as get_schema lists it.", True, "clock"),),
+        read_only=True,
+    ),
+    Tool(
+        "preview_draft", "Show a draft on a display",
+        "Show a draft on a display for a short while (default 2 minutes), then the display goes back to its own pane by itself. "
+        "Nothing is saved. Ask the person first: it takes over a screen in their home.",
+        (DRAFT, Field("display", "text", "The display's id (as list_panes' displays or the builder show it).", True, "mirror"),
+         Field("seconds", "number", "How long to show it (10 to 600, default 120).", minimum=10, maximum=600)),
+    ),
 )
 BY_NAME = {tool.name: tool for tool in TOOLS}
+
+
+def widget_rules(manager: Manager, widget_type: Any) -> dict[str, Any] | None:
+    """One widget type in full: its catalogue entry (slots, looks, basics) and its options from the pane schema."""
+    spec = manager.registry.get(widget_type) if isinstance(widget_type, str) else None
+    if spec is None:
+        return None
+    options = ((manager.pane_schema or {}).get("$defs") or {}).get(f"opt_{widget_type}", {}).get("properties", {})
+    return {"type": widget_type, **spec, "options": options}
 
 
 def _present(data: dict[str, Any], *names: str) -> dict[str, Any]:
@@ -185,6 +226,27 @@ async def call(manager: Manager, name: str, data: dict[str, Any]) -> dict[str, A
         return {"draft": draft["draft"], "name": draft["name"], "widgets": draft["widgets"], "next": "add_widget, place_widget, bind_widget ... then finish_draft"}
     if name == "list_drafts":
         return {"drafts": manager.list_drafts()}
+    if name == "find_entities":
+        from . import entity_lookup          # here, so this tool table can be read without Home Assistant
+
+        try:
+            return entity_lookup.find(manager.entity_rows(), manager.registry, domain=data.get("domain"), area=data.get("area"),
+                                      text=data.get("text"), widget=data.get("widget"), limit=data.get("limit"))
+        except ValueError as err:
+            raise ToolProblem([str(err)]) from None
+    if name == "get_widget":
+        found = widget_rules(manager, data.get("type"))
+        if found is None:
+            raise ToolProblem([f"there is no widget type '{data.get('type')}'; get_schema lists them"])
+        return found
+    if name == "preview_draft":
+        draft = manager.get_draft(data.get("draft"))
+        if draft is None:
+            raise ToolProblem([f"there is no draft '{data.get('draft')}' (list_drafts shows yours)"])
+        problem = await manager.start_preview(str(data.get("display") or ""), draft["pane"], draft["bindings"], data.get("seconds", 120))
+        if problem:
+            raise ToolProblem([problem])
+        return {"ok": True, "display": data.get("display"), "seconds": data.get("seconds", 120), "note": "the display goes back to its own pane by itself"}
     if name == "get_draft":
         draft = manager.get_draft(data.get("draft"))
         if draft is None:
@@ -228,7 +290,7 @@ async def call(manager: Manager, name: str, data: dict[str, Any]) -> dict[str, A
     elif name == "align_widgets":
         problems, result = await manager.edit_draft(draft_id, "align_widgets", widgets=data.get("widgets"), mode=data.get("mode"))
     else:  # set_pane
-        args = _present(data, "name", "description", "background", "brightness", "fade", "burn_in_saver")
+        args = _present(data, "name", "description", "background", "brightness", "fade", "burn_in_saver", "photo_background")
         if "theme" in data and data["theme"] is not None:
             args["theme"] = None if data["theme"] == "original" else data["theme"]
         problems, result = await manager.edit_draft(draft_id, "set_pane", **args)
