@@ -119,7 +119,7 @@ Once a display has its mirror set up (the mirror address), Home Assistant gets t
 |---|---|---|
 | `number.glass_panes_<display>_brightness` | The backlight, 0 to 100 % | Shows the mirror's real setting, read every 10 seconds. Unknown until something sets it (Android is in charge before that). 0 is as dark as the panel goes, not off. |
 | `switch.glass_panes_<display>_presence_detection` | Camera presence on or off | Follows the mirror: it changes by itself if presence is switched in the Settings page. Numbers only, never pictures. |
-| `switch.glass_panes_<display>_screen` | The screen on or off (mirror app 0.13.0 and later) | Off is fully black on mirror-android-2 and later; the mirror stays on the network, so switching it on works. Before the first "off", run `adb shell dpm set-active-admin com.nimrod.mirrorkiosk/.ScreenAdmin` once. Unavailable with an older app. |
+| `switch.glass_panes_<display>_screen` | The screen on or off (mirror app 0.13.0 and later) | Off is fully black on mirror-android-2 and later; the mirror stays on the network, so switching it on works. On mirror-android-3 it works straight away; on older images, run `adb shell dpm set-active-admin com.nimrod.mirrorkiosk/.ScreenAdmin` once before the first "off". Unavailable with an older app. |
 | `select.glass_panes_<display>_screen_mode` | How the screen is run: **Manual**, **Auto (quiet hours)**, **Always on**, **Always off** | Starts on Manual, which does nothing (the Screen switch is yours). See "Quiet hours" below. |
 | `time.glass_panes_<display>_screen_quiet_hours_start` / `..._end` | When quiet hours start and end | Only used in Auto. Home Assistant's time zone. Default 23:00 to 07:00. The same time twice means no quiet hours. |
 | `switch.glass_panes_<display>_bluetooth_proxy` | The mirror as a Bluetooth proxy (mirror app 0.13.0 and later) | Off by default. See "Voice and Bluetooth proxy" below. |
@@ -178,20 +178,17 @@ How to check, from least to most effort:
 
 ### The whole job at a glance
 
-You need a Windows computer with Google's `platform-tools` (`adb` and `fastboot`) and `scrcpy`, plus a **data** micro-USB cable. Every step is explained in the guides. This is only the shape of it, so you can see what you are signing up for.
+You need a Windows computer with Google's `platform-tools` (`adb` and `fastboot`), plus a **data** micro-USB cable. Every step is explained in the guide. This is only the shape of it, so you can see what you are signing up for.
 
-**Part 1: install Android** ([full guide](mirror-app/install-android-lululemon-studio.md)). Hold **VOL-** while the mirror powers on to enter fastboot, then, from the folder with the two downloaded images:
+**Install Android and the app** ([full guide](mirror-app/install-android-lululemon-studio.md)). Download the `mirror-android-3` release, hold **VOL-** while the mirror powers on to enter fastboot, then, from the folder with the download:
 
-```bash
-fastboot devices
-fastboot flash system system.img
-fastboot -S 0 flash userdata userdata.sparse
-fastboot reboot
+```powershell
+.\install-mirror.ps1 -ImageDir C:\mirror-android-3 -WifiSsid "Your network"
 ```
 
-The first boot takes about 5 minutes. Then use `scrcpy` to join Wi-Fi and stand the picture upright. The guide also covers the Windows USB driver, verifying the image hashes, and the project ADB key you need before the first boot.
+The installer checks the download, makes the mirror trust your computer's adb key, flashes it, joins your Wi-Fi and shows a six-digit code. The first boot takes about 5 minutes. Then pair it in Glass Panes: **Mirrors > Add mirror > Pair with a code**. The guide also covers the Windows USB driver and installing by hand on Linux.
 
-**Part 2: install the app** ([full guide](mirror-app/install-app-lululemon-studio.md)). Download `mirror-kiosk-v<version>.apk` from a release tagged `app-v...`, then:
+**Older images only (1 and 2):** **Part 2: install the app** ([full guide](mirror-app/install-app-lululemon-studio.md)). Download `mirror-kiosk-v<version>.apk` from a release tagged `app-v...`, then:
 
 ```bash
 adb devices

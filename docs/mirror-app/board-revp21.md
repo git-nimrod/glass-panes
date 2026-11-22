@@ -69,14 +69,9 @@ fastboot getvar partition-size:system
 fastboot getvar partition-size:userdata
 ```
 
-**2. Check the image files** (`system.img`, `userdata.sparse` and `SHA256SUMS` from the [`mirror-android-2` release](https://github.com/git-nimrod/glass-panes/releases/tag/mirror-android-2)). They must be:
+**2. Check the image files** (`system.img`, `userdata.sparse` and `SHA256SUMS` from the [`mirror-android-3` release](https://github.com/git-nimrod/glass-panes/releases/tag/mirror-android-3)). Both must match `SHA256SUMS`. The [installer](install-android-lululemon-studio.md#4-run-the-installer) checks this for you, puts in your own adb key and does steps 3 to 5 below by itself.
 
-```
-bdb6b8445296666162256affa968d590075f56a8ad2229930f8502b9703e35c1  system.img
-74b1f57ac20ce7c56065083a2bc3ddd283493be29d851fd04efc156ec96cf908  userdata.sparse
-```
-
-**3. Use the project ADB key** ([part 1, step 4](install-android-lululemon-studio.md#4-use-the-project-adb-key-on-your-computer)).
+**3. By hand only: use the project ADB key** ([Install by hand](install-android-lululemon-studio.md#install-by-hand)).
 
 **4. Flash** (this permanently erases the lululemon software):
 
@@ -88,7 +83,7 @@ fastboot reboot
 
 `system.img` goes in 4 chunks, about 82 seconds, without `-S`. `userdata` must be sent whole (`-S 0`).
 
-**5. First boot settings** (about 3 to 5 minutes after the reboot, when `adb devices -l` lists the mirror as `device`):
+**5. First boot.** With `mirror-android-3` the screen already stays on, the picture is upright and the app is built in: join Wi-Fi and pair the mirror as in [Install by hand](install-android-lululemon-studio.md#install-by-hand), steps 4 and 5. **Images 1 and 2 only** needed these settings (about 3 to 5 minutes after the reboot, when `adb devices -l` lists the mirror as `device`):
 
 ```bash
 adb shell settings put global stay_on_while_plugged_in 7
@@ -100,7 +95,7 @@ adb shell settings put system user_rotation 3
 
 Use `user_rotation 1` instead of `3` if the picture comes out upside down. Join Wi-Fi in Settings with `scrcpy`, then go on to [part 2: install the Glass Panes app](install-app-lululemon-studio.md).
 
-**Updating `system` only** (keeps the app, its settings, Wi-Fi and the key):
+**Updating `system` only** (from image 1 to image 2; it keeps the app, its settings, Wi-Fi and the key). Going to image 3 is a fresh install with the installer, because its userdata changed:
 
 ```bash
 adb reboot bootloader
@@ -108,7 +103,7 @@ fastboot flash system system.img
 fastboot reboot
 ```
 
-**Sleep and wake from a computer:** `adb shell input keyevent 223` (sleep) and `adb shell input keyevent 224` (wake). From Home Assistant, use the display's **Screen** switch instead (Mirror Kiosk app 0.13.0 and later; not yet tried on a mirror).
+**Sleep and wake from a computer:** `adb shell input keyevent 223` (sleep) and `adb shell input keyevent 224` (wake). From Home Assistant, use the display's **Screen** switch instead (Mirror Kiosk app 0.13.0 and later; fully dark on the tested unit).
 
 ## Reports
 

@@ -16,7 +16,7 @@ The flashing commands are the same as on Windows. Only the setup around them dif
 | Ubuntu | The **Ubuntu Desktop** download from [ubuntu.com/download/desktop](https://ubuntu.com/download/desktop) (an `.iso` file) |
 | A way to write it | Ubuntu's own guide: [Create a bootable USB stick on Windows](https://ubuntu.com/tutorials/create-a-usb-stick-on-windows) (it uses Rufus) |
 | A data micro-USB cable | Many cables only charge. This is the most common reason nothing shows up |
-| The images | `system.img`, `userdata.sparse` and `SHA256SUMS` from the [`mirror-android-2` release](https://github.com/git-nimrod/glass-panes/releases/tag/mirror-android-2) |
+| The images | `system.img`, `userdata.sparse` and `SHA256SUMS` from the [`mirror-android-3` release](https://github.com/git-nimrod/glass-panes/releases/tag/mirror-android-3) |
 | The project ADB key | `adbkey` and `adbkey.pub` from [`mirror-app/android/project-key/`](../../mirror-app/android/project-key/) |
 
 ## 1. Start Ubuntu from the USB stick
@@ -42,14 +42,14 @@ sudo apt install -y adb fastboot scrcpy
 
 ## 3. Download and check the images
 
-Download the three files from the [`mirror-android-2` release](https://github.com/git-nimrod/glass-panes/releases/tag/mirror-android-2) with the web browser (they land in `Downloads`). Then:
+Download the three files from the [`mirror-android-3` release](https://github.com/git-nimrod/glass-panes/releases/tag/mirror-android-3) with the web browser (they land in `Downloads`). Then:
 
 ```bash
 cd ~/Downloads
 sha256sum -c --ignore-missing SHA256SUMS
 ```
 
-**Expected:** `system.img: OK` and `userdata.sparse: OK`. The fingerprints are also in [part 1, step 3](install-android-lululemon-studio.md#3-download-and-check-the-images). Anything other than `OK`: download again. Never flash a file that does not match.
+**Expected:** `system.img: OK` and `userdata.sparse: OK`. The fingerprints are also on the release page. Anything other than `OK`: download again. Never flash a file that does not match.
 
 ## 4. Put the mirror in fastboot and find it
 
@@ -111,7 +111,7 @@ About 3 to 5 minutes after the reboot:
 adb devices -l
 ```
 
-**Expected:** the mirror listed as `device`. `unauthorized` means adb is not using the project key: repeat the lines above. Then carry on exactly as in [part 1, step 6](install-android-lululemon-studio.md#6-first-boot-then-set-up-with-scrcpy): run `scrcpy` to click through Settings and join Wi-Fi, and run the same `adb shell settings ...` commands (they are also on [the board page](board-revp21.md#the-exact-commands)).
+**Expected:** the mirror listed as `device`. `unauthorized` means adb is not using the project key: repeat the lines above. Then join Wi-Fi and pair the mirror exactly as in [Install by hand](install-android-lululemon-studio.md#install-by-hand), steps 4 and 5. With `mirror-android-3` the app is built in and the picture is already upright, so there's nothing to click through.
 
 ## If something goes wrong
 

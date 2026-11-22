@@ -16,7 +16,7 @@ $env:Path += ";$env:LOCALAPPDATA\Android\Sdk\platform-tools"
 
 | Command | What it does | Risk |
 |---|---|---|
-| `adb devices -l` | Lists connected devices. The mirror should say **`device`**. `unauthorized` means the mirror does not trust your computer's key (see [step 4 of part 1](install-android-lululemon-studio.md#4-use-the-project-adb-key-on-your-computer)). An empty list means there is no connection. Try another cable or port, or wait, because it takes about 3 to 5 minutes after boot | ✅ |
+| `adb devices -l` | Lists connected devices. The mirror should say **`device`**. `unauthorized` means the mirror does not trust your computer's key (on a mirror flashed by the installer, use the computer that ran it; flashed by hand, see [Install by hand](install-android-lululemon-studio.md#install-by-hand)). An empty list means there is no connection. Try another cable or port, or wait, because it takes about 3 to 5 minutes after boot | ✅ |
 | `adb kill-server` | Stops the background `adb` helper so the next command starts a fresh one. You need this after you swap the key in `%USERPROFILE%\.android\`, because an old helper keeps using the old key | ✅ |
 | `scrcpy` (or `scrcpy -w`) | Shows the mirror's screen in a window on your computer, and lets you click it with the mouse (the mirror's own touch screen does not work). `-w` keeps the mirror awake. The first time, the mirror may ask **"Allow USB debugging?"**. Tick *Always allow* and click OK | ✅ |
 | `adb shell ip -f inet addr show wlan0` | Prints the mirror's Wi-Fi address (look for `inet 192.168...`) | ✅ |
