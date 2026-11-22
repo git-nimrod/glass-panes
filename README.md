@@ -10,7 +10,7 @@
 
 Design screens for your **Lululemon Studio smart mirror** inside Home Assistant, then switch between them with your own automations. Each screen is a **pane**.
 
-> **Public beta (v0.12.x).** It works and it runs daily on a real mirror, but there are rough edges. If you hit one, please tell us (see [Beta testing](#beta-testing)).
+> **Public beta (v0.13.x).** It works and it runs daily on a real mirror, but there are rough edges. If you hit one, please tell us (see [Beta testing](#beta-testing)).
 
 > **What's next:** a Bluetooth proxy, a voice assistant, and support for the other FCC ID mirror are planned. See the [roadmap](docs/roadmap.md).
 
