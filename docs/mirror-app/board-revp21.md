@@ -37,7 +37,7 @@ What does **not** work, or is limited:
 
 | | |
 |---|---|
-| Touch | The mirror's own touch screen is not usable. Set it up with `scrcpy` over USB |
+| Touch | None at all: nothing on the glass responds to touch. Anything Android asks on screen has to be answered over `adb` or `scrcpy` over USB |
 | `adb` over Wi-Fi | Never authorized on this unit with `mirror-android-2` |
 | Time zone | Stuck on UTC. Glass Panes shows your Home Assistant's time zone, so you don't need to change it |
 | A soft reboot | Can leave stripes in thin text. A full power cut fixes it, and the app turns off the display feature that causes it |

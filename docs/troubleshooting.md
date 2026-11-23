@@ -43,4 +43,4 @@ English only, for now.
 Not with Home Assistant today. A display's login is an ordinary non-admin user, and Home Assistant can't restrict those to certain entities.
 
 **Where do I report bugs or ask questions?**
-On [GitHub Issues](https://github.com/git-nimrod/glass-panes/issues/new/choose). Never paste tokens or webhook addresses. A Discord for beta testers is being set up, and its link will go in the README.
+On [GitHub Issues](https://github.com/git-nimrod/glass-panes/issues/new/choose). Never paste tokens or webhook addresses. For quick questions there's also the [Discord](https://discord.gg/ueUDvpYGU).

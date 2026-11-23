@@ -370,7 +370,7 @@ function message(ctx) {
   const o = ctx.opts, entity = ctx.slots.entity;
   let out = ctx.root;
   if (o.look === 'bubble' || o.look === 'thought') {     // manga speech/thought bubble; its CSS loads only here
-    import('./bubble.js').catch(() => {});
+    import('./bubble.js').then((m) => m.ensureCss(ctx.root)).catch(() => {});
     out = el('div', 'gp-bubble ' + (o.look === 'bubble' ? 'gp-say' : 'gp-think') + ' gp-tail-' + (o.tail || 'left'));
     if (o.bubble_color) out.style.setProperty('--gp-bubble', o.bubble_color);
     ctx.root.appendChild(out);

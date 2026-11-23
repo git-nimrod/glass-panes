@@ -17,11 +17,13 @@ object Recovery {
     const val RESTART_COOLDOWN_MIN = 30
     const val DEFAULT_RELOAD_HOURS = 0              // 0 = never reload the page on a timer
     const val DEFAULT_ALIVE_REPORT_S = 60
+    const val DEFAULT_RECLAIM_FRONT_S = 0           // 0 = leave another app in front (the owner may be in Android's settings)
 
     val LOAD_TIMEOUT_S = 30..600
     val RESTART_AFTER_MIN = 0..240                   // 0 = never restart the app by itself
     val RELOAD_HOURS = 0..168
     val ALIVE_REPORT_S = 0..3600                     // 0 = do not send "still alive" messages to Home Assistant
+    val RECLAIM_FRONT_S = 0..3600                    // 0 = never come back to the front by itself
 
     /** Waits between tries after a stalled load: 10 s, 30 s, 1 min, 2 min, then 5 min. [attempt] counts from 0. */
     fun waitMs(attempt: Int): Long {
@@ -43,11 +45,20 @@ object Recovery {
     }
 
     /** Settings sent to /recovery/tune. A null means "not given". Returns an error sentence, or null when every given value is fine. */
-    fun check(loadTimeoutS: Int?, restartAfterMin: Int?, reloadHours: Int?, aliveReportS: Int?): String? {
+    fun check(loadTimeoutS: Int?, restartAfterMin: Int?, reloadHours: Int?, aliveReportS: Int?, reclaimFrontS: Int? = null): String? {
         if (loadTimeoutS != null && loadTimeoutS !in LOAD_TIMEOUT_S) return "load_timeout 30-600 seconds"
         if (restartAfterMin != null && restartAfterMin !in RESTART_AFTER_MIN) return "restart_after 0-240 minutes (0 = never)"
         if (reloadHours != null && reloadHours !in RELOAD_HOURS) return "reload_hours 0-168 (0 = never)"
         if (aliveReportS != null && aliveReportS !in ALIVE_REPORT_S) return "alive_report 0-3600 seconds (0 = off)"
+        if (reclaimFrontS != null && reclaimFrontS != 0 && reclaimFrontS !in 5..RECLAIM_FRONT_S.last) return "reclaim_front 5-3600 seconds (0 = off)"
         return null
     }
+
+    /**
+     * Another app's screen has covered the mirror's page for [reclaimFrontS] seconds: come back to the front? Only when the
+     * setting is on, the app is still covered, and the screen is on. A screen that is off (Home Assistant's Screen switch, quiet
+     * hours, Android's own sleep) also stops the page, and that must not wake anything.
+     */
+    fun shouldReclaimFront(reclaimFrontS: Int, inFront: Boolean, screenOn: Boolean, finishing: Boolean): Boolean =
+        reclaimFrontS > 0 && !inFront && screenOn && !finishing
 }

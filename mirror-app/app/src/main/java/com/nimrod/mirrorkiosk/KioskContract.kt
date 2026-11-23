@@ -14,7 +14,7 @@ object KioskContract {
     val CAPABILITIES = listOf(
         "status", "reload", "log", "pair", "brightness",
         "screen", "presence", "video", "audio", "recovery", "display_fix", "rotation", "mic_test", "bluetooth_test", "engine",
-        "esphome", "bluetooth_proxy", "voice", "wake_word",
+        "esphome", "bluetooth_proxy", "voice", "wake_word", "front",
     )
 
     /** Calls that exist only on some mirrors, added to the list at run time: "app_update" when the app may install its own updates. */

@@ -25,6 +25,7 @@
     "video": { "required": false, "paths": ["/video/start", "/video/stop"], "about": "A looping video played natively above the page. Without it the player uses the page's own video element." },
     "audio": { "required": false, "paths": ["/audio", "/audio/play", "/audio/pause", "/audio/resume", "/audio/stop", "/audio/seek", "/audio/volume"], "read_only_paths": ["/audio"], "about": "The kiosk's own speaker." },
     "recovery": { "required": false, "paths": ["/recovery", "/recovery/tune"], "read_only_paths": ["/recovery"], "about": "Settings for getting unstuck and the still-alive message." },
+    "front": { "required": false, "paths": ["/front"], "about": "Bring the page back to the front over another app's screen, and put the kiosk's own rotation back." },
     "display_fix": { "required": false, "paths": ["/display/fix"], "about": "Board-specific display clean-up (the Qualcomm board's adaptive backlight)." },
     "rotation": { "required": false, "paths": ["/rotation/<value>"], "about": "Turn the kiosk's own picture." },
     "mic_test": { "required": false, "paths": ["/mic/test"], "about": "How loud the microphone hears, numbers only." },

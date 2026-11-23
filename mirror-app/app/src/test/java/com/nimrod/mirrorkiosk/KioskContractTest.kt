@@ -18,13 +18,13 @@ class KioskContractTest {
     @Test fun statusFieldsAreValidJsonPieces() {
         val json = "{" + KioskContract.statusFields("msm8916") + "}"
         assertTrue(json.startsWith("{\"platform\":\"android\",\"board\":\"msm8916\",\"kiosk_api\":1,\"capabilities\":[\"status\","))
-        assertTrue(json.endsWith("\"engine\",\"esphome\",\"bluetooth_proxy\",\"voice\",\"wake_word\"]}"))
+        assertTrue(json.endsWith("\"engine\",\"esphome\",\"bluetooth_proxy\",\"voice\",\"wake_word\",\"front\"]}"))
     }
 
     @Test fun appUpdateIsListedOnlyWhenTheMirrorCanInstall() {
-        assertTrue(KioskContract.statusFields("msm8916", listOf("app_update")).endsWith("\"wake_word\",\"app_update\"]"))
-        assertTrue(KioskContract.statusFields("msm8916", emptyList()).endsWith("\"wake_word\"]"))
-        assertTrue("unknown extras are dropped", KioskContract.statusFields("msm8916", listOf("rm_rf")).endsWith("\"wake_word\"]"))
+        assertTrue(KioskContract.statusFields("msm8916", listOf("app_update")).endsWith("\"wake_word\",\"front\",\"app_update\"]"))
+        assertTrue(KioskContract.statusFields("msm8916", emptyList()).endsWith("\"front\"]"))
+        assertTrue("unknown extras are dropped", KioskContract.statusFields("msm8916", listOf("rm_rf")).endsWith("\"front\"]"))
     }
 
     @Test fun everyCapabilityIsInTheContractAndEveryRequiredOneIsListed() {

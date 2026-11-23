@@ -16,7 +16,7 @@ This takes about ten minutes and ends with a pane on a screen. Glass Panes is bu
 - **Displays** is where you list the screens you own, such as your mirror. Each display shows one pane at a time.
 - The **light / dark look** (top bar) is just for the builder itself. **Mirror view** draws your pane behind glass, marks the edges of the real screen, and warns you when something sits outside the safe zone.
 
-![The builder: your panes on the left, a preview of the selected pane in the middle](images/builder-panes.png)
+![The builder: your panes on the left, and a preview of the selected pane (a showcase of clocks, a radar map, the moon, tiles and rings) in the middle](images/builder-panes.png)
 
 ## 3. Make your first pane
 
@@ -25,8 +25,12 @@ This takes about ten minutes and ends with a pane on a screen. Glass Panes is bu
 3. **Start with an entity.** Search for one of your own (a weather entity, a calendar, a sensor). Glass Panes suggests the right widget for it. Click to drop it on the canvas.
 4. **Facets** is the drawer for things that need no entity: clock, date, text, picture, video, divider and message.
 
-   ![Edit mode: widgets with handles on the canvas, and your entities listed on the right](images/builder-edit.png)
-5. Drag to move, pull a corner to resize. Everything snaps to a 40 px grid. The align and distribute buttons tidy up a selection, and undo and redo are in the top bar.
+   ![Edit mode: the moon widget selected on the canvas, with its looks and settings on the right](images/builder-edit.png)
+5. Drag to move, pull a corner to resize. Everything snaps to a 40 px grid.
+
+   ![Dragging a widget across the canvas and back](images/builder-drag.gif)
+
+   The align and distribute buttons tidy up a selection, and undo and redo are in the top bar.
 6. Press **Save**. If a widget is hard to read (low contrast, or too small to read across a room), it gets a warning. Warnings never stop you from saving.
 
 **Pictures and videos:** select a picture or video widget and choose **Upload** in the panel on the right. You can pick a file from your computer, or a photo or file from your phone. Files go to protected storage, never a public folder. Pictures can be up to 25 MB, videos up to 100 MB, and SVG isn't allowed.
@@ -35,12 +39,14 @@ This takes about ten minutes and ends with a pane on a screen. Glass Panes is bu
 
 - **Theme** (the menu above the preview while you edit) restyles the whole pane at once. The choices are `moss`, `cream`, `creamnight`, `midnight`, `paper` and `slate`, and **Original** removes the theme. A two-way mirror only shows dark colours, so **Cream Night** (cream text on a very dark warm background) is the cream look made for glass. The bright **Cream** and **Paper** themes suit a tablet or wall panel better.
 - **Fonts** live in the Text section of a widget. Ten are bundled, and a font only downloads when a pane uses it.
+![Picking a different look for a clock, one click each](images/builder-looks.gif)
+
 - **Clock** has a **Look**: digital numbers, a traditional clock face, or an alarm clock (the two round looks also have a light or dark face and a red second hand with **Show seconds**). Its **Time zone** box shows another place's time, such as `America/Chicago`; the **Date** widget has one too.
 - **Now playing** has a **Look**: the default card, a spinning **vinyl** record with a tonearm, or a **CD**. They only move while a song is playing. The **Burn-in saver** switch drifts the block a few pixels over 40 minutes, so a screen left on for hours never holds the same pixels. It's off by default and works with every look.
 
 ## 4. Add your mirror
 
-![The Mirrors tab: the mirror's pane picker, its sign-in, and a button for its settings](images/builder-displays.png)
+![The Mirrors tab: the mirror's pane picker, its time zone, pairing, its sign-in, and a button for its settings](images/builder-displays.png)
 
 A mirror running the Glass Panes app (0.12.0 or newer) shows a six-digit code and its address when it is new. Go to **Mirrors > Add mirror**, type the code and the address, give it a name (for example "Hall mirror"), and press **Add and pair**. Home Assistant makes the mirror's login and sends it to the mirror itself; you never see a token. The mirror's card then says when it has loaded its page. Details: [installing the app, step 7](mirror-app/install-app-lululemon-studio.md#7-start-the-app-and-point-it-at-your-display).
 

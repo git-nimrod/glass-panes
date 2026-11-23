@@ -276,7 +276,8 @@ class ControlService : Service() {
                         val restart = args["restart_after"]?.toIntOrNull()
                         val reload = args["reload_hours"]?.toIntOrNull()
                         val alive = args["alive_report"]?.toIntOrNull()
-                        val bad = Recovery.check(timeout, restart, reload, alive)
+                        val reclaim = args["reclaim_front"]?.toIntOrNull()
+                        val bad = Recovery.check(timeout, restart, reload, alive, reclaim)
                         if (bad != null) {
                             reply(s, 400, """{"ok":false,"error":"$bad"}""")
                         } else {
@@ -285,10 +286,17 @@ class ControlService : Service() {
                             if (restart != null) ed.putInt("restart_after_min", restart)
                             if (reload != null) ed.putInt("reload_hours", reload)
                             if (alive != null) ed.putInt("alive_report_s", alive)
+                            if (reclaim != null) ed.putInt("reclaim_front_s", reclaim)
                             ed.apply()
                             Kiosk.log("settings", "recovery " + Kiosk.recoveryJson(this))
                             reply(s, 200, """{"ok":true,"recovery":${Kiosk.recoveryJson(this)}}""")
                         }
+                    }
+                    path == "/front" -> {
+                        // Bring the mirror's page back over another app's screen (a camera app that opened itself at boot, say)
+                        val wasInFront = Kiosk.activity?.inFront == true
+                        Kiosk.main.post { MainActivity.bringToFront(applicationContext, "asked over the network") }
+                        reply(s, 200, "{\"ok\":true,\"was_in_front\":$wasInFront}")
                     }
                     path == "/reload" -> {
                         Kiosk.main.post { Kiosk.activity?.reloadPage() }

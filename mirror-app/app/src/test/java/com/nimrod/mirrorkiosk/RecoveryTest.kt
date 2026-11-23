@@ -44,4 +44,19 @@ class RecoveryTest {
         assertNotNull(Recovery.check(null, null, null, 3601))
         assertNull(Recovery.check(null, 0, 0, 0))                                // the "off" values are allowed
     }
+
+    @Test fun reclaimFrontSettingRange() {
+        assertNull(Recovery.check(null, null, null, null, 0))                    // off
+        assertNull(Recovery.check(null, null, null, null, 60))
+        assertNotNull(Recovery.check(null, null, null, null, 2))                 // too quick: it would fight the owner in Settings
+        assertNotNull(Recovery.check(null, null, null, null, 3601))
+    }
+
+    @Test fun reclaimFrontOnlyWhenCoveredWithTheScreenOn() {
+        assertTrue(Recovery.shouldReclaimFront(60, inFront = false, screenOn = true, finishing = false))
+        assertFalse(Recovery.shouldReclaimFront(0, inFront = false, screenOn = true, finishing = false))      // setting off
+        assertFalse(Recovery.shouldReclaimFront(60, inFront = true, screenOn = true, finishing = false))      // already back
+        assertFalse(Recovery.shouldReclaimFront(60, inFront = false, screenOn = false, finishing = false))    // asleep, not covered
+        assertFalse(Recovery.shouldReclaimFront(60, inFront = false, screenOn = true, finishing = true))
+    }
 }

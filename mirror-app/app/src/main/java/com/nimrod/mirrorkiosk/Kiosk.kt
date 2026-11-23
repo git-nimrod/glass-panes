@@ -66,10 +66,11 @@ object Kiosk {
     fun restartAfterMin(ctx: Context): Int = prefs(ctx).getInt("restart_after_min", Recovery.DEFAULT_RESTART_AFTER_MIN)
     fun reloadHours(ctx: Context): Int = prefs(ctx).getInt("reload_hours", Recovery.DEFAULT_RELOAD_HOURS)
     fun aliveReportS(ctx: Context): Int = prefs(ctx).getInt("alive_report_s", Recovery.DEFAULT_ALIVE_REPORT_S)
+    fun reclaimFrontS(ctx: Context): Int = prefs(ctx).getInt("reclaim_front_s", Recovery.DEFAULT_RECLAIM_FRONT_S)
 
     fun recoveryJson(ctx: Context): String =
         "{\"load_timeout_s\":" + loadTimeoutS(ctx) + ",\"restart_after_min\":" + restartAfterMin(ctx) +
-            ",\"reload_hours\":" + reloadHours(ctx) + ",\"alive_report_s\":" + aliveReportS(ctx) + "}"
+            ",\"reload_hours\":" + reloadHours(ctx) + ",\"alive_report_s\":" + aliveReportS(ctx) + ",\"reclaim_front_s\":" + reclaimFrontS(ctx) + "}"
 
     fun prefs(ctx: Context): SharedPreferences =
         ctx.getSharedPreferences("kiosk", Context.MODE_PRIVATE)

@@ -18,9 +18,17 @@ const BUBBLE_CSS = `
 .gp-bubble.gp-think.gp-tail-none::before, .gp-bubble.gp-think.gp-tail-none::after { display: none; }
 `;
 
-if (typeof document !== 'undefined' && !document.getElementById('gp-bubble-css')) {
+/** Puts the bubble CSS where [node] is drawn: the page itself, or the shadow root the builder's preview draws into (a style in
+ *  the page's head does not reach inside a shadow root, so without this the builder showed the words with no bubble). */
+export function ensureCss(node) {
+  if (typeof document === 'undefined') return;
+  const root = node && node.getRootNode ? node.getRootNode() : document;
+  const where = root instanceof ShadowRoot ? root : document;
+  if ((where.getElementById ? where.getElementById('gp-bubble-css') : where.querySelector('#gp-bubble-css'))) return;
   const st = document.createElement('style');
   st.id = 'gp-bubble-css';
   st.textContent = BUBBLE_CSS;
-  (document.head || document.documentElement).appendChild(st);
+  (where === document ? (document.head || document.documentElement) : where).appendChild(st);
 }
+
+ensureCss(null);

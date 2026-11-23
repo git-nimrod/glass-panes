@@ -186,7 +186,7 @@ KIOSK_API = 1
 REQUIRED_CAPABILITIES = frozenset({"status", "reload", "log", "pair", "brightness"})
 KNOWN_CAPABILITIES = REQUIRED_CAPABILITIES | frozenset({
     "screen", "presence", "video", "audio", "recovery", "display_fix", "rotation", "mic_test", "bluetooth_test", "engine", "app_update",
-    "esphome", "bluetooth_proxy", "voice", "wake_word"})
+    "esphome", "bluetooth_proxy", "voice", "wake_word", "front"})
 PLATFORMS = ("android", "linux")
 _BOARD = re.compile(r"^[a-z0-9_.-]{1,40}\Z")
 

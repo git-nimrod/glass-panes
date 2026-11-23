@@ -29,7 +29,7 @@ Rough guide, not a promise: older units seem more likely to be the tested Qualco
 
 | | |
 |---|---|
-| A mirror | Model One with the **MIR63A0-00-P1 RevP21** board. The sticker is on the main board near the micro-USB and Ethernet end. (The "FW AD V1.01" sticker is **not** the board id.) RevP18 units are reported to behave differently |
+| A mirror | Model One with the **MIR63A0-00-P1 RevP21** board. The sticker is on the main board near the micro-USB and Ethernet end. (The "FW AD V1.01" sticker is **not** the board id.) RevP18, RevP19 and RevP20 units on newer stock software have also worked (see [which mirrors work](../compatibility.md#which-mirrors-work)) |
 | Cable and computer | A **data** micro-USB cable (many cables only charge) and a Windows computer with Google's `platform-tools` (`adb` and `fastboot`) on its PATH. [scrcpy](https://github.com/Genymobile/scrcpy) is optional: it's handy for seeing the screen, but the installer doesn't need it |
 | The files | `system.img`, `userdata.sparse`, `SHA256SUMS` and `install-mirror.ps1` from the [`mirror-android-3` release](https://github.com/git-nimrod/glass-panes/releases/tag/mirror-android-3) |
 | Home Assistant | Glass Panes v0.13.0 or newer, for pairing at the end |

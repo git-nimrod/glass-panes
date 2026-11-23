@@ -28,7 +28,7 @@ Other boards and firmware versions are untested by the project. If you try one, 
 - **For community projects for the newer board, see [Other boards and write-ups](../compatibility.md#other-boards-and-write-ups).**
 - **Anything else** — stop, and [tell us what yours says](https://github.com/git-nimrod/glass-panes/issues/new/choose) before buying or flashing.
 
-If you've already got the case open, there's a second sticker that confirms it: on the main board, near the micro-USB and Ethernet end, reading `MIR63A0-00-P1` followed by a revision (`RevP21`). The "FW AD V1.01" sticker is **not** the board id. The stock software version is in the mirror's original settings (for example `1.25.0`).
+If you've already got the case open, there's a second sticker that confirms it: on the main board, near the micro-USB and Ethernet end, reading `MIR63A0-00-P1` followed by a revision (`RevP21`). The "FW AD V1.01" sticker is **not** the board id. The stock software version is in the mirror's original settings (for example `1.25.0`). You can also read it without opening anything, in the lululemon Studio phone app: **Settings > tap the Mirror card > advanced settings > Software Version** ("Mirror OS version 1.27.0"). The "Version" at the bottom of the phone app's Settings page is the *phone app's* own version, not the mirror's, and sellers mix the two up. Reports so far suggest stock `1.x` versions are the Qualcomm board and `5.x` the newer NXP board, but that's only a couple of data points.
 
 ## What the bootloader reports
 
@@ -38,7 +38,7 @@ On the tested unit, `fastboot getvar <name>` returned these. Run the same on you
 |---|---|
 | `product` | MSM8916 |
 | `secure` | yes |
-| Unlocked / tampered | `false` / `false` (the bootloader is locked) |
+| Unlocked / tampered | `false` / `false` (the bootloader is locked). `fastboot getvar unlocked` may print an **empty** value instead of `false`; that is the same thing. `fastboot oem device-info` shows both |
 | `max-download-size` | 256 MiB |
 | `partition-size:system` | 1,288,491,008 bytes |
 | `partition-size:userdata` | 5,583,458,304 bytes |
